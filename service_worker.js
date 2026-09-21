@@ -183,11 +183,83 @@ function taskVars(task, payload, settings) {
       settings.falsePositiveGuidance?.[payload.issue?.code] ||
       "Judge the finding conservatively using the supplied page context. If the evidence is insufficient, choose manual_review.";
 
+    const rawEvidence =
+      payload.issue?.deterministicValue ?? null;
+
+    let specificEvidence =
+      rawEvidence;
+
+    if (
+      rawEvidence &&
+      typeof rawEvidence === "object" &&
+      !Array.isArray(rawEvidence) &&
+      Array.isArray(rawEvidence.examples)
+    ) {
+      specificEvidence = {
+        ...rawEvidence,
+        examples:
+          rawEvidence.examples.slice(0, 8),
+        examples_sent:
+          Math.min(
+            rawEvidence.examples.length,
+            8
+          ),
+        examples_total:
+          rawEvidence.count ??
+          rawEvidence.examples.length
+      };
+    } else if (Array.isArray(rawEvidence)) {
+      specificEvidence =
+        rawEvidence.slice(0, 8);
+    }
+
+    const context =
+      structuredClone(
+        payload.context || {}
+      );
+
+    // The affected evidence gets its own prominent prompt section.
+    // Remove duplicated nested copies so a small local model does not
+    // spend most of its context window rereading the same examples.
+    delete context.deterministicEvidence;
+
+    if (
+      context.linkEvidence?.stats &&
+      typeof context.linkEvidence.stats === "object"
+    ) {
+      delete context
+        .linkEvidence
+        .stats
+        .emptyAnchorExamples;
+    }
+
     return {
-      semantic_guidance: settings.semanticImportanceGuidance,
+      semantic_guidance:
+        settings.semanticImportanceGuidance,
       guidance,
-      issue_json: JSON.stringify(payload.issue, null, 2),
-      context_json: JSON.stringify(payload.context, null, 2)
+      evidence_json:
+        JSON.stringify(
+          specificEvidence,
+          null,
+          2
+        ),
+      issue_json:
+        JSON.stringify(
+          {
+            code:
+              payload.issue?.code || "",
+            message:
+              payload.issue?.message || ""
+          },
+          null,
+          2
+        ),
+      context_json:
+        JSON.stringify(
+          context,
+          null,
+          2
+        )
     };
   }
 
