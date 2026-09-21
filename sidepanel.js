@@ -865,7 +865,9 @@ function renderDomDiffSummary() {
       .join(" · ");
 
   el.textContent =
-    `${summary.totalDiffItems ?? 0} semantic difference(s)` +
+    `${summary.totalDiffItems ?? 0} net semantic difference(s)` +
+    `${summary.sourceDiffItems != null ? ` · ${summary.sourceDiffItems} source-level add/remove item(s)` : ""}` +
+    `${summary.reconciledPairs ? ` · ${summary.reconciledPairs} pair(s) reconciled` : ""}` +
     ` · ${summary.returnedDiffItems ?? 0} retained for analysis` +
     `${summary.droppedByCap ? ` · ${summary.droppedByCap} dropped by cap` : ""}` +
     `${kinds ? ` · ${kinds}` : ""}`;
@@ -1003,6 +1005,43 @@ function domDiffItemCard(item) {
     packed.href ||
     String(value || "");
 
+  const rawPacked =
+    item.raw &&
+    typeof item.raw === "object"
+      ? item.raw
+      : {text: item.raw || ""};
+
+  const renderedPacked =
+    item.rendered &&
+    typeof item.rendered === "object"
+      ? item.rendered
+      : {text: item.rendered || ""};
+
+  const rawText =
+    rawPacked.text ||
+    rawPacked.href ||
+    String(item.raw || "");
+
+  const renderedText =
+    renderedPacked.text ||
+    renderedPacked.href ||
+    String(item.rendered || "");
+
+  const valueHtml =
+    item.change_type === "changed_in_rendered"
+      ? (
+          `<div class="small"><strong>Server:</strong></div>` +
+          `<pre>${escapeHtml(rawText)}</pre>` +
+          `<div class="small"><strong>Rendered:</strong></div>` +
+          `<pre>${escapeHtml(renderedText)}</pre>` +
+          (
+            item.reconciliation
+              ? `<div class="muted small">Reconciled pair · ${escapeHtml(item.reconciliation.reason || "matched")} · score ${escapeHtml(item.reconciliation.score ?? "")}</div>`
+              : ""
+          )
+        )
+      : `<pre>${escapeHtml(text)}</pre>`;
+
   const d =
     document.createElement("div");
 
@@ -1015,7 +1054,7 @@ function domDiffItemCard(item) {
     <div class="small"><strong>Selector:</strong> ${escapeHtml(element.selector || "(not available)")}</div>
     <div class="small"><strong>Zone/component:</strong> ${escapeHtml(element.zone || "unknown")} / ${escapeHtml(element.component || "unknown")}</div>
     <div class="small"><strong>Semantic weight:</strong> ${escapeHtml(element.semantic_weight ?? "(none)")}</div>
-    <pre>${escapeHtml(text)}</pre>
+    ${valueHtml}
     <button class="secondary" data-dom-jira>Create Jira ticket</button>
     <div data-dom-jira-result></div>
   `;
