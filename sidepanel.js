@@ -2156,7 +2156,7 @@ $("#alignmentBtn").onclick = async () => {
         taskResults.alignment[mode][provider] = result;
 
         target.appendChild(
-          providerCard(provider, result, mode)
+          providerCard("alignment", provider, result, mode)
         );
       } catch (e) {
         const d = document.createElement("div");
@@ -2418,6 +2418,7 @@ $("#reviewUrlSignalsBtn").onclick =
 
         const card =
           providerCard(
+            "url_consistency",
             provider,
             result
           );
