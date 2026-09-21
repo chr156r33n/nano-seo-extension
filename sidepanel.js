@@ -306,37 +306,334 @@ async function runModeTask(task) {
 }
 
 function pageContextForIssue(issue) {
-  const ctx = {
-    url: snapshot.url,
-    title: snapshot.title,
-    metaDescription: snapshot.metaDescription,
-    canonical: snapshot.canonical,
-    robots: snapshot.robots,
-    viewport: snapshot.viewport,
-    h1s: snapshot.h1s,
-    h2s: snapshot.h2s.slice(0, 8),
-    headingDetails: (snapshot.headingDetails || []).slice(0, 30),
-    schemaTypes: snapshot.schemaTypes,
-    schemaParseErrors: snapshot.schemaParseErrors || [],
-    robotsMetaValues: snapshot.robotsMetaValues || [],
-    linkStats: snapshot.linkStats || {},
-    socialMeta: snapshot.socialMeta || {},
-    imageStats: snapshot.imageStats || {},
-    imageCount: snapshot.imageCount,
-    missingAltCount: snapshot.missingAltCount,
-    emptyAltCount: snapshot.emptyAltCount,
-    missingImageDimensionsCount: snapshot.missingImageDimensionsCount
+  const code =
+    issue?.code || "";
+
+  const base = {
+    url:
+      snapshot.url,
+    pathname:
+      (() => {
+        try {
+          return new URL(
+            snapshot.url
+          ).pathname;
+        } catch {
+          return "";
+        }
+      })(),
+    title:
+      snapshot.title,
+    metaDescription:
+      snapshot.metaDescription,
+    canonical:
+      snapshot.canonical,
+    robots:
+      snapshot.robots,
+    h1s:
+      snapshot.h1s || [],
+    schemaTypes:
+      snapshot.schemaTypes || [],
+    deterministicEvidence:
+      issue?.deterministicValue ?? null
   };
 
-  if (["h1_presence", "multiple_h1"].includes(issue.code)) {
-    ctx.bodyExcerpt = snapshot.bodyText.slice(0, 3500);
-  }
+  const pagePurpose = {
+    title:
+      snapshot.title,
+    metaDescription:
+      snapshot.metaDescription,
+    h1s:
+      snapshot.h1s || [],
+    h2s:
+      (snapshot.h2s || []).slice(0, 8),
+    schemaTypes:
+      snapshot.schemaTypes || [],
+    buttons:
+      (snapshot.buttons || []).slice(0, 15),
+    structuralSignals:
+      snapshot.structuredDigest
+        ?.structuralSignals || {},
+    mainTextExcerpt:
+      (
+        snapshot.structuredDigest
+          ?.mainTextExcerpt ||
+        snapshot.bodyText ||
+        ""
+      ).slice(0, 3000)
+  };
 
-  if (issue.code === "images_missing_alt") {
-    ctx.bodyExcerpt = snapshot.bodyText.slice(0, 1500);
-  }
+  const urlIdentity = {
+    currentUrl:
+      snapshot.url,
+    canonicals:
+      snapshot.canonicals || [],
+    urlSignals:
+      effectiveUrlSignals(),
+    socialMeta:
+      snapshot.socialMeta || {}
+  };
 
-  return ctx;
+  const contexts = {
+    h1_presence: {
+      ...base,
+      pagePurpose,
+      headings:
+        (snapshot.headingDetails || [])
+          .slice(0, 30)
+    },
+
+    multiple_h1: {
+      ...base,
+      pagePurpose,
+      headings:
+        (snapshot.headingDetails || [])
+          .filter(
+            h =>
+              h.tag === "h1"
+          )
+          .slice(0, 20)
+    },
+
+    title_presence: {
+      ...base,
+      pagePurpose,
+      indexabilitySignals: {
+        robots:
+          snapshot.robots,
+        canonicals:
+          snapshot.canonicals || []
+      }
+    },
+
+    title_length: {
+      ...base,
+      pagePurpose
+    },
+
+    meta_description_presence: {
+      ...base,
+      pagePurpose,
+      indexabilitySignals: {
+        robots:
+          snapshot.robots,
+        canonicals:
+          snapshot.canonicals || []
+      }
+    },
+
+    meta_description_length: {
+      ...base,
+      pagePurpose
+    },
+
+    canonical_presence: {
+      ...base,
+      pagePurpose,
+      urlIdentity,
+      queryString:
+        (() => {
+          try {
+            return new URL(
+              snapshot.url
+            ).search;
+          } catch {
+            return "";
+          }
+        })()
+    },
+
+    multiple_canonical: {
+      ...base,
+      urlIdentity
+    },
+
+    canonical_cross_origin: {
+      ...base,
+      urlIdentity
+    },
+
+    canonical_fragment: {
+      ...base,
+      urlIdentity
+    },
+
+    canonical_protocol_downgrade: {
+      ...base,
+      urlIdentity
+    },
+
+    robots_noindex: {
+      ...base,
+      pagePurpose,
+      robotsMetaValues:
+        snapshot.robotsMetaValues || [],
+      urlIdentity
+    },
+
+    robots_conflict: {
+      ...base,
+      robotsMetaValues:
+        snapshot.robotsMetaValues || [],
+      pagePurpose
+    },
+
+    images_missing_alt: {
+      ...base,
+      imageEvidence: {
+        total:
+          snapshot.imageStats?.total || 0,
+        affected:
+          snapshot.imageStats?.missingAlt || 0,
+        examples:
+          snapshot.imageStats
+            ?.missingAltExamples || []
+      }
+    },
+
+    images_empty_alt: {
+      ...base,
+      imageEvidence: {
+        total:
+          snapshot.imageStats?.total || 0,
+        affected:
+          snapshot.imageStats?.emptyAlt || 0,
+        examples:
+          snapshot.imageStats
+            ?.emptyAltExamples || []
+      }
+    },
+
+    images_missing_dimensions: {
+      ...base,
+      imageEvidence: {
+        total:
+          snapshot.imageStats?.total || 0,
+        affected:
+          snapshot.imageStats
+            ?.missingDimensions || 0,
+        examples:
+          snapshot.imageStats
+            ?.missingDimensionExamples || []
+      }
+    },
+
+    heading_hierarchy: {
+      ...base,
+      pagePurpose,
+      headings:
+        (snapshot.headingDetails || [])
+          .slice(0, 40)
+    },
+
+    html_lang_presence: {
+      ...base,
+      htmlLang:
+        snapshot.htmlLang || "",
+      urlIdentity
+    },
+
+    html_lang_format: {
+      ...base,
+      htmlLang:
+        snapshot.htmlLang || "",
+      urlIdentity
+    },
+
+    jsonld_parse_error: {
+      ...base,
+      schemaTypes:
+        snapshot.schemaTypes || [],
+      schemaParseErrors:
+        snapshot.schemaParseErrors || []
+    },
+
+    hreflang_duplicate_value: {
+      ...base,
+      urlIdentity
+    },
+
+    hreflang_unapproved_value: {
+      ...base,
+      urlIdentity
+    },
+
+    hreflang_invalid_format: {
+      ...base,
+      urlIdentity
+    },
+
+    hreflang_empty_href: {
+      ...base,
+      urlIdentity
+    },
+
+    open_graph_incomplete: {
+      ...base,
+      urlIdentity
+    },
+
+    og_url_mismatch: {
+      ...base,
+      urlIdentity
+    },
+
+    twitter_card_incomplete: {
+      ...base,
+      socialMeta:
+        snapshot.socialMeta || {}
+    },
+
+    favicon_presence: {
+      ...base,
+      socialMeta:
+        snapshot.socialMeta || {}
+    },
+
+    links_empty_anchor: {
+      ...base,
+      linkEvidence: {
+        stats:
+          snapshot.linkStats || {},
+        examples:
+          snapshot.linkStats
+            ?.emptyAnchorExamples || []
+      }
+    },
+
+    internal_http_links: {
+      ...base,
+      linkEvidence: {
+        stats:
+          snapshot.linkStats || {},
+        examples:
+          Array.isArray(
+            issue?.deterministicValue
+          )
+            ? issue.deterministicValue
+            : []
+      }
+    },
+
+    viewport_presence: {
+      ...base,
+      viewport:
+        snapshot.viewport || "",
+      pagePurpose
+    }
+  };
+
+  return (
+    contexts[code] || {
+      ...base,
+      pagePurpose,
+      urlIdentity,
+      linkStats:
+        snapshot.linkStats || {},
+      imageStats:
+        snapshot.imageStats || {}
+    }
+  );
 }
 
 function renderIssues() {
