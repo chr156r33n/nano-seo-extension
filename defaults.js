@@ -111,17 +111,25 @@ PAGE SUMMARY:
     },
 
     false_positive: {
-      system: "You triage deterministic SEO audit findings. A detected rule condition is evidence, not proof of an SEO problem. Judge the specific values or elements supplied for this finding, not the rule in the abstract. Cite concrete supplied evidence in the rationale. Do not infer characteristics that are not present in the evidence. If the evidence is insufficient to judge the actual affected element or value, prefer manual_review.",
+      system: "You triage deterministic SEO audit findings. The SPECIFIC AFFECTED EVIDENCE is the primary evidence and must be inspected before using general page context. A detected rule condition is evidence, not proof of an SEO problem. Cite concrete supplied values, URLs, selectors, zones or element properties in evidence_used and the rationale. Do not infer characteristics that are not present in the evidence. Never say you could not inspect the affected items when specific examples were supplied. If the supplied evidence is genuinely insufficient to judge an item, mark that item manual_review and prefer an overall manual_review when appropriate.",
       user: `Assess whether this deterministic audit finding is likely a real problem on this specific page.
 
-Classify it as exactly one of:
+Classify the overall finding as exactly one of:
 likely_valid
 likely_false_positive
 context_dependent
 manual_review
 
-GLOBAL SEMANTIC IMPORTANCE GUIDANCE:
-{{semantic_guidance}}
+IMPORTANT:
+- Inspect SPECIFIC AFFECTED EVIDENCE first.
+- Do not base the judgement mainly on aggregate page counts.
+- evidence_used must identify concrete supplied evidence, not generic SEO principles.
+- If the evidence contains an examples array, assess every supplied example individually in item_assessments.
+- For item_assessments use likely_problem, likely_harmless, or manual_review.
+- If there are no individual examples, return an empty item_assessments array.
+
+SPECIFIC AFFECTED EVIDENCE:
+{{evidence_json}}
 
 RULE-SPECIFIC GUIDANCE:
 {{guidance}}
@@ -130,7 +138,10 @@ FINDING:
 {{issue_json}}
 
 PAGE CONTEXT:
-{{context_json}}`
+{{context_json}}
+
+GLOBAL SEMANTIC IMPORTANCE GUIDANCE:
+{{semantic_guidance}}`
     },
 
     dom_diff_triage: {
@@ -276,7 +287,7 @@ EXAMPLE URL:
 
     images_missing_dimensions: `Missing width/height attributes can contribute to layout instability when dimensions are not otherwise reserved by CSS or aspect-ratio. Do not assume the absence of attributes alone proves CLS impact.`,
 
-    links_empty_anchor: `Judge the supplied empty-anchor examples, not empty links in the abstract. Use each example's href, selector, zone/component, visibility, nearby text, child tags and image/SVG signals. Do not infer that an empty anchor is navigational merely because the page has many internal links. A visible link to a meaningful destination with no visible or accessible name is more likely to be a real issue. Hidden/template/placeholder anchors, empty hash targets, or non-user-facing implementation artefacts may be lower concern or false positives. An icon/image link is still concerning when it genuinely has no accessible text alternative. If the supplied examples do not reveal what the link does, prefer manual_review rather than generalising.`,
+    links_empty_anchor: `Judge each supplied empty-anchor example, not empty links in the abstract. For every example inspect its href/rawHref, selector, zone/component, visible_on_page, nearby_text, child_tags and image/SVG signals. Your evidence_used must mention at least one specific supplied href or selector when examples are present. Do not use the total internal-link count as evidence that an empty anchor is good or bad, and do not infer that a link is navigational merely because the page has many internal links. A visible link to a meaningful destination with no visible or accessible name is more likely to be a real issue. Hidden/template/placeholder anchors, empty hash targets, or non-user-facing implementation artefacts may be lower concern or false positives. An icon/image link is still concerning when it genuinely has no accessible text alternative. If an individual example cannot be understood from the supplied fields, mark that example manual_review rather than generalising.`,
 
     internal_http_links: `Internal HTTP links on an HTTPS page are usually undesirable when an HTTPS equivalent exists, because they can introduce redirects or inconsistent secure URL references.`,
 
@@ -453,11 +464,55 @@ const TASK_SCHEMAS = {
           "manual_review"
         ]
       },
-      confidence: { type: "number", minimum: 0, maximum: 1 },
-      rationale: { type: "string" },
+      confidence: {
+        type: "number",
+        minimum: 0,
+        maximum: 1
+      },
+      rationale: {
+        type: "string"
+      },
+      evidence_used: {
+        type: "array",
+        items: {
+          type: "string"
+        },
+        maxItems: 6
+      },
+      item_assessments: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            item: {
+              type: "string"
+            },
+            judgement: {
+              type: "string",
+              enum: [
+                "likely_problem",
+                "likely_harmless",
+                "manual_review"
+              ]
+            },
+            rationale: {
+              type: "string"
+            }
+          },
+          required: [
+            "item",
+            "judgement",
+            "rationale"
+          ],
+          additionalProperties: false
+        },
+        maxItems: 8
+      },
       useful_context: {
         type: "array",
-        items: { type: "string" },
+        items: {
+          type: "string"
+        },
         maxItems: 5
       }
     },
@@ -465,6 +520,8 @@ const TASK_SCHEMAS = {
       "judgement",
       "confidence",
       "rationale",
+      "evidence_used",
+      "item_assessments",
       "useful_context"
     ],
     additionalProperties: false
