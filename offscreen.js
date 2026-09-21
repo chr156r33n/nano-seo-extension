@@ -25,6 +25,34 @@ function parseJson(text) {
   }
 }
 
+function nanoContextError({
+  requested,
+  available,
+  contextWindow
+}) {
+  const error =
+    new Error(
+      `Nano input is too large: ${requested ?? "unknown"} tokens requested, ${available ?? contextWindow ?? "unknown"} available in this session.`
+    );
+
+  error.name =
+    "NanoContextBudgetError";
+
+  error.code =
+    "NANO_INPUT_TOO_LARGE";
+
+  error.requested =
+    requested ?? null;
+
+  error.available =
+    available ?? null;
+
+  error.contextWindow =
+    contextWindow ?? null;
+
+  return error;
+}
+
 function sessionKey(msg) {
   return JSON.stringify({
     task:
@@ -387,17 +415,123 @@ async function runNano(msg) {
       : null;
 
   try {
+    // Keep structured-output enforcement, but do not inject the JSON
+    // schema into Nano's model context. Chrome documents the schema as
+    // consuming context-window tokens unless this option is enabled.
+    const promptOptions = {
+      responseConstraint:
+        msg.schema,
+      omitResponseConstraintInput:
+        true
+    };
+
+    let measuredInputUsage =
+      null;
+
+    let measureMs =
+      0;
+
+    const availableContext =
+      Number.isFinite(
+        contextWindow
+      )
+        ? Math.max(
+            0,
+            contextWindow -
+            (
+              Number.isFinite(
+                contextUsageBefore
+              )
+                ? contextUsageBefore
+                : 0
+            )
+          )
+        : null;
+
+    if (
+      typeof session
+        .measureContextUsage ===
+      "function"
+    ) {
+      const measureStarted =
+        performance.now();
+
+      measuredInputUsage =
+        await session
+          .measureContextUsage(
+            msg.prompt,
+            promptOptions
+          );
+
+      measureMs =
+        Math.round(
+          performance.now() -
+          measureStarted
+        );
+
+      if (
+        Number.isFinite(
+          measuredInputUsage
+        ) &&
+        Number.isFinite(
+          availableContext
+        ) &&
+        measuredInputUsage >
+          availableContext
+      ) {
+        throw nanoContextError({
+          requested:
+            measuredInputUsage,
+          available:
+            availableContext,
+          contextWindow
+        });
+      }
+    }
+
     const promptStarted =
       performance.now();
 
-    const raw =
-      await session.prompt(
-        msg.prompt,
-        {
-          responseConstraint:
-            msg.schema
-        }
-      );
+    let raw;
+
+    try {
+      raw =
+        await session.prompt(
+          msg.prompt,
+          promptOptions
+        );
+    } catch (error) {
+      if (
+        error?.name ===
+          "QuotaExceededError" ||
+        /input is too large|too large|context window/i.test(
+          String(
+            error?.message ||
+            error ||
+            ""
+          )
+        )
+      ) {
+        throw nanoContextError({
+          requested:
+            Number.isFinite(
+              error?.requested
+            )
+              ? error.requested
+              : measuredInputUsage,
+          available:
+            availableContext,
+          contextWindow:
+            Number.isFinite(
+              error?.contextWindow
+            )
+              ? error.contextWindow
+              : contextWindow
+        });
+      }
+
+      throw error;
+    }
 
     const promptMs =
       Math.round(
@@ -448,6 +582,8 @@ async function runNano(msg) {
           cloneMs:
             baseInfo
               .cloneMs,
+          measureContextMs:
+            measureMs,
           promptMs,
           parseMs
         },
@@ -480,7 +616,9 @@ async function runNano(msg) {
             JSON.stringify(
               msg.schema ||
               {}
-            ).length
+            ).length,
+          responseConstraintInputOmitted:
+            true
         },
         output: {
           responseChars:
@@ -492,10 +630,24 @@ async function runNano(msg) {
         context: {
           usageBefore:
             contextUsageBefore,
+          measuredInputUsage,
+          availableBefore:
+            availableContext,
           usageAfter:
             contextUsageAfter,
           window:
-            contextWindow
+            contextWindow,
+          measuredUtilisation:
+            Number.isFinite(
+              measuredInputUsage
+            ) &&
+            Number.isFinite(
+              availableContext
+            ) &&
+            availableContext > 0
+              ? measuredInputUsage /
+                availableContext
+              : null
         }
       }
     };
@@ -534,7 +686,28 @@ chrome.runtime
                 String(
                   e?.message ||
                   e
+                ),
+              errorCode:
+                e?.code ||
+                null,
+              requested:
+                Number.isFinite(
+                  e?.requested
                 )
+                  ? e.requested
+                  : null,
+              available:
+                Number.isFinite(
+                  e?.available
+                )
+                  ? e.available
+                  : null,
+              contextWindow:
+                Number.isFinite(
+                  e?.contextWindow
+                )
+                  ? e.contextWindow
+                  : null
             })
         );
 
