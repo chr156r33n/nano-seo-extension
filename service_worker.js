@@ -1940,30 +1940,112 @@ async function captureActiveTab() {
         const imgs =
           [...document.images];
 
-        const missingAlt =
-          imgs.filter(
+        const imageDetails =
+          imgs.map(
+            (i, index) => {
+              const link =
+                i.closest("a");
+
+              const closest =
+                i.closest(
+                  "figure,picture,nav,header,footer,main,article,aside,section,li,p,div"
+                );
+
+              const rect =
+                i.getBoundingClientRect();
+
+              const style =
+                getComputedStyle(i);
+
+              return {
+                id:
+                  index + 1,
+                src:
+                  i.currentSrc ||
+                  i.src ||
+                  i.getAttribute("src") ||
+                  "",
+                has_alt:
+                  i.hasAttribute("alt"),
+                alt:
+                  i.getAttribute("alt") || "",
+                linked:
+                  !!link,
+                link_href:
+                  link?.href ||
+                  link?.getAttribute("href") ||
+                  "",
+                width_attr:
+                  i.getAttribute("width") || "",
+                height_attr:
+                  i.getAttribute("height") || "",
+                rendered_width:
+                  Math.round(rect.width || 0),
+                rendered_height:
+                  Math.round(rect.height || 0),
+                natural_width:
+                  i.naturalWidth || 0,
+                natural_height:
+                  i.naturalHeight || 0,
+                css_aspect_ratio:
+                  style.aspectRatio &&
+                  style.aspectRatio !== "auto"
+                    ? style.aspectRatio
+                    : "",
+                loading:
+                  i.loading ||
+                  i.getAttribute("loading") ||
+                  "",
+                visible_on_page:
+                  !i.hidden &&
+                  i.getAttribute("aria-hidden") !== "true" &&
+                  style.display !== "none" &&
+                  style.visibility !== "hidden" &&
+                  style.opacity !== "0" &&
+                  (
+                    rect.width > 0 ||
+                    rect.height > 0 ||
+                    i.getClientRects().length > 0
+                  ),
+                nearby_text:
+                  txt(closest)
+                    .slice(
+                      0,
+                      contextChars
+                    ),
+                ...elementContext(i)
+              };
+            }
+          );
+
+        const missingAltImages =
+          imageDetails.filter(
             i =>
-              !i.hasAttribute(
-                "alt"
-              )
-          ).length;
+              !i.has_alt
+          );
+
+        const emptyAltImages =
+          imageDetails.filter(
+            i =>
+              i.has_alt &&
+              !i.alt.trim()
+          );
+
+        const missingDimensionImages =
+          imageDetails.filter(
+            i =>
+              !i.width_attr ||
+              !i.height_attr
+          );
+
+        const missingAlt =
+          missingAltImages.length;
 
         const emptyAlt =
-          imgs.filter(
-            i =>
-              i.hasAttribute(
-                "alt"
-              ) &&
-              !i.getAttribute("alt")
-                ?.trim()
-          ).length;
+          emptyAltImages.length;
 
         const missingImageDimensions =
-          imgs.filter(
-            i =>
-              !i.hasAttribute("width") ||
-              !i.hasAttribute("height")
-          ).length;
+          missingDimensionImages.length;
 
         const imageStats = {
           total:
@@ -1977,7 +2059,13 @@ async function captureActiveTab() {
               i =>
                 i.loading === "lazy" ||
                 i.getAttribute("loading") === "lazy"
-            ).length
+            ).length,
+          missingAltExamples:
+            missingAltImages.slice(0, 20),
+          emptyAltExamples:
+            emptyAltImages.slice(0, 20),
+          missingDimensionExamples:
+            missingDimensionImages.slice(0, 20)
         };
 
         const buttons =
@@ -2382,7 +2470,7 @@ async function captureActiveTab() {
           canonicals.length > 1
             ? `${canonicals.length} canonical links found`
             : "No multiple-canonical condition detected",
-          canonicals.length
+          canonicals
         );
 
         const crossOriginCanonical =
@@ -2436,7 +2524,15 @@ async function captureActiveTab() {
           missingAlt > 0
             ? `${missingAlt} images lack an alt attribute`
             : "All images have an alt attribute",
-          missingAlt
+          {
+            count:
+              missingAlt,
+            examples:
+              missingAltImages.slice(0, 20),
+            examples_capped:
+              missingAlt >
+              20
+          }
         );
 
         addCheck(
@@ -2683,7 +2779,15 @@ async function captureActiveTab() {
           emptyAlt > 0
             ? `${emptyAlt} image(s) have an empty alt attribute`
             : "No images have an empty alt attribute",
-          emptyAlt
+          {
+            count:
+              emptyAlt,
+            examples:
+              emptyAltImages.slice(0, 20),
+            examples_capped:
+              emptyAlt >
+              20
+          }
         );
 
         addCheck(
@@ -2694,7 +2798,15 @@ async function captureActiveTab() {
           missingImageDimensions > 0
             ? `${missingImageDimensions} image(s) lack explicit width and/or height attributes`
             : "All images declare width and height attributes",
-          missingImageDimensions
+          {
+            count:
+              missingImageDimensions,
+            examples:
+              missingDimensionImages.slice(0, 20),
+            examples_capped:
+              missingImageDimensions >
+              20
+          }
         );
 
         addCheck(
