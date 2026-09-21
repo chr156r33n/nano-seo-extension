@@ -303,12 +303,13 @@ async function ensureOffscreen() {
   });
 }
 
-async function callNano({system, prompt, schema, settings}) {
+async function callNano({task, system, prompt, schema, settings}) {
   await ensureOffscreen();
 
   const resp = await chrome.runtime.sendMessage({
     target: "offscreen",
     type: "RUN_NANO",
+    sessionKey: task,
     system,
     prompt,
     schema,
@@ -762,6 +763,7 @@ async function runTask({
 
   try {
     const args = {
+      task,
       system,
       prompt,
       schema,
@@ -841,6 +843,8 @@ async function runTask({
         result?.parsed || null,
       usage:
         result?.meta?.usage || null,
+      providerMeta:
+        result?.meta || null,
       error
     },
     inputMode
@@ -876,7 +880,9 @@ async function runTask({
       inputMode,
       durationMs,
       usage:
-        result.meta?.usage || null
+        result.meta?.usage || null,
+      providerMeta:
+        result.meta || null
     }
   };
 }
