@@ -111,7 +111,7 @@ PAGE SUMMARY:
     },
 
     false_positive: {
-      system: "You triage deterministic SEO audit findings. A detected rule condition is evidence, not proof of an SEO problem. Use the supplied page context plus the rule-specific guidance. Do not invent missing evidence. If the evidence is insufficient, prefer manual_review.",
+      system: "You triage deterministic SEO audit findings. A detected rule condition is evidence, not proof of an SEO problem. Judge the specific values or elements supplied for this finding, not the rule in the abstract. Cite concrete supplied evidence in the rationale. Do not infer characteristics that are not present in the evidence. If the evidence is insufficient to judge the actual affected element or value, prefer manual_review.",
       user: `Assess whether this deterministic audit finding is likely a real problem on this specific page.
 
 Classify it as exactly one of:
