@@ -1,25 +1,21 @@
 
 importScripts("defaults.js", "db.js");
 
-async function disableAutomaticSidePanelAction() {
+async function enableAutomaticSidePanelAction() {
   try {
-    // v0.8 enabled this preference. Chrome persists it across extension
-    // reloads/updates, so it must be explicitly switched off. When true,
-    // the toolbar icon opens the panel directly and action.onClicked does
-    // not fire, which prevents us recording the activeTab-granted tab.
     await chrome.sidePanel.setPanelBehavior({
-      openPanelOnActionClick: false
+      openPanelOnActionClick: true
     });
   } catch (e) {
     console.error(
-      "Could not reset side panel action behaviour:",
+      "Could not enable Nano SEO Lab side panel action:",
       e
     );
   }
 }
 
 chrome.runtime.onInstalled.addListener(async () => {
-  await disableAutomaticSidePanelAction();
+  await enableAutomaticSidePanelAction();
 
   const {settings} =
     await chrome.storage.local.get("settings");
@@ -32,27 +28,15 @@ chrome.runtime.onInstalled.addListener(async () => {
 });
 
 chrome.runtime.onStartup.addListener(async () => {
-  await disableAutomaticSidePanelAction();
+  await enableAutomaticSidePanelAction();
 });
 
-// Also reset it whenever this service worker starts, so an old persisted
-// preference cannot survive a developer reload.
-disableAutomaticSidePanelAction();
-
-chrome.action.onClicked.addListener((tab) => {
-  if (!tab?.id) return;
-
-  // sidePanel.open() must be invoked directly from the user gesture.
-  // Do not await storage or any other async work before this call.
-  chrome.sidePanel.open({
-    tabId: tab.id
-  }).catch((e) => {
-    console.error(
-      "Could not open Nano SEO Lab side panel:",
-      e
-    );
-  });
-});
+// Restore Chrome's native toolbar-icon → side-panel behaviour whenever
+// the service worker starts. This is more reliable than manually opening
+// the panel from action.onClicked, and the extension no longer needs the
+// old custom "authorised tab" bookkeeping that originally motivated the
+// workaround.
+enableAutomaticSidePanelAction();
 
 async function getSettings() {
   const {settings} = await chrome.storage.local.get("settings");
