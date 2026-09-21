@@ -210,6 +210,9 @@ function providerCard(task, provider, result, mode = null) {
   const session =
     nanoMeta.session || {};
 
+  const contextMeta =
+    nanoMeta.context || {};
+
   const timingChips =
     provider === "nano" &&
     !meta.cacheHit
@@ -225,9 +228,19 @@ function providerCard(task, provider, result, mode = null) {
             ? `<span class="mini-chip">clone ${escapeHtml(timing.cloneMs)} ms</span>`
             : "",
           Number.isFinite(
+            timing.measureContextMs
+          )
+            ? `<span class="mini-chip">measure ${escapeHtml(timing.measureContextMs)} ms</span>`
+            : "",
+          Number.isFinite(
             timing.promptMs
           )
             ? `<span class="mini-chip">prompt ${escapeHtml(timing.promptMs)} ms</span>`
+            : "",
+          Number.isFinite(
+            contextMeta.measuredUtilisation
+          )
+            ? `<span class="mini-chip">context ${escapeHtml(Math.round(contextMeta.measuredUtilisation * 100))}%</span>`
             : "",
           session.baseSessionReused
             ? '<span class="mini-chip enabled">base reused</span>'
