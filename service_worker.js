@@ -4006,32 +4006,70 @@ chrome.runtime.onMessage.addListener(
             "currentAnalysisRunSummary"
           ]);
 
+        let snapshotSummary =
+          lastSnapshotSummary ||
+          null;
+
+        let runSummary =
+          currentAnalysisRunSummary ||
+          null;
+
+        // One-time migration for installations that already have full
+        // snapshots/runs in IndexedDB but no lightweight summaries yet.
+        // We read them once, persist only the compact summary, and never
+        // send the large objects through the sidebar bootstrap message.
+        if (
+          !snapshotSummary &&
+          lastSnapshotFingerprint
+        ) {
+          const storedSnapshot =
+            await dbGet(
+              "snapshots",
+              lastSnapshotFingerprint
+            );
+
+          snapshotSummary =
+            makeSnapshotSummary(
+              storedSnapshot
+            );
+
+          if (snapshotSummary) {
+            await chrome.storage.local.set({
+              lastSnapshotSummary:
+                snapshotSummary
+            });
+          }
+        }
+
+        if (
+          !runSummary &&
+          currentAnalysisRunId
+        ) {
+          const storedRun =
+            await dbGet(
+              "analysisRuns",
+              currentAnalysisRunId
+            );
+
+          runSummary =
+            makeAnalysisRunSummary(
+              storedRun
+            );
+
+          if (runSummary) {
+            await chrome.storage.local.set({
+              currentAnalysisRunSummary:
+                runSummary
+            });
+          }
+        }
+
         return {
           snapshot:
-            lastSnapshotSummary ||
-            (
-              lastSnapshotFingerprint
-                ? {
-                    _summaryOnly:
-                      true,
-                    fingerprint:
-                      lastSnapshotFingerprint
-                  }
-                : null
-            ),
+            snapshotSummary,
 
           analysisRun:
-            currentAnalysisRunSummary ||
-            (
-              currentAnalysisRunId
-                ? {
-                    _summaryOnly:
-                      true,
-                    id:
-                      currentAnalysisRunId
-                  }
-                : null
-            )
+            runSummary
         };
       }
 
