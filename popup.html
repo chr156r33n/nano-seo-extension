@@ -1,0 +1,115 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Nano SEO Lab</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body class="popup">
+  <header>
+    <div>
+      <h1>Nano SEO Lab</h1>
+      <div id="pageMeta" class="muted">No page captured.</div>
+      <div id="runMeta" class="muted small"></div>
+    </div>
+    <button id="settingsBtn" class="secondary">Config</button>
+  </header>
+
+  <section class="toolbar">
+    <button id="captureBtn">Capture / new analysis run</button>
+    <label>
+      <input id="useCache" type="checkbox" checked>
+      use cache
+    </label>
+  </section>
+
+  <section>
+    <h2>Providers</h2>
+    <div id="providers" class="checks"></div>
+    <div class="muted small">
+      The same prompt/schema is used for every selected provider.
+    </div>
+  </section>
+
+  <section>
+    <h2>1. Link context</h2>
+    <div class="row">
+      <button id="classifyLinksBtn">Classify next link batch</button>
+    </div>
+    <div id="linkProgress" class="muted"></div>
+    <div id="linkResults" class="results"></div>
+  </section>
+
+  <section>
+    <h2>2. Page type ↔ intent</h2>
+
+    <div class="card">
+      <h3>Input mode</h3>
+
+      <label>
+        <input type="radio" name="inputMode" value="raw">
+        Raw body text
+      </label><br>
+
+      <label>
+        <input type="radio" name="inputMode" value="markdown">
+        Clean Markdown
+      </label><br>
+
+      <label>
+        <input type="radio" name="inputMode" value="digest" checked>
+        Structured digest
+      </label><br>
+
+      <label>
+        <input type="radio" name="inputMode" value="all">
+        Compare all three modes
+      </label>
+    </div>
+
+    <div class="row">
+      <button id="pageTypeBtn">Run page type</button>
+      <button id="intentBtn">Run intent</button>
+      <button id="alignmentBtn">Run alignment</button>
+    </div>
+
+    <div id="intentResults" class="results"></div>
+  </section>
+
+  <section>
+    <h2>3. False-positive triage</h2>
+    <div id="auditSummary" class="muted small"></div>
+    <div id="issues"></div>
+  </section>
+
+  <section>
+    <h2>4. Server HTML ↔ rendered DOM</h2>
+
+    <div class="muted small">
+      Deterministic semantic diff of a same-origin server refetch versus the current live DOM.
+      The refetch is not guaranteed to be the exact original navigation response.
+    </div>
+
+    <div class="row" style="margin-top:8px">
+      <button id="buildDomDiffBtn">Build DOM diff</button>
+      <button id="assessDomDiffBtn">Assess next diff batch</button>
+    </div>
+
+    <div id="domDiffSummary" class="muted small"></div>
+    <div id="domDiffResults" class="results"></div>
+  </section>
+
+  <section>
+    <h2>Research</h2>
+    <div class="row">
+      <button id="historyBtn" class="secondary">Analysis history</button>
+      <button id="openLogsBtn" class="secondary">Raw call logs</button>
+      <button id="exportBtn" class="secondary">Export logs JSON</button>
+    </div>
+  </section>
+
+  <div id="status" class="status"></div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
