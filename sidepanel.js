@@ -85,23 +85,6 @@ function updatePageMeta() {
     : "";
 }
 
-function providerCard(provider, result, mode = null) {
-  const d = document.createElement("div");
-  d.className = "card";
-
-  const meta = result?._meta || {};
-  const clean = result ? {...result} : {};
-  delete clean._meta;
-
-  d.innerHTML =
-    `<h3>${mode ? `${mode} · ` : ""}${provider} ` +
-    `${meta.cacheHit ? "· cache" : ""}` +
-    `${meta.durationMs ? ` · ${meta.durationMs}ms` : ""}</h3>` +
-    `<pre>${escapeHtml(JSON.stringify(clean, null, 2))}</pre>`;
-
-  return d;
-}
-
 function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, c => ({
     "&": "&amp;",
@@ -110,6 +93,140 @@ function escapeHtml(s) {
     '"': "&quot;",
     "'": "&#039;"
   }[c]));
+}
+
+
+function humanLabel(value) {
+  return String(value ?? "")
+    .replace(/[_-]+/g, " ")
+    .replace(/\b\w/g, char => char.toUpperCase());
+}
+
+function toneForValue(value) {
+  const v = String(value ?? "").toLowerCase();
+  if (["strong","likely_consistent","likely_correct","likely_false_positive","pass","probably_harmless"].includes(v)) return "good";
+  if (["weak","likely_incorrect","likely_valid","finding","likely_important","error"].includes(v)) return "bad";
+  if (["partial","mostly_consistent","needs_review","context_dependent","manual_review","mixed","unclear"].includes(v)) return "warn";
+  return "neutral";
+}
+
+function badgeHtml(value, tone = null) {
+  if (value === undefined || value === null || value === "") return "";
+  const resolvedTone = tone || toneForValue(value);
+  return `<span class="result-badge ${resolvedTone}">${escapeHtml(humanLabel(value))}</span>`;
+}
+
+function confidenceHtml(value) {
+  if (typeof value !== "number" || !Number.isFinite(value)) return "";
+  return `<span class="confidence">${Math.round(value * 100)}% confidence</span>`;
+}
+
+function chipsHtml(values = []) {
+  const items = (values || []).filter(Boolean);
+  if (!items.length) return '<span class="muted small">None</span>';
+  return `<div class="chip-row">${items.map(value => `<span class="mini-chip">${escapeHtml(humanLabel(value))}</span>`).join("")}</div>`;
+}
+
+function evidenceHtml(items = [], title = "Evidence") {
+  const values = (items || []).filter(Boolean);
+  if (!values.length) return "";
+  return `<div class="result-subsection"><div class="result-label">${escapeHtml(title)}</div><ul class="evidence-list">${values.map(item => `<li>${escapeHtml(item)}</li>`).join("")}</ul></div>`;
+}
+
+function rawJsonDetails(value) {
+  return `<details class="raw-json"><summary>Raw JSON</summary><pre>${escapeHtml(JSON.stringify(value, null, 2))}</pre></details>`;
+}
+
+function metricHtml(label, value) {
+  return `<div class="metric"><span class="metric-value">${escapeHtml(value ?? 0)}</span><span class="metric-label">${escapeHtml(label)}</span></div>`;
+}
+
+function genericResultHtml(result) {
+  if (!result || typeof result !== "object") return `<div class="result-copy">${escapeHtml(result ?? "")}</div>`;
+  if (Array.isArray(result)) {
+    return `<div class="result-list">${result.map(item => `<div class="result-row static">${genericResultHtml(item)}</div>`).join("") || '<div class="muted">No results.</div>'}</div>`;
+  }
+  const rows = Object.entries(result).filter(([key]) => key !== "_meta").map(([key, value]) => {
+    let rendered = "";
+    if (Array.isArray(value)) rendered = value.length ? chipsHtml(value.map(item => typeof item === "string" ? item : JSON.stringify(item))) : '<span class="muted">None</span>';
+    else if (value && typeof value === "object") rendered = `<code>${escapeHtml(JSON.stringify(value))}</code>`;
+    else rendered = escapeHtml(value ?? "");
+    return `<div class="result-kv-row"><div class="result-label">${escapeHtml(humanLabel(key))}</div><div>${rendered}</div></div>`;
+  }).join("");
+  return `<div class="result-kv">${rows || '<div class="muted">No result fields.</div>'}</div>`;
+}
+
+function taskResultHtml(task, result) {
+  const r = withoutMeta(result) || {};
+  if (task === "page_type") return `<div class="result-primary">${badgeHtml(r.page_type, "info")}${confidenceHtml(r.confidence)}</div>${evidenceHtml(r.evidence)}`;
+  if (task === "intent") return `<div class="result-primary">${badgeHtml(r.primary_intent, "info")}${r.split_intent ? badgeHtml("split intent", "warn") : ""}${confidenceHtml(r.confidence)}</div><div class="result-grid two"><div><div class="result-label">Supporting intent</div>${chipsHtml(r.supporting_intents)}</div><div><div class="result-label">Independent secondary intent</div>${chipsHtml(r.secondary_intents)}</div></div>${evidenceHtml(r.evidence)}`;
+  if (task === "alignment") return `<div class="result-primary">${badgeHtml(r.alignment)}${r.split_intent ? badgeHtml("split intent", "warn") : ""}${confidenceHtml(r.confidence)}</div>${r.mismatch_reason ? `<div class="result-subsection"><div class="result-label">Mismatch reason</div><div class="result-copy">${escapeHtml(r.mismatch_reason)}</div></div>` : ""}${evidenceHtml(r.notes, "Notes")}`;
+  if (task === "false_positive") return `<div class="result-primary">${badgeHtml(r.judgement)}${confidenceHtml(r.confidence)}</div>${r.rationale ? `<div class="result-copy">${escapeHtml(r.rationale)}</div>` : ""}${evidenceHtml(r.useful_context, "Useful context")}`;
+  if (task === "link_group") {
+    const rows = r.results || []; const counts = {};
+    for (const row of rows) counts[row.category] = (counts[row.category] || 0) + 1;
+    return `<div class="result-subsection"><div class="result-label">Categories in this batch</div><div class="chip-row">${Object.entries(counts).map(([category,count]) => `<span class="mini-chip">${escapeHtml(humanLabel(category))} <strong>${count}</strong></span>`).join("") || '<span class="muted small">No links returned.</span>'}</div></div><div class="result-list">${rows.map(row => `<details class="result-row"><summary><span>#${escapeHtml(row.id)}</span>${badgeHtml(row.category,"neutral")}${confidenceHtml(row.confidence)}</summary><div class="result-copy">${escapeHtml(row.rationale || "")}</div></details>`).join("")}</div>`;
+  }
+  if (task === "dom_diff_triage") {
+    const rows = r.results || [];
+    return `<div class="result-list">${rows.map(row => `<div class="result-row static"><div class="result-row-head"><strong>#${escapeHtml(row.id)}</strong>${badgeHtml(row.judgement)}${badgeHtml(row.impact,"neutral")}${confidenceHtml(row.confidence)}</div><div class="result-copy">${escapeHtml(row.rationale || "")}</div></div>`).join("") || '<div class="muted small">No DOM differences returned.</div>'}</div>`;
+  }
+  if (task === "url_consistency") {
+    const findings = r.findings || [];
+    return `<div class="result-primary">${badgeHtml(r.overall)}${confidenceHtml(r.confidence)}</div>${r.summary ? `<div class="result-copy">${escapeHtml(r.summary)}</div>` : ""}<div class="result-list">${findings.map(finding => `<div class="result-row static"><div class="result-row-head">${badgeHtml(finding.source,"neutral")}${badgeHtml(finding.judgement)}</div>${finding.value ? `<div class="result-kv-row compact"><div class="result-label">Value</div><code>${escapeHtml(finding.value)}</code></div>` : ""}${finding.suggested_value ? `<div class="result-kv-row compact"><div class="result-label">Suggested</div><code>${escapeHtml(finding.suggested_value)}</code></div>` : ""}<div class="result-copy">${escapeHtml(finding.rationale || "")}</div></div>`).join("") || '<div class="muted small">No individual findings.</div>'}</div>`;
+  }
+  return genericResultHtml(r);
+}
+
+function providerCard(task, provider, result, mode = null) {
+  const d = document.createElement("div"); d.className = "card result-card";
+  const meta = result?._meta || {}; const clean = withoutMeta(result) || {};
+  const context = mode ? `<span class="mini-chip">${escapeHtml(humanLabel(mode))}</span>` : "";
+  d.innerHTML = `<div class="result-card-head"><div><div class="result-provider">${escapeHtml(provider)}</div><div class="result-meta">${context}${meta.cacheHit ? '<span class="mini-chip">Cache</span>' : ""}${meta.durationMs ? `<span>${escapeHtml(meta.durationMs)} ms</span>` : ""}</div></div></div><div class="result-body">${taskResultHtml(task, clean)}</div>${rawJsonDetails(clean)}`;
+  return d;
+}
+
+function analyseTaskDetails(title, entries, task, open = false) {
+  const details = document.createElement("details"); details.className = "card analyse-result-group"; details.open = open;
+  const rows = entries || [];
+  details.innerHTML = `<summary><span>${escapeHtml(title)}</span><span class="summary-count">${rows.length}</span></summary><div class="analyse-group-body"></div>`;
+  const body = details.querySelector(".analyse-group-body");
+  if (!rows.length) { body.innerHTML = '<div class="empty-state">No results for this stage.</div>'; return details; }
+  for (const entry of rows) {
+    const context = entry.mode || (entry.batch ? `batch ${entry.batch}` : "") || entry.issue?.code || null;
+    if (entry.error) {
+      const errorCard = document.createElement("div"); errorCard.className = "card result-card error-card";
+      errorCard.innerHTML = `<div class="result-card-head"><div class="result-provider">${escapeHtml(entry.provider || "Unknown provider")}</div>${badgeHtml("error","bad")}</div><div class="result-copy">${escapeHtml(entry.error)}</div>`;
+      body.appendChild(errorCard); continue;
+    }
+    body.appendChild(providerCard(task, entry.provider || "result", entry.result || {}, context));
+  }
+  return details;
+}
+
+function deterministicResultDetails(data, open = true) {
+  const details = document.createElement("details"); details.className = "card analyse-result-group"; details.open = open;
+  const checks = data?.checks || []; const findings = checks.filter(x => x.status === "finding"); const passes = checks.filter(x => x.status === "pass"); const linkStats = data?.linkStats || {}; const imageStats = data?.imageStats || {};
+  details.innerHTML = `<summary><span>Deterministic checks</span><span class="summary-count">${checks.length}</span></summary><div class="analyse-group-body"><div class="metric-row">${metricHtml("Checks",checks.length)}${metricHtml("Passed",passes.length)}${metricHtml("Findings",findings.length)}${metricHtml("Links",linkStats.totalAnchors ?? 0)}${metricHtml("Images",imageStats.total ?? data?.imageCount ?? 0)}</div><div class="result-subsection"><div class="result-label">Findings</div><div class="finding-list">${findings.map(issue => `<div class="finding-row"><div><div class="finding-title">${escapeHtml(humanLabel(issue.code))}</div><div class="muted small">${escapeHtml(issue.message || "")}</div></div>${badgeHtml("finding","bad")}</div>`).join("") || '<div class="empty-state good-state">No deterministic findings.</div>'}</div></div><details class="subdetails"><summary>Passed checks (${passes.length})</summary><div class="finding-list">${passes.map(check => `<div class="finding-row compact"><div><div class="finding-title">${escapeHtml(humanLabel(check.code))}</div><div class="muted small">${escapeHtml(check.message || "")}</div></div>${badgeHtml("pass","good")}</div>`).join("")}</div></details>${rawJsonDetails(data)}</div>`;
+  return details;
+}
+
+function analyseConfigDetails(config = {}, skipped = []) {
+  const details = document.createElement("details"); details.className = "card analyse-result-group";
+  details.innerHTML = `<summary>Analyse all configuration</summary><div class="analyse-group-body"><div class="chip-row">${Object.entries(config).map(([key,enabled]) => `<span class="mini-chip ${enabled ? "enabled" : "disabled"}">${escapeHtml(humanLabel(key))}: ${enabled ? "on" : "off"}</span>`).join("")}</div>${skipped.length ? `<div class="result-subsection"><div class="result-label">Skipped</div><ul class="evidence-list">${skipped.map(item => `<li><strong>${escapeHtml(humanLabel(item.stage))}:</strong> ${escapeHtml(item.reason)}</li>`).join("")}</ul></div>` : ""}</div>`;
+  return details;
+}
+
+function domDiffResultDetails(data) {
+  const details = document.createElement("details"); details.className = "card analyse-result-group"; details.open = (data?.assessments?.length || 0) > 0;
+  const summary = data?.summary || {};
+  details.innerHTML = `<summary><span>Server HTML ↔ rendered DOM</span>${data?.enabled ? badgeHtml("enabled","neutral") : badgeHtml("off","neutral")}</summary><div class="analyse-group-body">${!data?.enabled ? '<div class="empty-state">Skipped for this Analyse all run. Enable it in Config when you specifically want a rendering comparison.</div>' : `<div class="metric-row">${metricHtml("Differences",summary.totalDiffItems ?? 0)}${metricHtml("Retained",summary.returnedDiffItems ?? 0)}${metricHtml("Dropped",summary.droppedByCap ?? 0)}</div>`}<div data-dom-assessments></div>${rawJsonDetails(data)}</div>`;
+  const target = details.querySelector("[data-dom-assessments]");
+  for (const assessment of data?.assessments || []) {
+    if (assessment.error) { const error = document.createElement("div"); error.className = "card result-card error-card"; error.innerHTML = `<div class="result-copy">${escapeHtml(assessment.error)}</div>`; target.appendChild(error); }
+    else target.appendChild(providerCard("dom_diff_triage", assessment.provider, assessment.result || {}, assessment.batch ? `batch ${assessment.batch}` : null));
+  }
+  return details;
 }
 
 async function runAcross(task, payload, target, mode = null) {
@@ -153,7 +270,7 @@ async function runAcross(task, payload, target, mode = null) {
       }
 
       target.appendChild(
-        providerCard(provider, result, mode)
+        providerCard(task, provider, result, mode)
       );
     } catch (e) {
       const card = document.createElement("div");
@@ -255,7 +372,7 @@ function renderIssues() {
     d.innerHTML =
       `<div class="issue-head">` +
         `<div>` +
-          `<strong>${escapeHtml(issue.code)}</strong>` +
+          `<strong>${escapeHtml(humanLabel(issue.code))}</strong>` +
           `<div class="muted small">${escapeHtml(issue.message)}</div>` +
         `</div>` +
         `<div class="row">` +
@@ -782,9 +899,7 @@ function analyseResultDetails(title, value, open = false) {
   const details = document.createElement("details");
   details.className = "card analyse-result-group";
   details.open = open;
-  details.innerHTML =
-    `<summary>${escapeHtml(title)}</summary>` +
-    `<pre>${escapeHtml(JSON.stringify(value, null, 2))}</pre>`;
+  details.innerHTML = `<summary>${escapeHtml(title)}</summary><div class="analyse-group-body">${genericResultHtml(value)}${rawJsonDetails(value)}</div>`;
   return details;
 }
 
@@ -797,67 +912,76 @@ function renderAnalyseAllResults(report) {
   const summary = document.createElement("div");
   summary.className = "card analyse-results-summary";
   summary.innerHTML = `
-    <h3>Complete analysis</h3>
-    <div class="small"><strong>URL:</strong> ${escapeHtml(report.url || "")}</div>
-    <div class="small"><strong>Providers:</strong> ${escapeHtml(report.providers.join(", "))}</div>
-    <div class="small"><strong>Input modes:</strong> ${escapeHtml(report.modes.join(", "))}</div>
-    <div class="small"><strong>Model calls:</strong> ${report.completedCalls}/${report.totalCalls}</div>
-    <div class="small"><strong>Errors:</strong> ${report.errors.length}</div>
+    <div class="result-card-head">
+      <div>
+        <h3>Complete analysis</h3>
+        <div class="muted small">${escapeHtml(report.url || "")}</div>
+      </div>
+      ${report.errors.length ? badgeHtml(`${report.errors.length} error${report.errors.length === 1 ? "" : "s"}`, "bad") : badgeHtml("complete", "good")}
+    </div>
+    <div class="metric-row" style="margin-top:10px">
+      ${metricHtml("Model calls", `${report.completedCalls}/${report.totalCalls}`)}
+      ${metricHtml("Findings", report.deterministic?.findings?.length || 0)}
+      ${metricHtml("Providers", report.providers.length)}
+      ${metricHtml("Modes", report.modes.length)}
+    </div>
+    <div class="result-label">Providers</div>
+    ${chipsHtml(report.providers)}
+    <div class="result-label" style="margin-top:8px">Input modes</div>
+    ${chipsHtml(report.modes)}
   `;
   target.appendChild(summary);
 
   target.appendChild(
-    analyseResultDetails(
-      "Analyse all configuration",
-      {
-        enabled:
-          report.analyseAllConfig,
-        skipped:
-          report.skipped || []
-      },
-      true
+    analyseConfigDetails(
+      report.analyseAllConfig,
+      report.skipped || []
     )
   );
 
   target.appendChild(
-    analyseResultDetails(
-      "Deterministic checks",
+    deterministicResultDetails(
       report.deterministic,
       true
     )
   );
 
   target.appendChild(
-    analyseResultDetails(
+    analyseTaskDetails(
       "Page type",
-      report.pageType
+      report.pageType,
+      "page_type"
     )
   );
 
   target.appendChild(
-    analyseResultDetails(
+    analyseTaskDetails(
       "Intent",
-      report.intent
+      report.intent,
+      "intent"
     )
   );
 
   target.appendChild(
-    analyseResultDetails(
+    analyseTaskDetails(
       "Page type ↔ intent alignment",
-      report.alignment
+      report.alignment,
+      "alignment"
     )
   );
 
   target.appendChild(
-    analyseResultDetails(
+    analyseTaskDetails(
       "Link context",
-      report.links
+      report.links,
+      "link_group"
     )
   );
 
-  const fp = analyseResultDetails(
+  const fp = analyseTaskDetails(
     "False-positive triage",
     report.falsePositives,
+    "false_positive",
     report.falsePositives.length > 0
   );
   target.appendChild(fp);
@@ -906,10 +1030,8 @@ function renderAnalyseAllResults(report) {
   }
 
   target.appendChild(
-    analyseResultDetails(
-      "Server HTML ↔ rendered DOM",
-      report.domDiff,
-      (report.domDiff?.assessments?.length || 0) > 0
+    domDiffResultDetails(
+      report.domDiff
     )
   );
 
@@ -934,8 +1056,12 @@ function renderAnalyseAllResults(report) {
     domIssues.forEach(item => {
       const row = domDiffItemCard(item);
       const judgements = domJudgements.get(item.id) || [];
-      const assessment = document.createElement("pre");
-      assessment.textContent = JSON.stringify(judgements, null, 2);
+      const assessment = document.createElement("div");
+      assessment.className = "result-body";
+      assessment.innerHTML = taskResultHtml(
+        "dom_diff_triage",
+        {results: judgements}
+      );
       row.appendChild(assessment);
       box.appendChild(row);
     });
@@ -944,9 +1070,10 @@ function renderAnalyseAllResults(report) {
   }
 
   target.appendChild(
-    analyseResultDetails(
+    analyseTaskDetails(
       "URL identity & locale consistency",
       report.urlConsistency,
+      "url_consistency",
       true
     )
   );
@@ -2029,7 +2156,7 @@ $("#alignmentBtn").onclick = async () => {
         taskResults.alignment[mode][provider] = result;
 
         target.appendChild(
-          providerCard(provider, result, mode)
+          providerCard("alignment", provider, result, mode)
         );
       } catch (e) {
         const d = document.createElement("div");
@@ -2291,6 +2418,7 @@ $("#reviewUrlSignalsBtn").onclick =
 
         const card =
           providerCard(
+            "url_consistency",
             provider,
             result
           );

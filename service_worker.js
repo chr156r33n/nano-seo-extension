@@ -1257,7 +1257,7 @@ async function captureActiveTab() {
               ).trim()
           );
 
-        const emptyAnchorCount =
+        const emptyAnchorElements =
           allAnchorElements.filter(
             a => {
               const visible =
@@ -1275,7 +1275,117 @@ async function captureActiveTab() {
 
               return !visible && !accessible;
             }
-          ).length;
+          );
+
+        const emptyAnchorCount =
+          emptyAnchorElements.length;
+
+        const emptyAnchorDetails =
+          emptyAnchorElements
+            .slice(0, 20)
+            .map(
+              (a, index) => {
+                const rawHref =
+                  (
+                    a.getAttribute("href") ||
+                    ""
+                  ).trim();
+
+                let resolvedHref = "";
+
+                try {
+                  resolvedHref =
+                    rawHref
+                      ? new URL(
+                          rawHref,
+                          location.href
+                        ).href
+                      : "";
+                } catch {
+                  resolvedHref =
+                    a.href || "";
+                }
+
+                const closest =
+                  a.closest(
+                    "nav,header,footer,main,article,aside,section,li,p,div"
+                  );
+
+                const style =
+                  getComputedStyle(a);
+
+                const visibleOnPage =
+                  !a.hidden &&
+                  a.getAttribute("aria-hidden") !== "true" &&
+                  style.display !== "none" &&
+                  style.visibility !== "hidden" &&
+                  style.opacity !== "0" &&
+                  (
+                    a.offsetWidth > 0 ||
+                    a.offsetHeight > 0 ||
+                    a.getClientRects().length > 0
+                  );
+
+                const childTags =
+                  [...a.children]
+                    .map(
+                      el =>
+                        el.tagName
+                          ?.toLowerCase() ||
+                        ""
+                    )
+                    .filter(Boolean)
+                    .slice(0, 8);
+
+                let internal = null;
+
+                if (resolvedHref) {
+                  try {
+                    internal =
+                      new URL(
+                        resolvedHref
+                      ).hostname ===
+                      location.hostname;
+                  } catch {
+                    internal = null;
+                  }
+                }
+
+                return {
+                  example:
+                    index + 1,
+                  rawHref,
+                  href:
+                    resolvedHref,
+                  internal,
+                  rel:
+                    a.getAttribute("rel") || "",
+                  target:
+                    a.getAttribute("target") || "",
+                  role:
+                    a.getAttribute("role") || "",
+                  tabindex:
+                    a.getAttribute("tabindex") || "",
+                  visible_on_page:
+                    visibleOnPage,
+                  has_svg:
+                    !!a.querySelector("svg"),
+                  has_image:
+                    !!a.querySelector("img"),
+                  image_alt:
+                    a.querySelector("img")?.getAttribute("alt") || "",
+                  child_tags:
+                    childTags,
+                  nearby_text:
+                    txt(closest)
+                      .slice(
+                        0,
+                        contextChars
+                      ),
+                  ...elementContext(a)
+                };
+              }
+            );
 
         const nofollowCount =
           anchors.filter(
@@ -1333,6 +1443,8 @@ async function captureActiveTab() {
             ugcCount,
           emptyAnchor:
             emptyAnchorCount,
+          emptyAnchorExamples:
+            emptyAnchorDetails,
           emptyHref:
             rawHrefValues.filter(
               x => !x
@@ -2609,7 +2721,15 @@ async function captureActiveTab() {
           emptyAnchorCount > 0
             ? `${emptyAnchorCount} link(s) have no visible or accessible anchor text`
             : "No empty link anchors detected",
-          emptyAnchorCount
+          {
+            count:
+              emptyAnchorCount,
+            examples:
+              emptyAnchorDetails,
+            examples_capped:
+              emptyAnchorCount >
+              emptyAnchorDetails.length
+          }
         );
 
         addCheck(
