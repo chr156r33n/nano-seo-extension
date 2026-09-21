@@ -917,7 +917,7 @@ async function captureActiveTab() {
           document.documentElement?.outerHTML || "";
 
         const consentPattern =
-          /(cookie|consent|onetrust|privacy[-_ ]?preference|cmp)/i;
+          /(cookie|consent|onetrust|shopify-pc|privacy[-_ ]?preference|cmp)/i;
 
         const relatedPattern =
           /(related|recommend|you-may-also|similar)/i;
@@ -3178,7 +3178,7 @@ async function buildDomDiff() {
         };
 
         const consentPattern =
-          /(cookie|consent|onetrust|privacy[-_ ]?preference|cmp)/i;
+          /(cookie|consent|onetrust|shopify-pc|privacy[-_ ]?preference|cmp)/i;
 
         const relatedPattern =
           /(related|recommend|you-may-also|similar)/i;
@@ -3846,6 +3846,453 @@ async function buildDomDiff() {
           x => x
         );
 
+        const comparableText = (value) => {
+          if (!value) return "";
+
+          if (
+            typeof value ===
+            "object"
+          ) {
+            return normaliseText(
+              value.text ||
+              ""
+            ).toLowerCase();
+          }
+
+          return normaliseText(
+            value
+          ).toLowerCase();
+        };
+
+        const comparableHref = (value) => {
+          if (
+            value &&
+            typeof value ===
+            "object"
+          ) {
+            return String(
+              value.href ||
+              ""
+            );
+          }
+
+          return "";
+        };
+
+        const comparableSelector = (value) => {
+          if (
+            value &&
+            typeof value ===
+            "object"
+          ) {
+            return String(
+              value.element?.selector ||
+              ""
+            );
+          }
+
+          return "";
+        };
+
+        const tokenSimilarity = (
+          a,
+          b
+        ) => {
+          const aa =
+            new Set(
+              String(a || "")
+                .toLowerCase()
+                .split(/[^a-z0-9]+/)
+                .filter(Boolean)
+            );
+
+          const bb =
+            new Set(
+              String(b || "")
+                .toLowerCase()
+                .split(/[^a-z0-9]+/)
+                .filter(Boolean)
+            );
+
+          if (
+            !aa.size ||
+            !bb.size
+          ) {
+            return 0;
+          }
+
+          let intersection = 0;
+
+          for (const token of aa) {
+            if (bb.has(token)) {
+              intersection += 1;
+            }
+          }
+
+          const union =
+            new Set([
+              ...aa,
+              ...bb
+            ]).size;
+
+          return union
+            ? intersection / union
+            : 0;
+        };
+
+        const pairCandidate = (
+          removed,
+          added
+        ) => {
+          if (
+            removed.kind !==
+            added.kind
+          ) {
+            return null;
+          }
+
+          const rawValue =
+            removed.raw;
+
+          const renderedValue =
+            added.rendered;
+
+          const rawText =
+            comparableText(
+              rawValue
+            );
+
+          const renderedText =
+            comparableText(
+              renderedValue
+            );
+
+          const rawHref =
+            comparableHref(
+              rawValue
+            );
+
+          const renderedHref =
+            comparableHref(
+              renderedValue
+            );
+
+          const rawSelector =
+            comparableSelector(
+              rawValue
+            );
+
+          const renderedSelector =
+            comparableSelector(
+              renderedValue
+            );
+
+          const sameSelector =
+            rawSelector &&
+            renderedSelector &&
+            rawSelector ===
+              renderedSelector;
+
+          const similarity =
+            tokenSimilarity(
+              rawText,
+              renderedText
+            );
+
+          if (
+            removed.kind ===
+            "heading"
+          ) {
+            if (
+              rawText &&
+              rawText ===
+                renderedText
+            ) {
+              return {
+                score: 1,
+                reason:
+                  "same_heading_text"
+              };
+            }
+
+            if (
+              sameSelector &&
+              similarity >= 0.6
+            ) {
+              return {
+                score: 0.96,
+                reason:
+                  "same_heading_selector"
+              };
+            }
+
+            if (
+              Math.min(
+                rawText.length,
+                renderedText.length
+              ) >= 12 &&
+              similarity >= 0.9
+            ) {
+              return {
+                score: 0.9,
+                reason:
+                  "near_identical_heading_text"
+              };
+            }
+          }
+
+          if (
+            removed.kind ===
+            "link"
+          ) {
+            if (
+              rawHref &&
+              rawHref ===
+                renderedHref
+            ) {
+              return {
+                score: 1,
+                reason:
+                  "same_link_destination"
+              };
+            }
+
+            if (
+              sameSelector &&
+              (
+                rawText ===
+                  renderedText ||
+                similarity >=
+                  0.6
+              )
+            ) {
+              return {
+                score: 0.96,
+                reason:
+                  "same_link_selector"
+              };
+            }
+
+            if (
+              rawText &&
+              rawText ===
+                renderedText &&
+              rawText.length >=
+                12
+            ) {
+              return {
+                score: 0.92,
+                reason:
+                  "same_link_text"
+              };
+            }
+          }
+
+          if (
+            removed.kind ===
+              "content_block" ||
+            removed.kind ===
+              "button"
+          ) {
+            if (
+              sameSelector &&
+              similarity >= 0.6
+            ) {
+              return {
+                score: 0.95,
+                reason:
+                  "same_element_selector"
+              };
+            }
+
+            if (
+              Math.min(
+                rawText.length,
+                renderedText.length
+              ) >= 20 &&
+              similarity >= 0.94
+            ) {
+              return {
+                score: 0.9,
+                reason:
+                  "near_identical_text"
+              };
+            }
+          }
+
+          return null;
+        };
+
+        const removedItems =
+          items.filter(
+            item =>
+              item.change_type ===
+              "removed_in_rendered"
+          );
+
+        const addedItems =
+          items.filter(
+            item =>
+              item.change_type ===
+              "added_in_rendered"
+          );
+
+        const candidates = [];
+
+        for (
+          const removed
+          of removedItems
+        ) {
+          for (
+            const added
+            of addedItems
+          ) {
+            const candidate =
+              pairCandidate(
+                removed,
+                added
+              );
+
+            if (
+              candidate &&
+              candidate.score >= 0.9
+            ) {
+              candidates.push({
+                removed,
+                added,
+                ...candidate
+              });
+            }
+          }
+        }
+
+        candidates.sort(
+          (a, b) =>
+            b.score -
+            a.score
+        );
+
+        const pairedIds =
+          new Set();
+
+        const reconciledItems = [];
+
+        for (
+          const candidate
+          of candidates
+        ) {
+          if (
+            pairedIds.has(
+              candidate
+                .removed
+                .id
+            ) ||
+            pairedIds.has(
+              candidate
+                .added
+                .id
+            )
+          ) {
+            continue;
+          }
+
+          pairedIds.add(
+            candidate
+              .removed
+              .id
+          );
+
+          pairedIds.add(
+            candidate
+              .added
+              .id
+          );
+
+          reconciledItems.push({
+            id:
+              Math.min(
+                candidate
+                  .removed
+                  .id,
+                candidate
+                  .added
+                  .id
+              ),
+            priority:
+              Math.min(
+                candidate
+                  .removed
+                  .priority,
+                candidate
+                  .added
+                  .priority
+              ),
+            kind:
+              candidate
+                .removed
+                .kind,
+            change_type:
+              "changed_in_rendered",
+            raw:
+              candidate
+                .removed
+                .raw,
+            rendered:
+              candidate
+                .added
+                .rendered,
+            reconciliation: {
+              score:
+                candidate
+                  .score,
+              reason:
+                candidate
+                  .reason,
+              source_ids: [
+                candidate
+                  .removed
+                  .id,
+                candidate
+                  .added
+                  .id
+              ]
+            }
+          });
+        }
+
+        const sourceDiffItems =
+          items.length;
+
+        const netItems = [
+          ...items.filter(
+            item =>
+              !pairedIds.has(
+                item.id
+              )
+          ),
+          ...reconciledItems
+        ];
+
+        netItems.sort(
+          (a, b) =>
+            a.priority -
+              b.priority ||
+            a.id -
+              b.id
+        );
+
+        netItems.forEach(
+          (item, index) => {
+            item.id =
+              index + 1;
+          }
+        );
+
+        items.length = 0;
+        items.push(
+          ...netItems
+        );
+
         items.sort(
           (a, b) =>
             a.priority -
@@ -3856,6 +4303,9 @@ async function buildDomDiff() {
 
         const total =
           items.length;
+
+        const reconciledPairs =
+          reconciledItems.length;
 
         const kept =
           items
@@ -3914,6 +4364,10 @@ async function buildDomDiff() {
               document.documentElement
                 ?.outerHTML
                 ?.length || 0,
+
+            sourceDiffItems,
+
+            reconciledPairs,
 
             totalDiffItems:
               total,
