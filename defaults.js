@@ -41,6 +41,16 @@ A heading is not important merely because it is an H1/H2/H3. Its importance depe
 
   hreflangAgreedValues: [],
 
+  analyseAll: {
+    linkContext: true,
+    pageType: true,
+    intent: true,
+    alignment: true,
+    triageFindings: true,
+    domDiff: false,
+    urlConsistency: true
+  },
+
   prompts: {
     link_group: {
       system: "You classify webpage links by their role in the page. Use only the supplied evidence. Be conservative when context is ambiguous.",
@@ -231,6 +241,44 @@ EXAMPLE URL:
     robots_noindex: `Noindex can be intentional for utility, search, filter, account, cart, duplicate, staging, temporary, or otherwise non-search-facing pages. It is more concerning when the page appears unique, useful, index-worthy, and clearly intended to attract organic search traffic.`,
 
     images_missing_alt: `Missing alt text is only problematic when an image conveys meaningful information that is not otherwise available. Decorative images do not need descriptive alt text. Linked or functional images require more scrutiny because they may need an accessible text alternative.`,
+
+    heading_hierarchy: `Heading hierarchy issues are more meaningful in primary/main content than in navigation, footer, cookie/consent UI or utility components. A skipped heading level is not automatically harmful if the visual/semantic structure remains clear, but repeated or topically important hierarchy jumps can make page structure harder to interpret.`,
+
+    html_lang_presence: `A missing HTML lang attribute is primarily an accessibility and language-identification issue. It is more important on multilingual/international sites and when other locale signals are present.`,
+
+    html_lang_format: `The HTML lang value should be a plausible BCP-47-style language/locale value. Minor casing differences are usually harmless; malformed or unrelated values are more concerning.`,
+
+    robots_conflict: `Conflicting robots meta directives are genuinely risky because different declarations can send contradictory index/follow instructions. Treat explicit index/noindex or follow/nofollow conflicts as important.`,
+
+    canonical_fragment: `Canonical URLs normally identify a document URL rather than a fragment. A fragment on a canonical is usually suspicious unless there is a very unusual, deliberate implementation.`,
+
+    canonical_protocol_downgrade: `An HTTPS page canonicalising to HTTP is usually suspicious and can create inconsistent preferred-URL signals. It may be intentional only in unusual legacy setups.`,
+
+    jsonld_parse_error: `Invalid JSON-LD is meaningful when structured data is intended to be consumed. A syntax error can prevent part or all of the block being parsed.`,
+
+    hreflang_duplicate_value: `Multiple hreflang declarations for the same language/locale are suspicious when they point to different URLs. Exact duplicate declarations are redundant but less serious.`,
+
+    hreflang_unapproved_value: `When an agreed hreflang allowlist is configured, values outside it should normally be corrected to the agreed site convention. Prefer the configured suggested value rather than inventing a new locale strategy.`,
+
+    hreflang_invalid_format: `Malformed hreflang values can prevent language/region targeting from being interpreted as intended. x-default is valid; language and optional region/script subtags should otherwise be plausible.`,
+
+    hreflang_empty_href: `A hreflang declaration without a usable target URL cannot serve its purpose and is likely a real implementation issue.`,
+
+    open_graph_incomplete: `Open Graph metadata is not a direct ranking requirement, but partial implementations can create poor or inconsistent social previews. Treat it as lower SEO severity than indexation or canonical issues.`,
+
+    og_url_mismatch: `An og:url value can legitimately differ in some sharing setups, but it should usually represent the same preferred page identity as the canonical/current URL. Unexpected hosts, protocols or environments are more concerning.`,
+
+    twitter_card_incomplete: `Twitter/X card metadata is not a direct ranking requirement. A partial implementation is mainly a social-sharing quality issue rather than a core SEO defect.`,
+
+    favicon_presence: `A missing favicon is primarily a UX/browser-branding issue rather than a material organic-search defect. Treat it as low severity unless the project explicitly requires it.`,
+
+    images_empty_alt: `An empty alt attribute can be correct for decorative images. It is only problematic when the image conveys meaningful or functional information that is not otherwise represented.`,
+
+    images_missing_dimensions: `Missing width/height attributes can contribute to layout instability when dimensions are not otherwise reserved by CSS or aspect-ratio. Do not assume the absence of attributes alone proves CLS impact.`,
+
+    links_empty_anchor: `A link without useful visible or accessible anchor text is more concerning when it is navigational or semantically important. Icon-only links may still be valid if they have an accessible label.`,
+
+    internal_http_links: `Internal HTTP links on an HTTPS page are usually undesirable when an HTTPS equivalent exists, because they can introduce redirects or inconsistent secure URL references.`,
 
     viewport_presence: `A missing viewport meta tag is more likely to be a meaningful issue on modern responsive/mobile pages. It may be less relevant in unusual embedded, legacy, or deliberately fixed-width contexts, though those cases are uncommon.`
   }
@@ -606,6 +654,13 @@ function mergeSettings(saved = {}) {
 
   if (Array.isArray(saved.hreflangAgreedValues)) {
     d.hreflangAgreedValues = [...saved.hreflangAgreedValues];
+  }
+
+  if (saved.analyseAll) {
+    d.analyseAll = {
+      ...d.analyseAll,
+      ...saved.analyseAll
+    };
   }
 
   return d;

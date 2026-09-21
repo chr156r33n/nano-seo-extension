@@ -1,3 +1,100 @@
+# Nano SEO Lab v0.9
+
+This update extends the deterministic page audit and makes **Analyse all** configurable.
+
+## Detailed SEO Extension baseline
+
+The deterministic additions were informed by the public feature set of the Detailed SEO Extension: page metadata, heading structure, link rel data, images, structured data, hreflang and related page-level inspection.
+
+The goal here is not to clone Detailed. It is to create richer deterministic evidence that can later be triaged or interpreted by Nano.
+
+## New deterministic checks / evidence
+
+In addition to the existing title, description, H1, canonical, robots, alt and viewport checks:
+
+### Headings
+- H1-H6 extraction with semantic element context
+- meaningful heading hierarchy jumps
+- low-value areas such as footer/navigation/cookie/utility content are downweighted using the configured semantic weights
+
+### HTML language
+- missing `html[lang]`
+- implausible language-tag format
+
+### Robots
+- all robots meta values captured
+- conflicting `index/noindex` or `follow/nofollow` declarations
+
+### Canonical
+- fragment in canonical
+- HTTPS page canonicalising to HTTP
+
+### Structured data
+- JSON-LD parse errors are now retained instead of silently ignored
+- existing schema type / URL reference extraction remains
+
+### Hreflang
+- duplicate hreflang values
+- values outside the configured agreed list
+- implausible values
+- missing target hrefs
+
+No reciprocal target crawling is added.
+
+### Social/page identity
+- Open Graph values
+- incomplete partial Open Graph implementations
+- `og:url` mismatch with preferred page identity
+- Twitter/X card values and partial implementations
+- favicon presence
+
+These are intentionally lower-severity candidates for Nano triage rather than being treated as equivalent to indexation failures.
+
+### Links
+Deterministic link statistics now include:
+- internal / external
+- nofollow
+- sponsored
+- ugc
+- empty visible/accessibility anchor
+- empty href
+- hash-only
+- javascript links
+- internal HTTP links on HTTPS pages
+
+### Images
+Image statistics now include:
+- missing alt
+- empty alt
+- missing width/height attributes
+- lazy-loaded count
+
+Empty alt and missing dimensions remain contextual findings; Nano can decide whether they are likely meaningful.
+
+## Configure Analyse all
+
+Config now has an **Analyse all** section with independent toggles for:
+
+- Link context classification
+- Page type
+- Intent
+- Page type ↔ intent alignment
+- Triage deterministic findings
+- Server HTML ↔ rendered DOM diff
+- URL / locale consistency
+
+### Defaults
+
+Everything is enabled **except DOM diff**.
+
+DOM diff remains available manually, but it no longer performs a same-origin refetch on every Analyse all run unless you enable it.
+
+Alignment only runs when both Page type and Intent are enabled.
+
+Deterministic page capture always runs, because every other stage depends on that evidence.
+
+---
+
 # v0.8.4 activeTab / Side Panel fix
 
 This fixes the `service_worker.js:56` failure from v0.8.3.

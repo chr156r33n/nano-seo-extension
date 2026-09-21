@@ -198,10 +198,17 @@ function pageContextForIssue(issue) {
     viewport: snapshot.viewport,
     h1s: snapshot.h1s,
     h2s: snapshot.h2s.slice(0, 8),
-    headingDetails: (snapshot.headingDetails || []).slice(0, 20),
+    headingDetails: (snapshot.headingDetails || []).slice(0, 30),
     schemaTypes: snapshot.schemaTypes,
+    schemaParseErrors: snapshot.schemaParseErrors || [],
+    robotsMetaValues: snapshot.robotsMetaValues || [],
+    linkStats: snapshot.linkStats || {},
+    socialMeta: snapshot.socialMeta || {},
+    imageStats: snapshot.imageStats || {},
     imageCount: snapshot.imageCount,
-    missingAltCount: snapshot.missingAltCount
+    missingAltCount: snapshot.missingAltCount,
+    emptyAltCount: snapshot.emptyAltCount,
+    missingImageDimensionsCount: snapshot.missingImageDimensionsCount
   };
 
   if (["h1_presence", "multiple_h1"].includes(issue.code)) {
@@ -801,6 +808,19 @@ function renderAnalyseAllResults(report) {
 
   target.appendChild(
     analyseResultDetails(
+      "Analyse all configuration",
+      {
+        enabled:
+          report.analyseAllConfig,
+        skipped:
+          report.skipped || []
+      },
+      true
+    )
+  );
+
+  target.appendChild(
+    analyseResultDetails(
       "Deterministic checks",
       report.deterministic,
       true
@@ -1005,231 +1025,871 @@ async function analyseAll() {
     return;
   }
 
+  const cfg = {
+    linkContext:
+      settings.analyseAll?.linkContext !== false,
+    pageType:
+      settings.analyseAll?.pageType !== false,
+    intent:
+      settings.analyseAll?.intent !== false,
+    alignment:
+      settings.analyseAll?.alignment !== false,
+    triageFindings:
+      settings.analyseAll?.triageFindings !== false,
+    domDiff:
+      settings.analyseAll?.domDiff === true,
+    urlConsistency:
+      settings.analyseAll?.urlConsistency !== false
+  };
+
+  const runAlignment =
+    cfg.alignment &&
+    cfg.pageType &&
+    cfg.intent;
+
   analyseAllRunning = true;
-  const button = $("#analyseAllBtn");
-  if (button) button.disabled = true;
+
+  const button =
+    $("#analyseAllBtn");
+
+  if (button) {
+    button.disabled = true;
+  }
 
   clearAnalysisOutput();
   setStatus("");
-  setAnalyseAllProgress(2, "Capturing page and starting a new analysis run…");
+  setAnalyseAllProgress(
+    2,
+    "Capturing page and starting a new analysis run…"
+  );
 
   try {
-    const ctx = await sw({type: "CAPTURE"});
-    snapshot = ctx.snapshot;
-    analysisRun = ctx.analysisRun;
+    const ctx =
+      await sw({
+        type:
+          "CAPTURE"
+      });
+
+    snapshot =
+      ctx.snapshot;
+
+    analysisRun =
+      ctx.analysisRun;
+
     linkCursor = 0;
     domDiffCursor = 0;
     domDiff = null;
+
     resetTaskResultState();
     updatePageMeta();
 
-    setAnalyseAllProgress(6, "Building deterministic server/rendered DOM diff…");
     let domDiffError = null;
 
-    try {
-      domDiff = await sw({type: "BUILD_DOM_DIFF"});
-      snapshot.domDiff = domDiff;
-    } catch (e) {
-      domDiffError = e?.message || String(e);
-      domDiff = null;
+    if (cfg.domDiff) {
+      setAnalyseAllProgress(
+        5,
+        "Building deterministic server/rendered DOM diff…"
+      );
+
+      try {
+        domDiff =
+          await sw({
+            type:
+              "BUILD_DOM_DIFF"
+          });
+
+        snapshot.domDiff =
+          domDiff;
+      } catch (e) {
+        domDiffError =
+          e?.message ||
+          String(e);
+
+        domDiff = null;
+      }
     }
 
-    const modes = modesToRun();
-    const findings = (snapshot.auditChecks || []).filter(x => x.status === "finding");
-    const linkPool = (snapshot.links || []).slice(0, settings.limits.maxLinksForClassification);
-    const linkBatchSize = Math.max(1, settings.limits.linkBatchSize || 8);
+    const modes =
+      modesToRun();
+
+    const findings =
+      (snapshot.auditChecks || [])
+        .filter(
+          x =>
+            x.status ===
+            "finding"
+        );
+
+    const linkPool =
+      cfg.linkContext
+        ? (snapshot.links || [])
+            .slice(
+              0,
+              settings
+                .limits
+                .maxLinksForClassification
+            )
+        : [];
+
+    const linkBatchSize =
+      Math.max(
+        1,
+        settings
+          .limits
+          .linkBatchSize ||
+          8
+      );
+
     const linkBatches = [];
-    for (let i = 0; i < linkPool.length; i += linkBatchSize) {
-      linkBatches.push(linkPool.slice(i, i + linkBatchSize));
+
+    for (
+      let i = 0;
+      i < linkPool.length;
+      i += linkBatchSize
+    ) {
+      linkBatches.push(
+        linkPool.slice(
+          i,
+          i + linkBatchSize
+        )
+      );
     }
 
-    const diffItems = domDiff?.items || [];
-    const diffBatchSize = Math.max(1, settings.limits.domDiffBatchSize || 6);
+    const diffItems =
+      cfg.domDiff
+        ? (
+            domDiff?.items ||
+            []
+          )
+        : [];
+
+    const diffBatchSize =
+      Math.max(
+        1,
+        settings
+          .limits
+          .domDiffBatchSize ||
+          6
+      );
+
     const diffBatches = [];
-    for (let i = 0; i < diffItems.length; i += diffBatchSize) {
-      diffBatches.push(diffItems.slice(i, i + diffBatchSize));
+
+    for (
+      let i = 0;
+      i < diffItems.length;
+      i += diffBatchSize
+    ) {
+      diffBatches.push(
+        diffItems.slice(
+          i,
+          i + diffBatchSize
+        )
+      );
     }
 
-    const perProviderCalls =
-      linkBatches.length +
-      (modes.length * 3) +
-      findings.length +
-      diffBatches.length +
-      1;
+    const callsPerProvider =
+      (
+        cfg.linkContext
+          ? linkBatches.length
+          : 0
+      ) +
+      (
+        cfg.pageType
+          ? modes.length
+          : 0
+      ) +
+      (
+        cfg.intent
+          ? modes.length
+          : 0
+      ) +
+      (
+        runAlignment
+          ? modes.length
+          : 0
+      ) +
+      (
+        cfg.triageFindings
+          ? findings.length
+          : 0
+      ) +
+      (
+        cfg.domDiff
+          ? diffBatches.length
+          : 0
+      ) +
+      (
+        cfg.urlConsistency
+          ? 1
+          : 0
+      );
 
-    const totalCalls = Math.max(1, providers.length * perProviderCalls);
+    const totalCalls =
+      Math.max(
+        1,
+        providers.length *
+          callsPerProvider
+      );
+
     let completedCalls = 0;
 
     const report = {
-      url: snapshot.url,
-      providers: [...providers],
-      modes: [...modes],
+      url:
+        snapshot.url,
+
+      providers:
+        [...providers],
+
+      modes:
+        [...modes],
+
+      analyseAllConfig:
+        {
+          ...cfg,
+          alignment:
+            runAlignment
+        },
+
       totalCalls,
       completedCalls: 0,
+
       deterministic: {
-        checks: snapshot.auditChecks || [],
+        checks:
+          snapshot.auditChecks ||
+          [],
         findings,
-        urlSignals: effectiveUrlSignals()
+        urlSignals:
+          effectiveUrlSignals(),
+        headingDetails:
+          snapshot.headingDetails ||
+          [],
+        linkStats:
+          snapshot.linkStats ||
+          {},
+        imageStats:
+          snapshot.imageStats ||
+          {},
+        socialMeta:
+          snapshot.socialMeta ||
+          {},
+        schemaParseErrors:
+          snapshot.schemaParseErrors ||
+          []
       },
+
       links: [],
       pageType: [],
       intent: [],
       alignment: [],
       falsePositives: [],
+
       domDiff: {
-        summary: domDiff?.summary || null,
-        caveat: domDiff?.caveat || null,
-        items: diffItems,
+        enabled:
+          cfg.domDiff,
+        summary:
+          domDiff?.summary ||
+          null,
+        caveat:
+          domDiff?.caveat ||
+          null,
+        items:
+          diffItems,
         assessments: []
       },
+
       urlConsistency: [],
-      errors: []
+      errors: [],
+      skipped: []
     };
 
+    if (
+      cfg.alignment &&
+      !runAlignment
+    ) {
+      report.skipped.push({
+        stage:
+          "alignment",
+        reason:
+          "Alignment requires both Page type and Intent to be enabled."
+      });
+    }
+
+    if (!cfg.linkContext) {
+      report.skipped.push({
+        stage:
+          "link_context",
+        reason:
+          "Disabled in Analyse all config."
+      });
+    }
+
+    if (!cfg.pageType) {
+      report.skipped.push({
+        stage:
+          "page_type",
+        reason:
+          "Disabled in Analyse all config."
+      });
+    }
+
+    if (!cfg.intent) {
+      report.skipped.push({
+        stage:
+          "intent",
+        reason:
+          "Disabled in Analyse all config."
+      });
+    }
+
+    if (!cfg.triageFindings) {
+      report.skipped.push({
+        stage:
+          "false_positive",
+        reason:
+          "Disabled in Analyse all config."
+      });
+    }
+
+    if (!cfg.domDiff) {
+      report.skipped.push({
+        stage:
+          "dom_diff",
+        reason:
+          "Disabled in Analyse all config."
+      });
+    }
+
+    if (!cfg.urlConsistency) {
+      report.skipped.push({
+        stage:
+          "url_consistency",
+        reason:
+          "Disabled in Analyse all config."
+      });
+    }
+
     if (domDiffError) {
-      report.errors.push({stage: "build_dom_diff", error: domDiffError});
+      report.errors.push({
+        stage:
+          "build_dom_diff",
+        error:
+          domDiffError
+      });
     }
 
     const bump = label => {
       completedCalls += 1;
-      report.completedCalls = completedCalls;
-      const percent = 8 + ((completedCalls / totalCalls) * 90);
-      setAnalyseAllProgress(percent, `${label} · ${completedCalls}/${totalCalls} model calls`);
+      report.completedCalls =
+        completedCalls;
+
+      const percent =
+        callsPerProvider
+          ? 8 +
+            (
+              (
+                completedCalls /
+                totalCalls
+              ) *
+              90
+            )
+          : 98;
+
+      setAnalyseAllProgress(
+        percent,
+        `${label} · ${completedCalls}/${totalCalls} model calls`
+      );
     };
 
-    // 1. Link context, all configured batches.
-    for (let batchIndex = 0; batchIndex < linkBatches.length; batchIndex += 1) {
-      const batch = linkBatches[batchIndex].map(l => ({
-        id: l.id,
-        href: l.href,
-        internal: l.internal,
-        anchor: l.anchor,
-        rel: l.rel,
-        zone: l.zone,
-        context: l.context
-      }));
+    if (cfg.linkContext) {
+      for (
+        let batchIndex = 0;
+        batchIndex <
+          linkBatches.length;
+        batchIndex += 1
+      ) {
+        const batch =
+          linkBatches[
+            batchIndex
+          ].map(
+            l => ({
+              id:
+                l.id,
+              href:
+                l.href,
+              internal:
+                l.internal,
+              anchor:
+                l.anchor,
+              rel:
+                l.rel,
+              zone:
+                l.zone,
+              context:
+                l.context
+            })
+          );
 
-      for (const provider of providers) {
-        const call = await runTaskSilent("link_group", provider, {links: batch});
-        report.links.push({
-          batch: batchIndex + 1,
-          provider,
-          inputCount: batch.length,
-          result: call.ok ? withoutMeta(call.result) : null,
-          error: call.ok ? null : call.error
-        });
-        if (!call.ok) report.errors.push({stage: "link_group", batch: batchIndex + 1, provider, error: call.error});
-        bump(`Links · batch ${batchIndex + 1}/${linkBatches.length} · ${provider}`);
+        for (
+          const provider
+          of providers
+        ) {
+          const call =
+            await runTaskSilent(
+              "link_group",
+              provider,
+              {
+                links:
+                  batch
+              }
+            );
+
+          report.links.push({
+            batch:
+              batchIndex + 1,
+            provider,
+            inputCount:
+              batch.length,
+            result:
+              call.ok
+                ? withoutMeta(
+                    call.result
+                  )
+                : null,
+            error:
+              call.ok
+                ? null
+                : call.error
+          });
+
+          if (!call.ok) {
+            report.errors.push({
+              stage:
+                "link_group",
+              batch:
+                batchIndex + 1,
+              provider,
+              error:
+                call.error
+            });
+          }
+
+          bump(
+            `Links · batch ${batchIndex + 1}/${linkBatches.length} · ${provider}`
+          );
+        }
       }
     }
 
-    // 2. Page type and intent for every selected representation.
-    for (const mode of modes) {
-      for (const provider of providers) {
-        const call = await runTaskSilent("page_type", provider, {snapshot}, mode);
-        report.pageType.push({mode, provider, result: call.ok ? withoutMeta(call.result) : null, error: call.ok ? null : call.error});
-        if (!call.ok) report.errors.push({stage: "page_type", mode, provider, error: call.error});
-        bump(`Page type · ${mode} · ${provider}`);
+    if (cfg.pageType) {
+      for (
+        const mode
+        of modes
+      ) {
+        for (
+          const provider
+          of providers
+        ) {
+          const call =
+            await runTaskSilent(
+              "page_type",
+              provider,
+              {
+                snapshot
+              },
+              mode
+            );
+
+          report.pageType.push({
+            mode,
+            provider,
+            result:
+              call.ok
+                ? withoutMeta(
+                    call.result
+                  )
+                : null,
+            error:
+              call.ok
+                ? null
+                : call.error
+          });
+
+          if (!call.ok) {
+            report.errors.push({
+              stage:
+                "page_type",
+              mode,
+              provider,
+              error:
+                call.error
+            });
+          }
+
+          bump(
+            `Page type · ${mode} · ${provider}`
+          );
+        }
       }
     }
 
-    for (const mode of modes) {
-      for (const provider of providers) {
-        const call = await runTaskSilent("intent", provider, {snapshot}, mode);
-        report.intent.push({mode, provider, result: call.ok ? withoutMeta(call.result) : null, error: call.ok ? null : call.error});
-        if (!call.ok) report.errors.push({stage: "intent", mode, provider, error: call.error});
-        bump(`Intent · ${mode} · ${provider}`);
+    if (cfg.intent) {
+      for (
+        const mode
+        of modes
+      ) {
+        for (
+          const provider
+          of providers
+        ) {
+          const call =
+            await runTaskSilent(
+              "intent",
+              provider,
+              {
+                snapshot
+              },
+              mode
+            );
+
+          report.intent.push({
+            mode,
+            provider,
+            result:
+              call.ok
+                ? withoutMeta(
+                    call.result
+                  )
+                : null,
+            error:
+              call.ok
+                ? null
+                : call.error
+          });
+
+          if (!call.ok) {
+            report.errors.push({
+              stage:
+                "intent",
+              mode,
+              provider,
+              error:
+                call.error
+            });
+          }
+
+          bump(
+            `Intent · ${mode} · ${provider}`
+          );
+        }
       }
     }
 
-    for (const mode of modes) {
-      for (const provider of providers) {
-        const pageTypeResult = taskResults.page_type?.[mode]?.[provider];
-        const intentResult = taskResults.intent?.[mode]?.[provider];
+    if (runAlignment) {
+      for (
+        const mode
+        of modes
+      ) {
+        for (
+          const provider
+          of providers
+        ) {
+          const pageTypeResult =
+            taskResults
+              .page_type
+              ?.[mode]
+              ?.[provider];
 
-        if (!pageTypeResult || !intentResult) {
-          const error = "Page type and/or intent result unavailable for alignment.";
-          report.alignment.push({mode, provider, result: null, error});
-          report.errors.push({stage: "alignment", mode, provider, error});
-          bump(`Alignment · ${mode} · ${provider}`);
-          continue;
+          const intentResult =
+            taskResults
+              .intent
+              ?.[mode]
+              ?.[provider];
+
+          if (
+            !pageTypeResult ||
+            !intentResult
+          ) {
+            const error =
+              "Page type and/or intent result unavailable for alignment.";
+
+            report.alignment.push({
+              mode,
+              provider,
+              result:
+                null,
+              error
+            });
+
+            report.errors.push({
+              stage:
+                "alignment",
+              mode,
+              provider,
+              error
+            });
+
+            bump(
+              `Alignment · ${mode} · ${provider}`
+            );
+
+            continue;
+          }
+
+          const call =
+            await runTaskSilent(
+              "alignment",
+              provider,
+              {
+                snapshot,
+                pageTypeResult,
+                intentResult
+              },
+              mode
+            );
+
+          report.alignment.push({
+            mode,
+            provider,
+            result:
+              call.ok
+                ? withoutMeta(
+                    call.result
+                  )
+                : null,
+            error:
+              call.ok
+                ? null
+                : call.error
+          });
+
+          if (!call.ok) {
+            report.errors.push({
+              stage:
+                "alignment",
+              mode,
+              provider,
+              error:
+                call.error
+            });
+          }
+
+          bump(
+            `Alignment · ${mode} · ${provider}`
+          );
+        }
+      }
+    }
+
+    if (cfg.triageFindings) {
+      for (
+        const issue
+        of findings
+      ) {
+        for (
+          const provider
+          of providers
+        ) {
+          const call =
+            await runTaskSilent(
+              "false_positive",
+              provider,
+              {
+                issue,
+                context:
+                  pageContextForIssue(
+                    issue
+                  )
+              }
+            );
+
+          report.falsePositives.push({
+            issue: {
+              code:
+                issue.code,
+              message:
+                issue.message
+            },
+            provider,
+            result:
+              call.ok
+                ? withoutMeta(
+                    call.result
+                  )
+                : null,
+            error:
+              call.ok
+                ? null
+                : call.error
+          });
+
+          if (!call.ok) {
+            report.errors.push({
+              stage:
+                "false_positive",
+              issue:
+                issue.code,
+              provider,
+              error:
+                call.error
+            });
+          }
+
+          bump(
+            `Finding · ${issue.code} · ${provider}`
+          );
+        }
+      }
+    }
+
+    if (cfg.domDiff) {
+      for (
+        let batchIndex = 0;
+        batchIndex <
+          diffBatches.length;
+        batchIndex += 1
+      ) {
+        const batch =
+          diffBatches[
+            batchIndex
+          ];
+
+        for (
+          const provider
+          of providers
+        ) {
+          const call =
+            await runTaskSilent(
+              "dom_diff_triage",
+              provider,
+              {
+                items:
+                  batch
+              }
+            );
+
+          report
+            .domDiff
+            .assessments
+            .push({
+              batch:
+                batchIndex + 1,
+              provider,
+              itemIds:
+                batch.map(
+                  x => x.id
+                ),
+              result:
+                call.ok
+                  ? withoutMeta(
+                      call.result
+                    )
+                  : null,
+              error:
+                call.ok
+                  ? null
+                  : call.error
+            });
+
+          if (!call.ok) {
+            report.errors.push({
+              stage:
+                "dom_diff_triage",
+              batch:
+                batchIndex + 1,
+              provider,
+              error:
+                call.error
+            });
+          }
+
+          bump(
+            `DOM diff · batch ${batchIndex + 1}/${diffBatches.length} · ${provider}`
+          );
+        }
+      }
+    }
+
+    if (cfg.urlConsistency) {
+      const urlSignals =
+        effectiveUrlSignals();
+
+      for (
+        const provider
+        of providers
+      ) {
+        const call =
+          await runTaskSilent(
+            "url_consistency",
+            provider,
+            {
+              urlSignals
+            }
+          );
+
+        report
+          .urlConsistency
+          .push({
+            provider,
+            result:
+              call.ok
+                ? withoutMeta(
+                    call.result
+                  )
+                : null,
+            error:
+              call.ok
+                ? null
+                : call.error
+          });
+
+        if (!call.ok) {
+          report.errors.push({
+            stage:
+              "url_consistency",
+            provider,
+            error:
+              call.error
+          });
         }
 
-        const call = await runTaskSilent(
-          "alignment",
-          provider,
-          {snapshot, pageTypeResult, intentResult},
-          mode
+        bump(
+          `URL & locale consistency · ${provider}`
         );
-        report.alignment.push({mode, provider, result: call.ok ? withoutMeta(call.result) : null, error: call.ok ? null : call.error});
-        if (!call.ok) report.errors.push({stage: "alignment", mode, provider, error: call.error});
-        bump(`Alignment · ${mode} · ${provider}`);
       }
     }
 
-    // 3. Triage every deterministic finding.
-    for (const issue of findings) {
-      for (const provider of providers) {
-        const call = await runTaskSilent(
-          "false_positive",
-          provider,
-          {issue, context: pageContextForIssue(issue)}
-        );
-        report.falsePositives.push({
-          issue: {code: issue.code, message: issue.message},
-          provider,
-          result: call.ok ? withoutMeta(call.result) : null,
-          error: call.ok ? null : call.error
-        });
-        if (!call.ok) report.errors.push({stage: "false_positive", issue: issue.code, provider, error: call.error});
-        bump(`Finding · ${issue.code} · ${provider}`);
-      }
-    }
-
-    // 4. Assess every retained DOM-diff batch.
-    for (let batchIndex = 0; batchIndex < diffBatches.length; batchIndex += 1) {
-      const batch = diffBatches[batchIndex];
-      for (const provider of providers) {
-        const call = await runTaskSilent("dom_diff_triage", provider, {items: batch});
-        report.domDiff.assessments.push({
-          batch: batchIndex + 1,
-          provider,
-          itemIds: batch.map(x => x.id),
-          result: call.ok ? withoutMeta(call.result) : null,
-          error: call.ok ? null : call.error
-        });
-        if (!call.ok) report.errors.push({stage: "dom_diff_triage", batch: batchIndex + 1, provider, error: call.error});
-        bump(`DOM diff · batch ${batchIndex + 1}/${diffBatches.length} · ${provider}`);
-      }
-    }
-
-    // 5. URL / locale / identity consistency.
-    const urlSignals = effectiveUrlSignals();
-    for (const provider of providers) {
-      const call = await runTaskSilent("url_consistency", provider, {urlSignals});
-      report.urlConsistency.push({
-        provider,
-        result: call.ok ? withoutMeta(call.result) : null,
-        error: call.ok ? null : call.error
-      });
-      if (!call.ok) report.errors.push({stage: "url_consistency", provider, error: call.error});
-      bump(`URL & locale consistency · ${provider}`);
-    }
-
-    // Only reveal/refresh the normal sections once the full run is complete.
     renderIssues();
     renderDomDiffSummary();
     renderUrlSignals();
-    renderAnalyseAllResults(report);
+    renderAnalyseAllResults(
+      report
+    );
 
-    setAnalyseAllProgress(100, `Complete · ${completedCalls}/${totalCalls} model calls · ${report.errors.length} error(s)`);
+    setAnalyseAllProgress(
+      100,
+      `Complete · ${completedCalls}/${totalCalls} model calls · ${report.errors.length} error(s)`
+    );
+
     setStatus("");
   } catch (e) {
-    setAnalyseAllProgress(100, `Stopped: ${e?.message || String(e)}`);
-    setStatus(e?.message || String(e), true);
+    setAnalyseAllProgress(
+      100,
+      `Stopped: ${e?.message || String(e)}`
+    );
+
+    setStatus(
+      e?.message ||
+      String(e),
+      true
+    );
   } finally {
-    analyseAllRunning = false;
-    if (button) button.disabled = false;
+    analyseAllRunning =
+      false;
+
+    if (button) {
+      button.disabled =
+        false;
+    }
   }
 }
 

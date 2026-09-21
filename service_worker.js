@@ -1002,6 +1002,7 @@ async function captureActiveTab() {
           new Set();
 
         const schemaUrlRefs = [];
+        const schemaParseErrors = [];
 
         const schemaUrlKeys =
           new Set([
@@ -1110,8 +1111,30 @@ async function captureActiveTab() {
                 ),
                 `$jsonld[${index}]`
               );
-            } catch {}
+            } catch (e) {
+              schemaParseErrors.push({
+                index,
+                error:
+                  String(
+                    e?.message || e
+                  ).slice(0, 220),
+                excerpt:
+                  String(
+                    s.textContent || ""
+                  )
+                    .replace(/\s+/g, " ")
+                    .trim()
+                    .slice(0, 240)
+              });
+            }
           });
+
+        const allAnchorElements =
+          [
+            ...document.querySelectorAll(
+              "a"
+            )
+          ];
 
         const anchors =
           [
@@ -1178,6 +1201,28 @@ async function captureActiveTab() {
                 zone = "aside";
               }
 
+              const rel =
+                a.getAttribute(
+                  "rel"
+                ) || "";
+
+              const visibleAnchor =
+                txt(a).slice(
+                  0,
+                  180
+                );
+
+              const accessibleAnchor =
+                (
+                  a.getAttribute("aria-label") ||
+                  a.getAttribute("title") ||
+                  a.querySelector("img[alt]")?.getAttribute("alt") ||
+                  ""
+                )
+                  .replace(/\s+/g, " ")
+                  .trim()
+                  .slice(0, 180);
+
               return {
                 id,
                 href,
@@ -1186,14 +1231,9 @@ async function captureActiveTab() {
                   host ===
                   location.hostname,
                 anchor:
-                  txt(a).slice(
-                    0,
-                    180
-                  ),
-                rel:
-                  a.getAttribute(
-                    "rel"
-                  ) || "",
+                  visibleAnchor,
+                accessibleAnchor,
+                rel,
                 zone,
                 context:
                   txt(closest).slice(
@@ -1208,6 +1248,106 @@ async function captureActiveTab() {
                   x.href
                 )
             );
+
+        const rawHrefValues =
+          allAnchorElements.map(
+            a =>
+              (
+                a.getAttribute("href") || ""
+              ).trim()
+          );
+
+        const emptyAnchorCount =
+          allAnchorElements.filter(
+            a => {
+              const visible =
+                txt(a);
+
+              const accessible =
+                (
+                  a.getAttribute("aria-label") ||
+                  a.getAttribute("title") ||
+                  a.querySelector("img[alt]")?.getAttribute("alt") ||
+                  ""
+                )
+                  .replace(/\s+/g, " ")
+                  .trim();
+
+              return !visible && !accessible;
+            }
+          ).length;
+
+        const nofollowCount =
+          anchors.filter(
+            x =>
+              /(^|\s)nofollow(\s|$)/i.test(
+                x.rel
+              )
+          ).length;
+
+        const sponsoredCount =
+          anchors.filter(
+            x =>
+              /(^|\s)sponsored(\s|$)/i.test(
+                x.rel
+              )
+          ).length;
+
+        const ugcCount =
+          anchors.filter(
+            x =>
+              /(^|\s)ugc(\s|$)/i.test(
+                x.rel
+              )
+          ).length;
+
+        const internalHttpLinks =
+          location.protocol === "https:"
+            ? links.filter(
+                x =>
+                  x.internal &&
+                  /^http:\/\//i.test(
+                    x.href
+                  )
+              )
+            : [];
+
+        const linkStats = {
+          totalAnchors:
+            allAnchorElements.length,
+          httpLinks:
+            links.length,
+          internal:
+            links.filter(
+              x => x.internal
+            ).length,
+          external:
+            links.filter(
+              x => !x.internal
+            ).length,
+          nofollow:
+            nofollowCount,
+          sponsored:
+            sponsoredCount,
+          ugc:
+            ugcCount,
+          emptyAnchor:
+            emptyAnchorCount,
+          emptyHref:
+            rawHrefValues.filter(
+              x => !x
+            ).length,
+          hashOnly:
+            rawHrefValues.filter(
+              x => /^#/.test(x)
+            ).length,
+          javascript:
+            rawHrefValues.filter(
+              x => /^javascript:/i.test(x)
+            ).length,
+          internalHttpOnHttps:
+            internalHttpLinks.length
+        };
 
         const h1s =
           [
@@ -1232,7 +1372,7 @@ async function captureActiveTab() {
 
         const headingDetails =
           [
-            ...document.querySelectorAll("h1,h2,h3")
+            ...document.querySelectorAll("h1,h2,h3,h4,h5,h6")
           ]
             .map(
               el => ({
@@ -1245,6 +1385,62 @@ async function captureActiveTab() {
               x =>
                 x.text
             );
+
+        const meaningfulHeadings =
+          headingDetails.filter(
+            h =>
+              h.semantic_weight >= 0.5 &&
+              ![
+                "cookie_consent",
+                "navigation",
+                "footer",
+                "utility"
+              ].includes(
+                h.zone
+              )
+          );
+
+        const headingHierarchyIssues = [];
+
+        for (
+          let i = 1;
+          i < meaningfulHeadings.length;
+          i += 1
+        ) {
+          const prev =
+            meaningfulHeadings[i - 1];
+
+          const cur =
+            meaningfulHeadings[i];
+
+          const prevLevel =
+            Number(
+              prev.tag.slice(1)
+            );
+
+          const curLevel =
+            Number(
+              cur.tag.slice(1)
+            );
+
+          if (
+            Number.isFinite(prevLevel) &&
+            Number.isFinite(curLevel) &&
+            curLevel >
+              prevLevel + 1
+          ) {
+            headingHierarchyIssues.push({
+              from:
+                `${prev.tag}: ${prev.text}`,
+              to:
+                `${cur.tag}: ${cur.text}`,
+              fromSelector:
+                prev.selector,
+              toSelector:
+                cur.selector
+            });
+          }
+        }
 
         const title =
           document.title || "";
@@ -1261,8 +1457,42 @@ async function captureActiveTab() {
             x => x.href
           );
 
+        const robotsMetaValues =
+          [
+            ...document.querySelectorAll(
+              'meta[name="robots" i]'
+            )
+          ]
+            .map(
+              el =>
+                (
+                  el.content || ""
+                ).trim()
+            )
+            .filter(Boolean);
+
         const robots =
-          meta("robots");
+          robotsMetaValues[0] || "";
+
+        const robotsTokens =
+          robotsMetaValues
+            .flatMap(
+              value =>
+                value
+                  .toLowerCase()
+                  .split(/[\s,]+/)
+                  .filter(Boolean)
+            );
+
+        const robotsConflict =
+          (
+            robotsTokens.includes("index") &&
+            robotsTokens.includes("noindex")
+          ) ||
+          (
+            robotsTokens.includes("follow") &&
+            robotsTokens.includes("nofollow")
+          );
 
         const viewport =
           document.querySelector(
@@ -1273,6 +1503,98 @@ async function captureActiveTab() {
           document.documentElement
             ?.getAttribute("lang")
             ?.trim() || "";
+
+        const htmlLangLooksValid =
+          !htmlLang ||
+          /^[a-z]{2,3}(?:-[a-z0-9]{2,8})*$/i.test(
+            htmlLang
+          );
+
+        const og = {
+          title:
+            document.querySelector(
+              'meta[property="og:title"]'
+            )?.content || "",
+          description:
+            document.querySelector(
+              'meta[property="og:description"]'
+            )?.content || "",
+          image:
+            document.querySelector(
+              'meta[property="og:image"]'
+            )?.content || "",
+          type:
+            document.querySelector(
+              'meta[property="og:type"]'
+            )?.content || "",
+          url:
+            document.querySelector(
+              'meta[property="og:url"]'
+            )?.content || ""
+        };
+
+        const twitter = {
+          card:
+            document.querySelector(
+              'meta[name="twitter:card"]'
+            )?.content || "",
+          title:
+            document.querySelector(
+              'meta[name="twitter:title"]'
+            )?.content || "",
+          description:
+            document.querySelector(
+              'meta[name="twitter:description"]'
+            )?.content || "",
+          image:
+            document.querySelector(
+              'meta[name="twitter:image"]'
+            )?.content || ""
+        };
+
+        const hasAnyOg =
+          Object.values(og)
+            .some(Boolean);
+
+        const missingOgCore =
+          hasAnyOg
+            ? [
+                ["og:title", og.title],
+                ["og:description", og.description],
+                ["og:image", og.image],
+                ["og:url", og.url]
+              ]
+                .filter(([, value]) => !value)
+                .map(([name]) => name)
+            : [];
+
+        const hasAnyTwitter =
+          Object.values(twitter)
+            .some(Boolean);
+
+        const missingTwitterCore =
+          hasAnyTwitter
+            ? [
+                ["twitter:card", twitter.card],
+                ["twitter:title", twitter.title],
+                ["twitter:description", twitter.description],
+                ["twitter:image", twitter.image]
+              ]
+                .filter(([, value]) => !value)
+                .map(([name]) => name)
+            : [];
+
+        const favicon =
+          document.querySelector(
+            'link[rel~="icon"], link[rel="shortcut icon"]'
+          )?.href || "";
+
+        const socialMeta = {
+          openGraph:
+            og,
+          twitter,
+          favicon
+        };
 
         const hreflangs =
           [
@@ -1422,6 +1744,59 @@ async function captureActiveTab() {
             }
           );
 
+        const hreflangCounts =
+          new Map();
+
+        for (
+          const h
+          of hreflangValidation
+        ) {
+          const key =
+            h.value.toLowerCase();
+
+          hreflangCounts.set(
+            key,
+            (
+              hreflangCounts.get(key) ||
+              0
+            ) + 1
+          );
+        }
+
+        const duplicateHreflangs =
+          [
+            ...hreflangCounts.entries()
+          ]
+            .filter(
+              ([key, count]) =>
+                key &&
+                count > 1
+            )
+            .map(
+              ([value, count]) => ({
+                value,
+                count
+              })
+            );
+
+        const unapprovedHreflangs =
+          hreflangValidation.filter(
+            h =>
+              h.in_agreed_list === false
+          );
+
+        const invalidHreflangs =
+          hreflangValidation.filter(
+            h =>
+              !h.format_looks_valid
+          );
+
+        const emptyHrefHreflangs =
+          hreflangValidation.filter(
+            h =>
+              !h.href
+          );
+
         const hostEnvironment = (url) => {
           try {
             const u =
@@ -1486,6 +1861,28 @@ async function captureActiveTab() {
               !i.getAttribute("alt")
                 ?.trim()
           ).length;
+
+        const missingImageDimensions =
+          imgs.filter(
+            i =>
+              !i.hasAttribute("width") ||
+              !i.hasAttribute("height")
+          ).length;
+
+        const imageStats = {
+          total:
+            imgs.length,
+          missingAlt,
+          emptyAlt,
+          missingDimensions:
+            missingImageDimensions,
+          lazy:
+            imgs.filter(
+              i =>
+                i.loading === "lazy" ||
+                i.getAttribute("loading") === "lazy"
+            ).length
+        };
 
         const buttons =
           [
@@ -1947,6 +2344,286 @@ async function captureActiveTab() {
         );
 
         addCheck(
+          "heading_hierarchy",
+          headingHierarchyIssues.length
+            ? "finding"
+            : "pass",
+          headingHierarchyIssues.length
+            ? `${headingHierarchyIssues.length} meaningful heading level jump(s) detected`
+            : "No meaningful heading level jumps detected",
+          headingHierarchyIssues
+        );
+
+        addCheck(
+          "html_lang_presence",
+          !htmlLang
+            ? "finding"
+            : "pass",
+          !htmlLang
+            ? "HTML lang attribute is missing"
+            : `HTML lang is ${htmlLang}`,
+          htmlLang
+        );
+
+        addCheck(
+          "html_lang_format",
+          htmlLang && !htmlLangLooksValid
+            ? "finding"
+            : "pass",
+          htmlLang && !htmlLangLooksValid
+            ? `HTML lang value looks malformed: ${htmlLang}`
+            : "HTML lang format looks plausible",
+          htmlLang
+        );
+
+        addCheck(
+          "robots_conflict",
+          robotsConflict
+            ? "finding"
+            : "pass",
+          robotsConflict
+            ? `Conflicting robots directives detected: ${robotsMetaValues.join(" | ")}`
+            : "No conflicting robots meta directives detected",
+          robotsMetaValues
+        );
+
+        const canonicalHasFragment =
+          canonicals.some(
+            value => {
+              try {
+                return !!new URL(value).hash;
+              } catch {
+                return false;
+              }
+            }
+          );
+
+        addCheck(
+          "canonical_fragment",
+          canonicalHasFragment
+            ? "finding"
+            : "pass",
+          canonicalHasFragment
+            ? "Canonical URL contains a fragment"
+            : "Canonical URL contains no fragment",
+          canonicals
+        );
+
+        const canonicalProtocolDowngrade =
+          location.protocol === "https:" &&
+          canonicals.some(
+            value =>
+              /^http:\/\//i.test(value)
+          );
+
+        addCheck(
+          "canonical_protocol_downgrade",
+          canonicalProtocolDowngrade
+            ? "finding"
+            : "pass",
+          canonicalProtocolDowngrade
+            ? "HTTPS page canonicalises to an HTTP URL"
+            : "No HTTPS-to-HTTP canonical downgrade detected",
+          canonicals
+        );
+
+        addCheck(
+          "jsonld_parse_error",
+          schemaParseErrors.length
+            ? "finding"
+            : "pass",
+          schemaParseErrors.length
+            ? `${schemaParseErrors.length} JSON-LD block(s) could not be parsed`
+            : "All JSON-LD blocks parsed successfully",
+          schemaParseErrors
+        );
+
+        addCheck(
+          "hreflang_duplicate_value",
+          duplicateHreflangs.length
+            ? "finding"
+            : "pass",
+          duplicateHreflangs.length
+            ? `${duplicateHreflangs.length} duplicate hreflang value(s) detected`
+            : "No duplicate hreflang values detected",
+          duplicateHreflangs
+        );
+
+        addCheck(
+          "hreflang_unapproved_value",
+          unapprovedHreflangs.length
+            ? "finding"
+            : "pass",
+          unapprovedHreflangs.length
+            ? `${unapprovedHreflangs.length} hreflang value(s) are outside the configured agreed list`
+            : agreed.length
+              ? "All hreflang values are in the configured agreed list"
+              : "No agreed hreflang list configured",
+          unapprovedHreflangs
+        );
+
+        addCheck(
+          "hreflang_invalid_format",
+          invalidHreflangs.length
+            ? "finding"
+            : "pass",
+          invalidHreflangs.length
+            ? `${invalidHreflangs.length} hreflang value(s) have an implausible format`
+            : "Hreflang value formats look plausible",
+          invalidHreflangs
+        );
+
+        addCheck(
+          "hreflang_empty_href",
+          emptyHrefHreflangs.length
+            ? "finding"
+            : "pass",
+          emptyHrefHreflangs.length
+            ? `${emptyHrefHreflangs.length} hreflang declaration(s) have no usable href`
+            : "All hreflang declarations have target URLs",
+          emptyHrefHreflangs
+        );
+
+        addCheck(
+          "open_graph_incomplete",
+          missingOgCore.length
+            ? "finding"
+            : "pass",
+          missingOgCore.length
+            ? `Open Graph is partially configured; missing ${missingOgCore.join(", ")}`
+            : hasAnyOg
+              ? "Open Graph core tags are present"
+              : "No Open Graph implementation detected",
+          {
+            present:
+              hasAnyOg,
+            missing:
+              missingOgCore,
+            values:
+              og
+          }
+        );
+
+        const preferredIdentity =
+          canonicals[0] ||
+          location.href;
+
+        const ogUrlMismatch =
+          og.url &&
+          (() => {
+            try {
+              const a =
+                new URL(
+                  og.url,
+                  location.href
+                );
+
+              const b =
+                new URL(
+                  preferredIdentity,
+                  location.href
+                );
+
+              a.hash = "";
+              b.hash = "";
+
+              return a.href !== b.href;
+            } catch {
+              return true;
+            }
+          })();
+
+        addCheck(
+          "og_url_mismatch",
+          ogUrlMismatch
+            ? "finding"
+            : "pass",
+          ogUrlMismatch
+            ? "og:url differs from the preferred page identity"
+            : "og:url is absent or consistent with the preferred page identity",
+          {
+            ogUrl:
+              og.url,
+            preferredIdentity
+          }
+        );
+
+        addCheck(
+          "twitter_card_incomplete",
+          missingTwitterCore.length
+            ? "finding"
+            : "pass",
+          missingTwitterCore.length
+            ? `Twitter/X card metadata is partially configured; missing ${missingTwitterCore.join(", ")}`
+            : hasAnyTwitter
+              ? "Twitter/X card core tags are present"
+              : "No Twitter/X card implementation detected",
+          {
+            present:
+              hasAnyTwitter,
+            missing:
+              missingTwitterCore,
+            values:
+              twitter
+          }
+        );
+
+        addCheck(
+          "favicon_presence",
+          !favicon
+            ? "finding"
+            : "pass",
+          !favicon
+            ? "No favicon link declaration detected"
+            : "Favicon link declaration is present",
+          favicon
+        );
+
+        addCheck(
+          "images_empty_alt",
+          emptyAlt > 0
+            ? "finding"
+            : "pass",
+          emptyAlt > 0
+            ? `${emptyAlt} image(s) have an empty alt attribute`
+            : "No images have an empty alt attribute",
+          emptyAlt
+        );
+
+        addCheck(
+          "images_missing_dimensions",
+          missingImageDimensions > 0
+            ? "finding"
+            : "pass",
+          missingImageDimensions > 0
+            ? `${missingImageDimensions} image(s) lack explicit width and/or height attributes`
+            : "All images declare width and height attributes",
+          missingImageDimensions
+        );
+
+        addCheck(
+          "links_empty_anchor",
+          emptyAnchorCount > 0
+            ? "finding"
+            : "pass",
+          emptyAnchorCount > 0
+            ? `${emptyAnchorCount} link(s) have no visible or accessible anchor text`
+            : "No empty link anchors detected",
+          emptyAnchorCount
+        );
+
+        addCheck(
+          "internal_http_links",
+          internalHttpLinks.length > 0
+            ? "finding"
+            : "pass",
+          internalHttpLinks.length > 0
+            ? `${internalHttpLinks.length} internal HTTP link(s) found on an HTTPS page`
+            : "No internal HTTP links found on this HTTPS page",
+          internalHttpLinks.slice(0, 30)
+        );
+
+        addCheck(
           "viewport_presence",
           !viewport.trim()
             ? "finding"
@@ -1992,6 +2669,8 @@ async function captureActiveTab() {
 
           robots,
 
+          robotsMetaValues,
+
           viewport,
 
           h1s,
@@ -2003,6 +2682,8 @@ async function captureActiveTab() {
           schemaTypes:
             [...schemaTypes]
               .sort(),
+
+          schemaParseErrors,
 
           bodyText,
 
@@ -2020,7 +2701,13 @@ async function captureActiveTab() {
 
           links,
 
+          linkStats,
+
           buttons,
+
+          socialMeta,
+
+          imageStats,
 
           imageCount:
             imgs.length,
@@ -2030,6 +2717,9 @@ async function captureActiveTab() {
 
           emptyAltCount:
             emptyAlt,
+
+          missingImageDimensionsCount:
+            missingImageDimensions,
 
           auditChecks,
 

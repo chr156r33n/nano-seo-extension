@@ -94,6 +94,44 @@ function render() {
     </section>
 
     <section>
+      <h2>Analyse all</h2>
+
+      <p class="muted">
+        Choose which model-assisted stages run when you click Analyse all. Deterministic page capture always runs.
+        Alignment only runs when both Page type and Intent are enabled.
+      </p>
+
+      <div class="grid">
+        ${[
+          ["linkContext", "Link context classification"],
+          ["pageType", "Page type"],
+          ["intent", "Intent"],
+          ["alignment", "Page type ↔ intent alignment"],
+          ["triageFindings", "Triage deterministic findings"],
+          ["domDiff", "Server HTML ↔ rendered DOM diff"],
+          ["urlConsistency", "URL / locale consistency"]
+        ]
+          .map(
+            ([key, label]) => `
+              <label class="block">
+                <input
+                  data-analyse-all="${key}"
+                  type="checkbox"
+                  ${current.analyseAll?.[key] ? "checked" : ""}
+                >
+                ${label}
+              </label>
+            `
+          )
+          .join("")}
+      </div>
+
+      <p class="muted small">
+        DOM diff defaults to off because it performs an extra same-origin refetch and is better treated as a deliberate rendering test than an every-page check.
+      </p>
+    </section>
+
+    <section>
       <h2>Semantic importance</h2>
 
       <p class="muted">
@@ -226,6 +264,17 @@ function collect() {
         current.limits[
           x.dataset.limit
         ] = +x.value
+    );
+
+  document
+    .querySelectorAll(
+      "[data-analyse-all]"
+    )
+    .forEach(
+      x =>
+        current.analyseAll[
+          x.dataset.analyseAll
+        ] = x.checked
     );
 
   current.semanticImportanceGuidance =
