@@ -77,7 +77,11 @@ function renderProviders() {
 
 function updatePageMeta() {
   $("#pageMeta").textContent = snapshot
-    ? `${snapshot.title || "(untitled)"} · ${snapshot.url}`
+    ? (
+        snapshot.url
+          ? `${snapshot.title || "(untitled)"} · ${snapshot.url}`
+          : "Previous page capture available."
+      )
     : "No page captured.";
 
   $("#runMeta").textContent = analysisRun
@@ -287,10 +291,43 @@ async function runAcross(task, payload, target, mode = null) {
   setStatus("");
 }
 
+async function ensureFullSnapshot() {
+  if (
+    snapshot &&
+    !snapshot._summaryOnly
+  ) {
+    return snapshot;
+  }
+
+  const fullSnapshot =
+    await sw({
+      type:
+        "GET_CURRENT_SNAPSHOT"
+    });
+
+  if (!fullSnapshot) {
+    throw new Error(
+      "No captured page snapshot is available. Capture the page first."
+    );
+  }
+
+  snapshot =
+    fullSnapshot;
+
+  domDiff =
+    snapshot.domDiff ||
+    domDiff ||
+    null;
+
+  return snapshot;
+}
+
 async function runModeTask(task) {
   if (!snapshot) {
     return setStatus("Capture a page first.", true);
   }
+
+  await ensureFullSnapshot();
 
   const target = $("#intentResults");
   target.innerHTML = "";
@@ -703,11 +740,28 @@ function renderIssues() {
       target.innerHTML = "";
 
       try {
+        await ensureFullSnapshot();
+
+        const fullIssue =
+          (snapshot.auditChecks || [])
+            .find(
+              x =>
+                x.code ===
+                issue.code &&
+                x.status ===
+                "finding"
+            ) ||
+          issue;
+
         await runAcross(
           "false_positive",
           {
-            issue,
-            context: pageContextForIssue(issue)
+            issue:
+              fullIssue,
+            context:
+              pageContextForIssue(
+                fullIssue
+              )
           },
           target
         );
@@ -751,11 +805,25 @@ function renderIssues() {
       target.innerHTML = "";
 
       try {
+        await ensureFullSnapshot();
+
+        const fullIssue =
+          (snapshot.auditChecks || [])
+            .find(
+              x =>
+                x.code ===
+                issue.code &&
+                x.status ===
+                "finding"
+            ) ||
+          issue;
+
         await createJiraTicket({
-          issue,
+          issue:
+            fullIssue,
           context:
             pageContextForIssue(
-              issue
+              fullIssue
             ),
           target,
           button:
@@ -2325,7 +2393,9 @@ async function load() {
 
   snapshot = ctx?.snapshot || null;
   analysisRun = ctx?.analysisRun || null;
-  domDiff = snapshot?.domDiff || analysisRun?.domDiff || null;
+  domDiff =
+    snapshot?.domDiff ||
+    null;
   domDiffCursor = 0;
 
   updatePageMeta();
@@ -2405,6 +2475,15 @@ $("#alignmentBtn").onclick = async () => {
     return setStatus("Capture a page first.", true);
   }
 
+  try {
+    await ensureFullSnapshot();
+  } catch (e) {
+    return setStatus(
+      e?.message || String(e),
+      true
+    );
+  }
+
   const target = $("#intentResults");
   target.innerHTML = "";
 
@@ -2474,6 +2553,15 @@ $("#alignmentBtn").onclick = async () => {
 $("#classifyLinksBtn").onclick = async () => {
   if (!snapshot) {
     return setStatus("Capture a page first.", true);
+  }
+
+  try {
+    await ensureFullSnapshot();
+  } catch (e) {
+    return setStatus(
+      e?.message || String(e),
+      true
+    );
   }
 
   const max =
@@ -2581,6 +2669,19 @@ $("#assessDomDiffBtn").onclick =
         true
       );
     }
+
+    try {
+      await ensureFullSnapshot();
+    } catch (e) {
+      return setStatus(
+        e?.message || String(e),
+        true
+      );
+    }
+
+    domDiff =
+      snapshot.domDiff ||
+      domDiff;
 
     if (!domDiff?.items?.length) {
       return setStatus(

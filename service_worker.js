@@ -425,6 +425,85 @@ function newAnalysisRunId() {
   return crypto.randomUUID();
 }
 
+function makeSnapshotSummary(snapshot) {
+  if (!snapshot) return null;
+
+  const auditChecks =
+    (snapshot.auditChecks || [])
+      .map(check => ({
+        code:
+          check.code,
+        status:
+          check.status,
+        message:
+          check.message
+      }));
+
+  const domDiff =
+    snapshot.domDiff
+      ? {
+          source:
+            snapshot.domDiff.source || "",
+          caveat:
+            snapshot.domDiff.caveat || "",
+          capturedAt:
+            snapshot.domDiff.capturedAt || "",
+          response:
+            snapshot.domDiff.response || null,
+          summary:
+            snapshot.domDiff.summary || null
+        }
+      : null;
+
+  return {
+    _summaryOnly:
+      true,
+    fingerprint:
+      snapshot.fingerprint || "",
+    url:
+      snapshot.url || "",
+    title:
+      snapshot.title || "",
+    capturedAt:
+      snapshot.capturedAt || "",
+    canonical:
+      snapshot.canonical || "",
+    canonicals:
+      snapshot.canonicals || [],
+    htmlLang:
+      snapshot.urlSignals?.htmlLang || "",
+    urlSignals:
+      snapshot.urlSignals || null,
+    auditChecks,
+    domDiff
+  };
+}
+
+function makeAnalysisRunSummary(run) {
+  if (!run) return null;
+
+  return {
+    _summaryOnly:
+      true,
+    id:
+      run.id,
+    startedAt:
+      run.startedAt,
+    updatedAt:
+      run.updatedAt,
+    url:
+      run.url,
+    title:
+      run.title,
+    pageFingerprint:
+      run.pageFingerprint,
+    capturedAt:
+      run.capturedAt,
+    checks:
+      run.checks || {}
+  };
+}
+
 async function createAnalysisRun(snapshot) {
   const run = {
     id: newAnalysisRunId(),
@@ -451,7 +530,10 @@ async function createAnalysisRun(snapshot) {
   await dbPut("analysisRuns", run);
 
   await chrome.storage.local.set({
-    currentAnalysisRunId: run.id
+    currentAnalysisRunId:
+      run.id,
+    currentAnalysisRunSummary:
+      makeAnalysisRunSummary(run)
   });
 
   return run;
@@ -3001,7 +3083,9 @@ async function captureActiveTab() {
 
   await chrome.storage.local.set({
     lastSnapshotFingerprint:
-      fingerprint
+      fingerprint,
+    lastSnapshotSummary:
+      makeSnapshotSummary(result)
   });
 
   const analysisRun =
@@ -3849,6 +3933,11 @@ async function buildDomDiff() {
         "snapshots",
         snapshot
       );
+
+      await chrome.storage.local.set({
+        lastSnapshotSummary:
+          makeSnapshotSummary(snapshot)
+      });
     }
   }
 
@@ -3906,30 +3995,103 @@ chrome.runtime.onMessage.addListener(
       ) {
         const {
           lastSnapshotFingerprint,
-          currentAnalysisRunId
+          lastSnapshotSummary,
+          currentAnalysisRunId,
+          currentAnalysisRunSummary
         } =
           await chrome.storage.local.get([
             "lastSnapshotFingerprint",
-            "currentAnalysisRunId"
+            "lastSnapshotSummary",
+            "currentAnalysisRunId",
+            "currentAnalysisRunSummary"
           ]);
+
+        let snapshotSummary =
+          lastSnapshotSummary ||
+          null;
+
+        let runSummary =
+          currentAnalysisRunSummary ||
+          null;
+
+        // One-time migration for installations that already have full
+        // snapshots/runs in IndexedDB but no lightweight summaries yet.
+        // We read them once, persist only the compact summary, and never
+        // send the large objects through the sidebar bootstrap message.
+        if (
+          !snapshotSummary &&
+          lastSnapshotFingerprint
+        ) {
+          const storedSnapshot =
+            await dbGet(
+              "snapshots",
+              lastSnapshotFingerprint
+            );
+
+          snapshotSummary =
+            makeSnapshotSummary(
+              storedSnapshot
+            );
+
+          if (snapshotSummary) {
+            await chrome.storage.local.set({
+              lastSnapshotSummary:
+                snapshotSummary
+            });
+          }
+        }
+
+        if (
+          !runSummary &&
+          currentAnalysisRunId
+        ) {
+          const storedRun =
+            await dbGet(
+              "analysisRuns",
+              currentAnalysisRunId
+            );
+
+          runSummary =
+            makeAnalysisRunSummary(
+              storedRun
+            );
+
+          if (runSummary) {
+            await chrome.storage.local.set({
+              currentAnalysisRunSummary:
+                runSummary
+            });
+          }
+        }
 
         return {
           snapshot:
-            lastSnapshotFingerprint
-              ? await dbGet(
-                  "snapshots",
-                  lastSnapshotFingerprint
-                )
-              : null,
+            snapshotSummary,
 
           analysisRun:
-            currentAnalysisRunId
-              ? await dbGet(
-                  "analysisRuns",
-                  currentAnalysisRunId
-                )
-              : null
+            runSummary
         };
+      }
+
+      if (
+        msg.type ===
+        "GET_CURRENT_SNAPSHOT"
+      ) {
+        const {
+          lastSnapshotFingerprint
+        } =
+          await chrome.storage.local.get(
+            "lastSnapshotFingerprint"
+          );
+
+        if (!lastSnapshotFingerprint) {
+          return null;
+        }
+
+        return await dbGet(
+          "snapshots",
+          lastSnapshotFingerprint
+        );
       }
 
       if (
@@ -4018,9 +4180,10 @@ chrome.runtime.onMessage.addListener(
           "analysisRuns"
         );
 
-        await chrome.storage.local.remove(
-          "currentAnalysisRunId"
-        );
+        await chrome.storage.local.remove([
+          "currentAnalysisRunId",
+          "currentAnalysisRunSummary"
+        ]);
 
         return true;
       }
