@@ -183,10 +183,63 @@ function taskResultHtml(task, result) {
 }
 
 function providerCard(task, provider, result, mode = null) {
-  const d = document.createElement("div"); d.className = "card result-card";
-  const meta = result?._meta || {}; const clean = withoutMeta(result) || {};
-  const context = mode ? `<span class="mini-chip">${escapeHtml(humanLabel(mode))}</span>` : "";
-  d.innerHTML = `<div class="result-card-head"><div><div class="result-provider">${escapeHtml(provider)}</div><div class="result-meta">${context}${meta.cacheHit ? '<span class="mini-chip">Cache</span>' : ""}${meta.durationMs ? `<span>${escapeHtml(meta.durationMs)} ms</span>` : ""}</div></div></div><div class="result-body">${taskResultHtml(task, clean)}</div>${rawJsonDetails(clean)}`;
+  const d = document.createElement("div");
+  d.className = "card result-card";
+
+  const meta =
+    result?._meta || {};
+
+  const clean =
+    withoutMeta(
+      result
+    ) || {};
+
+  const context =
+    mode
+      ? `<span class="mini-chip">${escapeHtml(humanLabel(mode))}</span>`
+      : "";
+
+  const nanoMeta =
+    provider === "nano"
+      ? meta.providerMeta || {}
+      : {};
+
+  const timing =
+    nanoMeta.timing || {};
+
+  const session =
+    nanoMeta.session || {};
+
+  const timingChips =
+    provider === "nano" &&
+    !meta.cacheHit
+      ? [
+          Number.isFinite(
+            timing.baseSessionCreateMs
+          )
+            ? `<span class="mini-chip">create ${escapeHtml(timing.baseSessionCreateMs)} ms</span>`
+            : "",
+          Number.isFinite(
+            timing.cloneMs
+          )
+            ? `<span class="mini-chip">clone ${escapeHtml(timing.cloneMs)} ms</span>`
+            : "",
+          Number.isFinite(
+            timing.promptMs
+          )
+            ? `<span class="mini-chip">prompt ${escapeHtml(timing.promptMs)} ms</span>`
+            : "",
+          session.baseSessionReused
+            ? '<span class="mini-chip enabled">base reused</span>'
+            : '<span class="mini-chip">base created</span>'
+        ]
+          .filter(Boolean)
+          .join("")
+      : "";
+
+  d.innerHTML =
+    `<div class="result-card-head"><div><div class="result-provider">${escapeHtml(provider)}</div><div class="result-meta">${context}${meta.cacheHit ? '<span class="mini-chip">Cache</span>' : ""}${meta.durationMs ? `<span>${escapeHtml(meta.durationMs)} ms total</span>` : ""}${timingChips}</div></div></div><div class="result-body">${taskResultHtml(task, clean)}</div>${rawJsonDetails(clean)}`;
+
   return d;
 }
 
