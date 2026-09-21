@@ -1,21 +1,23 @@
 
 importScripts("defaults.js", "db.js");
 
-async function enableAutomaticSidePanelAction() {
+let lastGrantedTabId = null;
+
+async function disableAutomaticSidePanelAction() {
   try {
     await chrome.sidePanel.setPanelBehavior({
-      openPanelOnActionClick: true
+      openPanelOnActionClick: false
     });
   } catch (e) {
     console.error(
-      "Could not enable Nano SEO Lab side panel action:",
+      "Could not disable automatic Nano SEO Lab side panel action:",
       e
     );
   }
 }
 
 chrome.runtime.onInstalled.addListener(async () => {
-  await enableAutomaticSidePanelAction();
+  await disableAutomaticSidePanelAction();
 
   const {settings} =
     await chrome.storage.local.get("settings");
@@ -28,20 +30,39 @@ chrome.runtime.onInstalled.addListener(async () => {
 });
 
 chrome.runtime.onStartup.addListener(async () => {
-  await enableAutomaticSidePanelAction();
+  await disableAutomaticSidePanelAction();
 });
 
-// Restore Chrome's native toolbar-icon → side-panel behaviour whenever
-// the service worker starts. This is more reliable than manually opening
-// the panel from action.onClicked, and the extension no longer needs the
-// old custom "authorised tab" bookkeeping that originally motivated the
-// workaround.
-enableAutomaticSidePanelAction();
+// Chrome persists this behavior across extension reloads/updates, so reset it
+// whenever the service worker starts.
+disableAutomaticSidePanelAction();
 
-async function getSettings() {
-  const {settings} = await chrome.storage.local.get("settings");
-  return mergeSettings(settings);
-}
+chrome.action.onClicked.addListener((tab) => {
+  if (!tab?.id) return;
+
+  // The action click is the user gesture that grants activeTab access.
+  // Keep sidePanel.open() directly inside this handler, with no awaited work
+  // before it, so the panel opens in the same gesture.
+  lastGrantedTabId =
+    tab.id;
+
+  chrome.storage.session.set({
+    nanoSeoGrantedTabId:
+      tab.id,
+    nanoSeoGrantedUrl:
+      tab.url || ""
+  }).catch(() => {});
+
+  chrome.sidePanel.open({
+    tabId:
+      tab.id
+  }).catch((e) => {
+    console.error(
+      "Could not open Nano SEO Lab side panel:",
+      e
+    );
+  });
+});
 
 async function getCurrentActiveTab() {
   const [tab] =
@@ -56,7 +77,32 @@ async function getCurrentActiveTab() {
     );
   }
 
+  const stored =
+    await chrome.storage.session.get([
+      "nanoSeoGrantedTabId",
+      "nanoSeoGrantedUrl"
+    ]);
+
+  const grantedTabId =
+    lastGrantedTabId ??
+    stored.nanoSeoGrantedTabId ??
+    null;
+
+  if (
+    grantedTabId !== null &&
+    grantedTabId !== tab.id
+  ) {
+    throw new Error(
+      "Nano SEO Lab page access belongs to a different tab. Click the Nano SEO Lab toolbar icon on this tab, then run the analysis again."
+    );
+  }
+
   return tab;
+}
+
+async function getSettings() {
+  const {settings} = await chrome.storage.local.get("settings");
+  return mergeSettings(settings);
 }
 
 function friendlyPageAccessError(error) {
@@ -73,8 +119,8 @@ function friendlyPageAccessError(error) {
     )
   ) {
     return new Error(
-      `Chrome has not granted temporary page access for this tab. ` +
-      `Click the Nano SEO Lab toolbar icon on the page once, then run the analysis again.`
+      `Chrome page access is missing or expired for this tab. ` +
+      `Click the Nano SEO Lab toolbar icon on this page, then run the analysis again.`
     );
   }
 
