@@ -276,7 +276,7 @@ EXAMPLE URL:
 
     images_missing_dimensions: `Missing width/height attributes can contribute to layout instability when dimensions are not otherwise reserved by CSS or aspect-ratio. Do not assume the absence of attributes alone proves CLS impact.`,
 
-    links_empty_anchor: `A link without useful visible or accessible anchor text is more concerning when it is navigational or semantically important. Icon-only links may still be valid if they have an accessible label.`,
+    links_empty_anchor: `Judge the supplied empty-anchor examples, not empty links in the abstract. Use each example's href, selector, zone/component, visibility, nearby text, child tags and image/SVG signals. Do not infer that an empty anchor is navigational merely because the page has many internal links. A visible link to a meaningful destination with no visible or accessible name is more likely to be a real issue. Hidden/template/placeholder anchors, empty hash targets, or non-user-facing implementation artefacts may be lower concern or false positives. An icon/image link is still concerning when it genuinely has no accessible text alternative. If the supplied examples do not reveal what the link does, prefer manual_review rather than generalising.`,
 
     internal_http_links: `Internal HTTP links on an HTTPS page are usually undesirable when an HTTPS equivalent exists, because they can introduce redirects or inconsistent secure URL references.`,
 
