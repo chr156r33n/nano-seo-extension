@@ -165,7 +165,7 @@ function taskResultHtml(task, result) {
   if (task === "page_type") return `<div class="result-primary">${badgeHtml(r.page_type, "info")}${confidenceHtml(r.confidence)}</div>${evidenceHtml(r.evidence)}`;
   if (task === "intent") return `<div class="result-primary">${badgeHtml(r.primary_intent, "info")}${r.split_intent ? badgeHtml("split intent", "warn") : ""}${confidenceHtml(r.confidence)}</div><div class="result-grid two"><div><div class="result-label">Supporting intent</div>${chipsHtml(r.supporting_intents)}</div><div><div class="result-label">Independent secondary intent</div>${chipsHtml(r.secondary_intents)}</div></div>${evidenceHtml(r.evidence)}`;
   if (task === "alignment") return `<div class="result-primary">${badgeHtml(r.alignment)}${r.split_intent ? badgeHtml("split intent", "warn") : ""}${confidenceHtml(r.confidence)}</div>${r.mismatch_reason ? `<div class="result-subsection"><div class="result-label">Mismatch reason</div><div class="result-copy">${escapeHtml(r.mismatch_reason)}</div></div>` : ""}${evidenceHtml(r.notes, "Notes")}`;
-  if (task === "false_positive") return `<div class="result-primary">${badgeHtml(r.judgement)}${confidenceHtml(r.confidence)}</div>${r.rationale ? `<div class="result-copy">${escapeHtml(r.rationale)}</div>` : ""}${evidenceHtml(r.useful_context, "Useful context")}`;
+  if (task === "false_positive") return `<div class="result-primary">${badgeHtml(r.judgement)}${confidenceHtml(r.confidence)}</div>${r.rationale ? `<div class="result-copy">${escapeHtml(r.rationale)}</div>` : ""}${evidenceHtml(r.evidence_used, "Evidence reviewed")}${(r.item_assessments || []).length ? `<div class="result-subsection"><div class="result-label">Affected items</div><div class="result-list">${r.item_assessments.map(item => `<div class="result-row static"><div class="result-row-head"><code>${escapeHtml(item.item || "")}</code>${badgeHtml(item.judgement)}</div><div class="result-copy">${escapeHtml(item.rationale || "")}</div></div>`).join("")}</div></div>` : ""}${evidenceHtml(r.useful_context, "Useful context")}`;
   if (task === "link_group") {
     const rows = r.results || []; const counts = {};
     for (const row of rows) counts[row.category] = (counts[row.category] || 0) + 1;
@@ -630,11 +630,20 @@ function pageContextForIssue(issue) {
     links_empty_anchor: {
       ...base,
       linkEvidence: {
-        stats:
-          snapshot.linkStats || {},
-        examples:
-          snapshot.linkStats
-            ?.emptyAnchorExamples || []
+        stats: {
+          totalAnchors:
+            snapshot.linkStats
+              ?.totalAnchors || 0,
+          internal:
+            snapshot.linkStats
+              ?.internal || 0,
+          external:
+            snapshot.linkStats
+              ?.external || 0,
+          emptyAnchor:
+            snapshot.linkStats
+              ?.emptyAnchor || 0
+        }
       }
     },
 
