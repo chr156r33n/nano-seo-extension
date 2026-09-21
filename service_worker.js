@@ -317,7 +317,29 @@ async function callNano({task, system, prompt, schema, settings}) {
   });
 
   if (!resp?.ok) {
-    throw new Error(resp?.error || "Nano runner failed");
+    const error =
+      new Error(
+        resp?.error ||
+        "Nano runner failed"
+      );
+
+    error.code =
+      resp?.errorCode ||
+      null;
+
+    error.requested =
+      resp?.requested ??
+      null;
+
+    error.available =
+      resp?.available ??
+      null;
+
+    error.contextWindow =
+      resp?.contextWindow ??
+      null;
+
+    throw error;
   }
 
   return {
