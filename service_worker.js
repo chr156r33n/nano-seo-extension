@@ -375,18 +375,43 @@ async function ensureOffscreen() {
   });
 }
 
+async function waitForLongExtensionOperation(promise) {
+  const keepAliveInterval =
+    setInterval(
+      () => {
+        chrome.runtime
+          .getPlatformInfo()
+          .catch(
+            () => {}
+          );
+      },
+      20 * 1000
+    );
+
+  try {
+    return await promise;
+  } finally {
+    clearInterval(
+      keepAliveInterval
+    );
+  }
+}
+
 async function callNano({task, system, prompt, schema, settings}) {
   await ensureOffscreen();
 
-  const resp = await chrome.runtime.sendMessage({
-    target: "offscreen",
-    type: "RUN_NANO",
-    sessionKey: task,
-    system,
-    prompt,
-    schema,
-    nanoConfig: settings.providers.nano
-  });
+  const resp =
+    await waitForLongExtensionOperation(
+      chrome.runtime.sendMessage({
+        target: "offscreen",
+        type: "RUN_NANO",
+        sessionKey: task,
+        system,
+        prompt,
+        schema,
+        nanoConfig: settings.providers.nano
+      })
+    );
 
   if (!resp?.ok) {
     const error =
