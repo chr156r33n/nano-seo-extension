@@ -808,9 +808,17 @@ th {
 }
 
 .options > h1,
-.logs > h1 {
+.logs > h1,
+.options .brand-lockup h1,
+.logs .brand-lockup h1 {
   font-size: 34px;
   margin-bottom: 8px;
+}
+
+.options .brand-lockup,
+.logs .brand-lockup {
+  align-items: flex-start;
+  margin-bottom: 18px;
 }
 
 .options > p.muted,
