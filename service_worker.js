@@ -436,6 +436,10 @@ async function callNano({task, system, prompt, schema, settings}) {
       resp?.contextWindow ??
       null;
 
+    error.nanoMeta =
+      resp?.meta ||
+      null;
+
     throw error;
   }
 
@@ -912,6 +916,20 @@ async function runTask({
       String(
         e?.message || e
       );
+
+    if (
+      provider === "nano" &&
+      e?.nanoMeta
+    ) {
+      result = {
+        parsed:
+          null,
+        raw:
+          null,
+        meta:
+          e.nanoMeta
+      };
+    }
   }
 
   const durationMs =
