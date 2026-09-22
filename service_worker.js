@@ -146,6 +146,203 @@ function renderTemplate(template, vars) {
   );
 }
 
+function compactNanoDigest(snapshot) {
+  const digest =
+    snapshot.structuredDigest || {};
+
+  const headings =
+    Array.isArray(
+      digest.headings
+    )
+      ? digest.headings
+      : [];
+
+  const compactHeadings =
+    headings
+      .filter(
+        heading =>
+          Number(
+            heading
+              ?.semantic_weight
+          ) >= 0.5 &&
+          ![
+            "cookie_consent",
+            "navigation",
+            "footer",
+            "utility"
+          ].includes(
+            heading?.zone
+          )
+      )
+      .slice(0, 16)
+      .map(
+        heading => ({
+          tag:
+            heading.tag || "",
+          text:
+            String(
+              heading.text || ""
+            ).slice(0, 180),
+          zone:
+            heading.zone || "",
+          component:
+            heading.component || "",
+          semantic_weight:
+            Number.isFinite(
+              Number(
+                heading
+                  .semantic_weight
+              )
+            )
+              ? Number(
+                  heading
+                    .semantic_weight
+                )
+              : null
+        })
+      );
+
+  const structural =
+    digest.structuralSignals ||
+    {};
+
+  const compactStructural = {
+    hasMain:
+      Boolean(
+        structural.hasMain
+      ),
+    hasArticle:
+      Boolean(
+        structural.hasArticle
+      ),
+    h1Count:
+      Number(
+        structural.h1Count ||
+        0
+      ),
+    h2Count:
+      Number(
+        structural.h2Count ||
+        0
+      ),
+    h3Count:
+      Number(
+        structural.h3Count ||
+        0
+      ),
+    formCount:
+      Number(
+        structural.formCount ||
+        0
+      ),
+    buttonCount:
+      Number(
+        structural.buttonCount ||
+        0
+      ),
+    internalLinkCount:
+      Number(
+        structural.internalLinkCount ||
+        0
+      ),
+    productSchema:
+      Boolean(
+        structural.productSchema
+      ),
+    articleSchema:
+      Boolean(
+        structural.articleSchema
+      ),
+    faqSchema:
+      Boolean(
+        structural.faqSchema
+      )
+  };
+
+  const cleanSource =
+    String(
+      snapshot.cleanMarkdown ||
+      digest.mainTextExcerpt ||
+      ""
+    )
+      .replace(
+        /\[(.*?)\]\([^)]*\)/g,
+        "$1"
+      )
+      .replace(
+        /[#*_>~]+/g,
+        " "
+      )
+      .replace(
+        /\s+/g,
+        " "
+      )
+      .trim();
+
+  return {
+    url:
+      snapshot.url ||
+      digest.url ||
+      "",
+    pathname:
+      digest.pathname ||
+      (() => {
+        try {
+          return new URL(
+            snapshot.url || ""
+          ).pathname;
+        } catch {
+          return "";
+        }
+      })(),
+    title:
+      String(
+        snapshot.title ||
+        digest.title ||
+        ""
+      ).slice(0, 220),
+    metaDescription:
+      String(
+        snapshot.metaDescription ||
+        digest.metaDescription ||
+        ""
+      ).slice(0, 320),
+    h1s:
+      (
+        snapshot.h1s ||
+        digest.h1s ||
+        []
+      )
+        .slice(0, 3)
+        .map(
+          value =>
+            String(value)
+              .slice(0, 180)
+        ),
+    headings:
+      compactHeadings,
+    schemaTypes:
+      (
+        snapshot.schemaTypes ||
+        digest.schemaTypes ||
+        []
+      )
+        .slice(0, 18),
+    structuralSignals:
+      compactStructural,
+    htmlLang:
+      snapshot.htmlLang ||
+      digest.urlSignals
+        ?.htmlLang ||
+      "",
+    contentExcerpt:
+      cleanSource.slice(
+        0,
+        2200
+      )
+  };
+}
+
 function pageRepresentation(snapshot, mode, maxChars) {
   if (mode === "raw_html") {
     return {
@@ -186,7 +383,7 @@ function pageRepresentation(snapshot, mode, maxChars) {
   };
 }
 
-function taskVars(task, payload, settings) {
+function taskVars(task, payload, settings, provider = null) {
   if (task === "link_group") {
     return {
       links_json: JSON.stringify(payload.links, null, 2)
@@ -194,19 +391,41 @@ function taskVars(task, payload, settings) {
   }
 
   if (task === "page_type" || task === "intent") {
-    const mode = payload.inputMode || "raw";
+    const mode =
+      payload.inputMode ||
+      "raw";
+
+    const representation =
+      provider === "nano" &&
+      mode === "digest"
+        ? {
+            mode:
+              "digest",
+            url:
+              payload.snapshot
+                ?.url ||
+              "",
+            content:
+              compactNanoDigest(
+                payload.snapshot ||
+                {}
+              )
+          }
+        : pageRepresentation(
+            payload.snapshot,
+            mode,
+            settings.limits.bodyChars
+          );
 
     return {
-      semantic_guidance: settings.semanticImportanceGuidance,
-      page_json: JSON.stringify(
-        pageRepresentation(
-          payload.snapshot,
-          mode,
-          settings.limits.bodyChars
-        ),
-        null,
-        2
-      )
+      semantic_guidance:
+        settings.semanticImportanceGuidance,
+      page_json:
+        JSON.stringify(
+          representation,
+          null,
+          2
+        )
     };
   }
 
@@ -779,7 +998,8 @@ async function runTask({
     taskVars(
       task,
       payload,
-      settings
+      settings,
+      provider
     );
 
   const prompt =
