@@ -93,7 +93,7 @@ async function getCurrentActiveTab() {
     grantedTabId !== tab.id
   ) {
     throw new Error(
-      "Nano SEO Lab page access belongs to a different tab. Click the Nano SEO Lab toolbar icon on this tab, then run the analysis again."
+      "This tab has not been opened with Nano SEO Lab yet. Click the Nano SEO Lab toolbar icon on this page, then run the check again."
     );
   }
 

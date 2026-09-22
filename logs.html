@@ -1,8 +1,29 @@
 <!doctype html>
-<html><head><meta charset="utf-8"><title>Nano SEO Lab Logs</title><link rel="stylesheet" href="styles.css"></head>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Nano SEO Lab · Model Call Log</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
 <body class="logs">
-<h1>Nano SEO Lab research log</h1>
-<div class="row"><button id="refreshBtn">Refresh</button><button id="downloadBtn" class="secondary">Download JSON</button><button id="clearBtn" class="secondary">Clear logs</button></div>
-<p class="muted">Every model call is logged, including rendered prompt, task payload, output, timing, provider/model and cache status.</p>
-<div id="stats"></div><div id="runs"></div>
-<script src="logs.js"></script></body></html>
+  <div class="brand-lockup">
+    <div class="brand-mark">CG</div>
+    <div>
+      <div class="eyebrow">Nano SEO Lab · Research data</div>
+      <h1>Model call log</h1>
+      <p class="muted">Raw prompts, task payloads, outputs, timing, provider/model details and cache status for every model call.</p>
+    </div>
+  </div>
+
+  <div class="row" style="margin-top:20px">
+    <button id="refreshBtn">Refresh</button>
+    <button id="downloadBtn" class="secondary">Export JSON</button>
+    <button id="clearBtn" class="secondary">Clear call log</button>
+  </div>
+
+  <div id="stats"></div>
+  <div id="runs"></div>
+
+  <script src="logs.js"></script>
+</body>
+</html>
