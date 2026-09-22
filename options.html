@@ -1,10 +1,31 @@
 <!doctype html>
-<html><head><meta charset="utf-8"><title>Nano SEO Lab Config</title><link rel="stylesheet" href="styles.css"></head>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Nano SEO Lab Settings</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
 <body class="options">
-<h1>Nano SEO Lab config</h1>
-<p class="muted">All provider models and all model prompts are editable. API keys are stored locally by the extension for this research prototype.</p>
-<div id="app"></div>
-<div class="row"><button id="saveBtn">Save config</button><button id="resetBtn" class="secondary">Reset defaults</button><button id="clearCacheBtn" class="secondary">Clear result cache</button></div>
-<div id="msg" class="status"></div>
-<script src="defaults.js"></script><script src="options.js"></script>
-</body></html>
+  <div class="brand-lockup">
+    <div class="brand-mark">CG</div>
+    <div>
+      <div class="eyebrow">Nano SEO Lab · Chris-Green.net</div>
+      <h1>Settings</h1>
+      <p class="muted">Choose models, analysis stages and research parameters. Advanced prompts and scoring remain editable below.</p>
+    </div>
+  </div>
+
+  <div id="app"></div>
+
+  <div class="row" style="margin-top:28px">
+    <button id="saveBtn">Save settings</button>
+    <button id="resetBtn" class="secondary">Restore defaults</button>
+    <button id="clearCacheBtn" class="secondary">Clear saved model results</button>
+  </div>
+
+  <div id="msg" class="status"></div>
+
+  <script src="defaults.js"></script>
+  <script src="options.js"></script>
+</body>
+</html>
