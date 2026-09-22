@@ -520,12 +520,6 @@ async function runNano(msg) {
         true
     };
 
-    let measuredInputUsage =
-      null;
-
-    let measureMs =
-      0;
-
     const availableContext =
       Number.isFinite(
         contextWindow
@@ -543,47 +537,6 @@ async function runNano(msg) {
           )
         : null;
 
-    if (
-      typeof session
-        .measureContextUsage ===
-      "function"
-    ) {
-      const measureStarted =
-        performance.now();
-
-      measuredInputUsage =
-        await session
-          .measureContextUsage(
-            msg.prompt,
-            promptOptions
-          );
-
-      measureMs =
-        Math.round(
-          performance.now() -
-          measureStarted
-        );
-
-      if (
-        Number.isFinite(
-          measuredInputUsage
-        ) &&
-        Number.isFinite(
-          availableContext
-        ) &&
-        measuredInputUsage >
-          availableContext
-      ) {
-        throw nanoContextError({
-          requested:
-            measuredInputUsage,
-          available:
-            availableContext,
-          contextWindow
-        });
-      }
-    }
-
     const promptStarted =
       performance.now();
 
@@ -596,6 +549,15 @@ async function runNano(msg) {
           promptOptions
         );
     } catch (error) {
+      const promptMs =
+        Math.round(
+          performance.now() -
+          promptStarted
+        );
+
+      let finalError =
+        error;
+
       if (
         error?.name ===
           "QuotaExceededError" ||
@@ -607,15 +569,83 @@ async function runNano(msg) {
           )
         )
       ) {
-        throw promptQuotaError({
-          error,
-          measuredInputUsage,
-          availableContext,
-          contextWindow
-        });
+        finalError =
+          promptQuotaError({
+            error,
+            measuredInputUsage:
+              null,
+            availableContext,
+            contextWindow
+          });
       }
 
-      throw error;
+      finalError.nanoMeta = {
+        availability:
+          availabilityInfo
+            .availability,
+        timing: {
+          totalMs:
+            Math.round(
+              performance.now() -
+              totalStarted
+            ),
+          availabilityMs:
+            availabilityInfo
+              .availabilityMs,
+          baseSessionCreateMs:
+            baseInfo
+              .createMs,
+          cloneMs:
+            baseInfo
+              .cloneMs,
+          promptMs,
+          parseMs:
+            0
+        },
+        session: {
+          baseSessionReused:
+            baseInfo
+              .reused,
+          availabilityCached:
+            availabilityInfo
+              .availabilityCached,
+          cacheSize:
+            baseSessions.size,
+          rebuiltAfterCloneError:
+            baseInfo
+              .rebuiltAfterCloneError ||
+            null
+        },
+        input: {
+          promptChars:
+            String(
+              msg.prompt ||
+              ""
+            ).length,
+          systemChars:
+            String(
+              msg.system ||
+              ""
+            ).length,
+          schemaChars:
+            JSON.stringify(
+              msg.schema ||
+              {}
+            ).length,
+          responseConstraintInputOmitted:
+            true
+        },
+        context: {
+          usageBefore:
+            contextUsageBefore,
+          availableBefore:
+            availableContext,
+          window:
+            contextWindow
+        }
+      };
+
+      throw finalError;
     }
 
     const promptMs =
@@ -623,7 +653,6 @@ async function runNano(msg) {
         performance.now() -
         promptStarted
       );
-
     const parseStarted =
       performance.now();
 
@@ -667,8 +696,6 @@ async function runNano(msg) {
           cloneMs:
             baseInfo
               .cloneMs,
-          measureContextMs:
-            measureMs,
           promptMs,
           parseMs
         },
@@ -715,24 +742,12 @@ async function runNano(msg) {
         context: {
           usageBefore:
             contextUsageBefore,
-          measuredInputUsage,
           availableBefore:
             availableContext,
           usageAfter:
             contextUsageAfter,
           window:
-            contextWindow,
-          measuredUtilisation:
-            Number.isFinite(
-              measuredInputUsage
-            ) &&
-            Number.isFinite(
-              availableContext
-            ) &&
-            availableContext > 0
-              ? measuredInputUsage /
-                availableContext
-              : null
+            contextWindow
         }
       }
     };
@@ -808,6 +823,9 @@ chrome.runtime
                 null,
               chromeErrorMessage:
                 e?.chromeErrorMessage ||
+                null,
+              meta:
+                e?.nanoMeta ||
                 null
             })
         );
