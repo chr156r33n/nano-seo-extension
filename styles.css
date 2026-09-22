@@ -731,6 +731,23 @@ th {
   text-transform: uppercase;
 }
 
+.analyse-all-shell #analyseAllResults {
+  color: var(--ink);
+}
+
+.analyse-all-shell #analyseAllResults .card,
+.analyse-all-shell #analyseAllResults .result-row {
+  color: var(--ink);
+}
+
+.analyse-all-shell #analyseAllResults .muted,
+.analyse-all-shell #analyseAllResults .result-meta,
+.analyse-all-shell #analyseAllResults .confidence,
+.analyse-all-shell #analyseAllResults .raw-json > summary,
+.analyse-all-shell #analyseAllResults .subdetails > summary {
+  color: var(--muted);
+}
+
 .analyse-results-summary {
   margin-top: 10px;
 }
