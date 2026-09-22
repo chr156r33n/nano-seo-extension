@@ -21,6 +21,69 @@ async function load() {
     mergeSettings(settings);
 
   render();
+  bindHreflangReferenceActions();
+}
+
+function bindHreflangReferenceActions() {
+  const loadAll =
+    document.querySelector(
+      "#loadAllLanguageHreflangs"
+    );
+
+  if (loadAll) {
+    loadAll.onclick =
+      () => {
+        const textarea =
+          document.querySelector(
+            "#hreflangAgreedValues"
+          );
+
+        textarea.value =
+          [
+            ...HREFLANG_LANGUAGE_CODES,
+            "x-default"
+          ].join("\n");
+      };
+  }
+
+  const addXDefault =
+    document.querySelector(
+      "#appendXDefaultHreflang"
+    );
+
+  if (addXDefault) {
+    addXDefault.onclick =
+      () => {
+        const textarea =
+          document.querySelector(
+            "#hreflangAgreedValues"
+          );
+
+        const values =
+          textarea.value
+            .split(/\r?\n|,/)
+            .map(
+              value =>
+                value.trim()
+            )
+            .filter(Boolean);
+
+        if (
+          !values.some(
+            value =>
+              value.toLowerCase() ===
+              "x-default"
+          )
+        ) {
+          values.push(
+            "x-default"
+          );
+        }
+
+        textarea.value =
+          values.join("\n");
+      };
+  }
 }
 
 function render() {
@@ -157,10 +220,48 @@ function render() {
       <div class="section-kicker">Locales</div><h2>Agreed hreflang values</h2>
 
       <p class="muted">
-        One value per line. Leave empty to skip allow-list validation. This check does not crawl target pages.
+        One value per line. This remains the project-specific allow-list used for validation.
       </p>
 
       <textarea id="hreflangAgreedValues" placeholder="en-GB&#10;en-US&#10;fr-FR&#10;x-default">${(current.hreflangAgreedValues || []).join("\n")}</textarea>
+
+      <div class="card" style="margin-top:14px">
+        <h3>Hreflang reference</h3>
+        <p class="muted small">
+          Complete ISO 639-1 language-only reference (${HREFLANG_LANGUAGE_CODES.length} codes), plus x-default and some common region/script examples.
+          Region and script variants are combinations rather than a finite global list, so they are shown as examples rather than auto-approved values.
+        </p>
+
+        <div class="row" style="margin:10px 0">
+          <button id="loadAllLanguageHreflangs" class="secondary" type="button">
+            Load all language-only values
+          </button>
+          <button id="appendXDefaultHreflang" class="secondary" type="button">
+            Add x-default
+          </button>
+        </div>
+
+        <details class="control-panel">
+          <summary>Show all language codes</summary>
+          <div class="control-panel-body">
+            <pre>${HREFLANG_LANGUAGE_CODES.join("\n")}</pre>
+          </div>
+        </details>
+
+        <details class="control-panel">
+          <summary>Show all region codes</summary>
+          <div class="control-panel-body">
+            <pre>${HREFLANG_REGION_CODES.join("\n")}</pre>
+          </div>
+        </details>
+
+        <details class="control-panel">
+          <summary>Common region / script examples</summary>
+          <div class="control-panel-body">
+            <pre>${HREFLANG_SPECIAL_EXAMPLES.join("\n")}</pre>
+          </div>
+        </details>
+      </div>
     </section>
 
     <section>
@@ -376,6 +477,7 @@ document
       });
 
       render();
+      bindHreflangReferenceActions();
       msg("Defaults restored.");
     };
 
