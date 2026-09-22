@@ -1,0 +1,58 @@
+{
+  "fixtures": {
+    "metadata-bad.html": {
+      "expected_findings": {
+        "title_length": "true_positive",
+        "multiple_canonical": "true_positive",
+        "robots_conflict": "true_positive",
+        "og_url_mismatch": "true_positive"
+      }
+    },
+    "headings-mixed.html": {
+      "expected_findings": {"heading_hierarchy": "true_positive"},
+      "false_positive_examples": [
+        "Cookie-consent H2 is utility content and should be downweighted",
+        "Footer H4 is not evidence of a meaningful main-content hierarchy problem"
+      ]
+    },
+    "images-links-mixed.html": {
+      "expected_findings": {
+        "images_missing_alt": "mixed",
+        "images_empty_alt": "mixed",
+        "links_empty_anchor": "mixed",
+        "images_missing_dimensions": "mixed"
+      },
+      "notes": [
+        "hero-service.svg missing alt is a true positive",
+        "decorative-wave.svg alt empty is harmless",
+        "icon-only account link has aria-label and is harmless",
+        "empty-anchor-bad has no text/accessibility fallback and is a true positive"
+      ]
+    },
+    "locale-identity-bad.html": {
+      "expected_findings": {
+        "canonical_cross_origin": "true_positive",
+        "hreflang_duplicate_value": "true_positive",
+        "hreflang_empty_href": "true_positive",
+        "og_url_mismatch": "true_positive"
+      },
+      "notes": ["Root Organization @id on localhost is intentionally valid and should not be forced to equal the page URL."]
+    },
+    "dom-diff.html": {
+      "expected_rendered_changes": [
+        {"kind":"heading","case":"same text H3 becomes H2","expected":"low_impact"},
+        {"kind":"heading","case":"new unique Emergency drainage heading","expected":"material"},
+        {"kind":"link","case":"one duplicate /contact link removed while another remains","expected":"low_impact"},
+        {"kind":"link","case":"new unique /emergency-service destination","expected":"material"},
+        {"kind":"link","case":"anchor text changes for same /services destination","expected":"contextual"}
+      ]
+    },
+    "page-purpose.html": {
+      "expected_page_type": "location",
+      "expected_primary_intent": "transactional",
+      "expected_supporting_intents": ["informational"],
+      "expected_split_intent": false,
+      "expected_alignment": "strong"
+    }
+  }
+}
