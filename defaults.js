@@ -148,7 +148,9 @@ GLOBAL SEMANTIC IMPORTANCE GUIDANCE:
       system: "You assess semantically meaningful differences between a same-origin server HTML refetch and the current rendered DOM. Judge the significance of the specific element identified in each diff item. Do not treat all headings or elements as equally important.",
       user: `Assess each server-HTML vs rendered-DOM difference.
 
-Use the element metadata (selector, zone, component and semantic weight) to understand what was reviewed.
+Use the deterministic net_effect metadata first. It describes whether heading text/level, link destination/anchor text, destination discoverability, or unique topic signals materially differ between server HTML and rendered DOM.
+
+Use the element metadata (selector, zone, component and semantic weight) to interpret that net effect. Clear low-impact/no-net-effect heading and link cases should already have been filtered out before reaching you, so focus on whether each remaining exception matters on this specific page.
 
 A difference is more likely important when it changes indexation controls, the primary topic, meaningful main content, factual/product information, important internal link discovery, or structured-data meaning.
 
