@@ -1181,6 +1181,158 @@ function domDiffItemCard(item) {
 }
 
 
+function domJudgementSummaryHtml(judgements = []) {
+  if (!judgements.length) {
+    return '<span class="muted small">Not reviewed by a model</span>';
+  }
+
+  const primary =
+    judgements[0];
+
+  return [
+    badgeHtml(
+      primary.judgement
+    ),
+    badgeHtml(
+      primary.impact,
+      "neutral"
+    ),
+    confidenceHtml(
+      primary.confidence
+    ),
+    judgements.length > 1
+      ? `<span class="muted small">+${judgements.length - 1} more model result${judgements.length === 2 ? "" : "s"}</span>`
+      : ""
+  ].join("");
+}
+
+function domDiffJoinedAccordion(
+  item,
+  judgements = []
+) {
+  const details =
+    document.createElement(
+      "details"
+    );
+
+  details.className =
+    "card dom-diff-joined";
+
+  const headlineText =
+    item.rendered?.text ||
+    item.rendered?.href ||
+    item.raw?.text ||
+    item.raw?.href ||
+    "";
+
+  const summary =
+    document.createElement(
+      "summary"
+    );
+
+  summary.className =
+    "dom-diff-joined-summary";
+
+  summary.innerHTML = `
+    <div class="dom-diff-summary-main">
+      <div class="finding-title">
+        <span class="muted">#${escapeHtml(item.id)}</span>
+        · ${escapeHtml(humanLabel(item.kind))}
+        · ${escapeHtml(humanLabel(item.change_type))}
+      </div>
+      ${headlineText
+        ? `<div class="muted small dom-diff-preview">${escapeHtml(String(headlineText).slice(0, 180))}</div>`
+        : ""}
+    </div>
+    <div class="dom-diff-summary-verdict">
+      ${domJudgementSummaryHtml(judgements)}
+    </div>
+  `;
+
+  details.appendChild(
+    summary
+  );
+
+  const body =
+    document.createElement(
+      "div"
+    );
+
+  body.className =
+    "dom-diff-joined-body";
+
+  const evidence =
+    domDiffItemCard(
+      item
+    );
+
+  evidence.classList.add(
+    "dom-diff-evidence-card"
+  );
+
+  body.appendChild(
+    evidence
+  );
+
+  const modelSection =
+    document.createElement(
+      "div"
+    );
+
+  modelSection.className =
+    "dom-diff-model-results";
+
+  modelSection.innerHTML =
+    '<div class="result-label">Model review</div>';
+
+  if (!judgements.length) {
+    modelSection.insertAdjacentHTML(
+      "beforeend",
+      '<div class="empty-state">This difference has not been reviewed by a model yet.</div>'
+    );
+  } else {
+    for (
+      const judgement
+      of judgements
+    ) {
+      const row =
+        document.createElement(
+          "div"
+        );
+
+      row.className =
+        "result-row static dom-diff-model-result";
+
+      row.innerHTML = `
+        <div class="result-row-head">
+          <strong>${escapeHtml(humanLabel(judgement.provider || "model"))}</strong>
+          <div class="result-primary">
+            ${badgeHtml(judgement.judgement)}
+            ${badgeHtml(judgement.impact, "neutral")}
+            ${confidenceHtml(judgement.confidence)}
+          </div>
+        </div>
+        <div class="result-copy">${escapeHtml(judgement.rationale || "")}</div>
+      `;
+
+      modelSection.appendChild(
+        row
+      );
+    }
+  }
+
+  body.appendChild(
+    modelSection
+  );
+
+  details.appendChild(
+    body
+  );
+
+  return details;
+}
+
+
 function jiraTicketText(ticket) {
   return [
     ticket.summary || "Untitled issue",
@@ -1532,24 +1684,37 @@ function renderAnalyseAllResults(report) {
   });
 
   if (domIssues.length) {
-    const box = document.createElement("div");
-    box.className = "card";
-    box.innerHTML = "<h3>DOM-diff issue actions</h3>";
-
-    domIssues.forEach(item => {
-      const row = domDiffItemCard(item);
-      const judgements = domJudgements.get(item.id) || [];
-      const assessment = document.createElement("div");
-      assessment.className = "result-body";
-      assessment.innerHTML = taskResultHtml(
-        "dom_diff_triage",
-        {results: judgements}
+    const box =
+      document.createElement(
+        "div"
       );
-      row.appendChild(assessment);
-      box.appendChild(row);
-    });
 
-    target.appendChild(box);
+    box.className =
+      "card";
+
+    box.innerHTML =
+      "<h3>DOM differences needing attention</h3>" +
+      '<div class="muted small">Open a difference to review the evidence and model judgement together.</div>';
+
+    domIssues.forEach(
+      item => {
+        const judgements =
+          domJudgements.get(
+            item.id
+          ) || [];
+
+        box.appendChild(
+          domDiffJoinedAccordion(
+            item,
+            judgements
+          )
+        );
+      }
+    );
+
+    target.appendChild(
+      box
+    );
   }
 
   target.appendChild(
@@ -2872,21 +3037,98 @@ $("#assessDomDiffBtn").onclick =
       batchLabel
     );
 
-    batch.forEach(
-      item =>
-        target.appendChild(
-          domDiffItemCard(item)
-        )
-    );
-
     try {
-      await runAcross(
-        "dom_diff_triage",
-        {
-          items: batch
-        },
-        target
-      );
+      const providers =
+        enabledProviders();
+
+      if (!providers.length) {
+        throw new Error(
+          "Choose at least one model."
+        );
+      }
+
+      const judgementMap =
+        new Map(
+          batch.map(
+            item => [
+              item.id,
+              []
+            ]
+          )
+        );
+
+      for (
+        const provider
+        of providers
+      ) {
+        setStatus(
+          `Reviewing DOM differences · ${provider}…`
+        );
+
+        const result =
+          await sw({
+            type:
+              "RUN_TASK",
+            task:
+              "dom_diff_triage",
+            provider,
+            analysisRunId:
+              analysisRun.id,
+            payload: {
+              items:
+                batch
+            },
+            useCache:
+              $("#useCache")
+                .checked
+          });
+
+        taskResults
+          .dom_diff_triage[
+            provider
+          ] = result;
+
+        for (
+          const judgement
+          of result.results || []
+        ) {
+          if (
+            !judgementMap.has(
+              judgement.id
+            )
+          ) {
+            judgementMap.set(
+              judgement.id,
+              []
+            );
+          }
+
+          judgementMap
+            .get(
+              judgement.id
+            )
+            .push({
+              provider,
+              ...judgement
+            });
+        }
+      }
+
+      for (
+        const item
+        of batch
+      ) {
+        target.appendChild(
+          domDiffJoinedAccordion(
+            item,
+            judgementMap.get(
+              item.id
+            ) || []
+          )
+        );
+      }
+
+      setStatus("");
     } catch (e) {
       setStatus(
         e?.message || String(e),

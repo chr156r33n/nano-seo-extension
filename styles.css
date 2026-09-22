@@ -796,6 +796,62 @@ th {
 }
 
 .subdetails { margin-top: 10px; }
+.dom-diff-joined {
+  padding: 0;
+  overflow: hidden;
+}
+
+.dom-diff-joined-summary {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 11px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.dom-diff-joined-summary::-webkit-details-marker {
+  display: none;
+}
+
+.dom-diff-summary-main {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.dom-diff-preview {
+  margin-top: 3px;
+  overflow-wrap: anywhere;
+}
+
+.dom-diff-summary-verdict {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 5px;
+  max-width: 48%;
+}
+
+.dom-diff-joined-body {
+  padding: 0 11px 11px;
+  border-top: 1px solid var(--line);
+}
+
+.dom-diff-evidence-card {
+  margin-top: 10px;
+  box-shadow: none;
+}
+
+.dom-diff-model-results {
+  margin-top: 12px;
+}
+
+.dom-diff-model-result + .dom-diff-model-result {
+  margin-top: 7px;
+}
+
 .error-card,
 .analyse-result-error { border-left: 3px solid var(--brand); }
 
