@@ -25,7 +25,7 @@ function setStatus(t, error = false) {
   const el = $("#status");
   el.style.display = t ? "block" : "none";
   el.textContent = t || "";
-  el.style.background = error ? "#8b1e1e" : "#111";
+  el.classList.toggle("error", Boolean(error));
 }
 
 async function sw(msg) {
@@ -80,9 +80,9 @@ function updatePageMeta() {
     ? (
         snapshot.url
           ? `${snapshot.title || "(untitled)"} · ${snapshot.url}`
-          : "Previous page capture available."
+          : "Previous page read available."
       )
-    : "No page captured.";
+    : "No page read yet.";
 
   $("#runMeta").textContent = analysisRun
     ? `run ${analysisRun.id.slice(0, 8)} · started ${new Date(analysisRun.startedAt).toLocaleString()}`
@@ -303,11 +303,11 @@ async function runAcross(task, payload, target, mode = null) {
   const providers = enabledProviders();
 
   if (!providers.length) {
-    throw new Error("Select at least one provider.");
+    throw new Error("Choose at least one model.");
   }
 
   if (!analysisRun?.id) {
-    throw new Error("Start a new analysis run by capturing the page first.");
+    throw new Error("Read this page to start a new analysis run.");
   }
 
   if (!target) {
@@ -373,7 +373,7 @@ async function ensureFullSnapshot() {
 
   if (!fullSnapshot) {
     throw new Error(
-      "No captured page snapshot is available. Capture the page first."
+      "No page snapshot is available. Read this page first."
     );
   }
 
@@ -390,7 +390,7 @@ async function ensureFullSnapshot() {
 
 async function runModeTask(task) {
   if (!snapshot) {
-    return setStatus("Capture a page first.", true);
+    return setStatus("Read the page first.", true);
   }
 
   await ensureFullSnapshot();
@@ -762,15 +762,15 @@ function renderIssues() {
   const passes = checks.filter(x => x.status === "pass");
 
   summary.textContent =
-    `${checks.length} deterministic checks run · ` +
+    `${checks.length} automated checks run · ` +
     `${passes.length} passed · ` +
-    `${findings.length} finding(s) available for triage`;
+    `${findings.length} finding(s) need context review`;
 
   if (!findings.length) {
     box.innerHTML =
       '<div class="card"><strong>No findings to triage on this page.</strong>' +
-      '<div class="muted small">That means the starter deterministic rules did not flag anything here. ' +
-      'Passed checks are still recorded in this analysis run.</div></div>';
+      '<div class="muted small">The automated checks did not flag anything that needs review. ' +
+      'Passed checks are still recorded in this run.</div></div>';
     return;
   }
 
@@ -922,7 +922,7 @@ function renderDomDiffSummary() {
 
   if (!domDiff) {
     el.textContent =
-      "No DOM diff built for this analysis run.";
+      "No server/rendered comparison has been run yet.";
     return;
   }
 
@@ -1003,7 +1003,7 @@ function renderUrlSignals() {
 
   if (!u) {
     target.innerHTML =
-      '<div class="card"><span class="muted">Capture a page to review URL identity signals.</span></div>';
+      '<div class="card"><span class="muted">Read the page to review URL and locale signals.</span></div>';
     return;
   }
 
@@ -1042,7 +1042,7 @@ function renderUrlSignals() {
       <h3>Declared identity signals</h3>
       ${
         u._source === "fallback"
-          ? '<div class="muted small">Using current URL/canonical from an earlier snapshot. Capture a new analysis run to add hreflang, schema URL refs and mobile annotations.</div>'
+          ? '<div class="muted small">Using URL/canonical data from an earlier page read. Read the page again to refresh hreflang, schema URL references and mobile annotations.</div>'
           : ''
       }
       <div class="small"><strong>Current:</strong> ${escapeHtml(u.currentUrl || snapshot.url)}</div>
@@ -1260,7 +1260,7 @@ async function createJiraTicket({
 }) {
   if (!snapshot?.url) {
     throw new Error(
-      "Capture a page first."
+      "Read the page first."
     );
   }
 
@@ -1631,7 +1631,7 @@ async function analyseAll() {
 
   const providers = enabledProviders();
   if (!providers.length) {
-    setStatus("Select at least one provider.", true);
+    setStatus("Choose at least one model.", true);
     return;
   }
 
@@ -1670,7 +1670,7 @@ async function analyseAll() {
   setStatus("");
   setAnalyseAllProgress(
     2,
-    "Capturing page and starting a new analysis run…"
+    "Reading the page and starting a new analysis…"
   );
 
   try {
@@ -1698,7 +1698,7 @@ async function analyseAll() {
     if (cfg.domDiff) {
       setAnalyseAllProgress(
         5,
-        "Building deterministic server/rendered DOM diff…"
+        "Comparing server HTML with the rendered page…"
       );
 
       try {
@@ -2534,7 +2534,7 @@ $("#analyseAllBtn").onclick = async () => {
 };
 
 $("#captureBtn").onclick = async () => {
-  setStatus("Capturing page and starting a new run…");
+  setStatus("Reading this page and starting a new run…");
 
   try {
     const ctx = await sw({type: "CAPTURE"});
@@ -2597,7 +2597,7 @@ $("#intentBtn").onclick = async () => {
 
 $("#alignmentBtn").onclick = async () => {
   if (!snapshot) {
-    return setStatus("Capture a page first.", true);
+    return setStatus("Read the page first.", true);
   }
 
   try {
@@ -2628,14 +2628,14 @@ $("#alignmentBtn").onclick = async () => {
 
         d.innerHTML =
           `<h3>${mode} · ${provider}</h3>` +
-          `<pre>Run both page type and intent for this mode/provider first.</pre>`;
+          `<pre>Run page type and intent for this model first, then check alignment.</pre>`;
 
         target.appendChild(d);
         continue;
       }
 
       setStatus(
-        `Running alignment · ${mode} · ${provider}…`
+        `Checking page type ↔ intent alignment · ${mode} · ${provider}…`
       );
 
       try {
@@ -2677,7 +2677,7 @@ $("#alignmentBtn").onclick = async () => {
 
 $("#classifyLinksBtn").onclick = async () => {
   if (!snapshot) {
-    return setStatus("Capture a page first.", true);
+    return setStatus("Read the page first.", true);
   }
 
   try {
@@ -2725,7 +2725,7 @@ $("#classifyLinksBtn").onclick = async () => {
   linkCursor += batch.length;
 
   $("#linkProgress").textContent =
-    `Classifying links ${Math.max(1, linkCursor - batch.length + 1)}` +
+    `Reviewing links ${Math.max(1, linkCursor - batch.length + 1)}` +
     `–${linkCursor} of ${pool.length}.`;
 
   $("#linkResults").innerHTML = "";
@@ -2749,13 +2749,13 @@ $("#buildDomDiffBtn").onclick =
   async () => {
     if (!snapshot) {
       return setStatus(
-        "Capture a page first.",
+        "Read the page first.",
         true
       );
     }
 
     setStatus(
-      "Building deterministic server/rendered DOM diff…"
+      "Comparing server HTML with the rendered page…"
     );
 
     try {
@@ -2790,7 +2790,7 @@ $("#assessDomDiffBtn").onclick =
   async () => {
     if (!snapshot) {
       return setStatus(
-        "Capture a page first.",
+        "Read the page first.",
         true
       );
     }
@@ -2810,7 +2810,7 @@ $("#assessDomDiffBtn").onclick =
 
     if (!domDiff?.items?.length) {
       return setStatus(
-        "Build the DOM diff first.",
+        "Run the server/rendered comparison first.",
         true
       );
     }
@@ -2824,7 +2824,7 @@ $("#assessDomDiffBtn").onclick =
 
     if (!reviewItems.length) {
       return setStatus(
-        "All heading/link DOM differences were resolved deterministically; there are no Nano-review exceptions.",
+        "All heading and link changes were resolved by the automated checks. There is nothing left for Nano to review.",
         false
       );
     }
@@ -2866,7 +2866,7 @@ $("#assessDomDiffBtn").onclick =
       "muted small";
 
     batchLabel.textContent =
-      `Assessing Nano-review exceptions ${Math.max(1, domDiffCursor - batch.length + 1)}–${domDiffCursor} of ${reviewItems.length} (${domDiff.items.length} total diff items).`;
+      `Reviewing exceptions ${Math.max(1, domDiffCursor - batch.length + 1)}–${domDiffCursor} of ${reviewItems.length} (${domDiff.items.length} total changes found).`;
 
     target.appendChild(
       batchLabel
@@ -2900,7 +2900,7 @@ $("#reviewUrlSignalsBtn").onclick =
   async () => {
     if (!snapshot) {
       return setStatus(
-        "Capture a page first.",
+        "Read the page first.",
         true
       );
     }
@@ -2910,7 +2910,7 @@ $("#reviewUrlSignalsBtn").onclick =
 
     if (!urlSignals) {
       return setStatus(
-        "Capture a page first.",
+        "Read the page first.",
         true
       );
     }
@@ -2926,13 +2926,13 @@ $("#reviewUrlSignalsBtn").onclick =
 
       if (!providers.length) {
         throw new Error(
-          "Select at least one provider."
+          "Choose at least one model."
         );
       }
 
       for (const provider of providers) {
         setStatus(
-          `Running url_consistency · ${provider}…`
+          `Reviewing URL and locale signals · ${provider}…`
         );
 
         const result =
