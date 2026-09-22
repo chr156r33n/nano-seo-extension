@@ -249,6 +249,13 @@ function render() {
         </details>
 
         <details class="control-panel">
+          <summary>Show all region codes</summary>
+          <div class="control-panel-body">
+            <pre>${HREFLANG_REGION_CODES.join("\n")}</pre>
+          </div>
+        </details>
+
+        <details class="control-panel">
           <summary>Common region / script examples</summary>
           <div class="control-panel-body">
             <pre>${HREFLANG_SPECIAL_EXAMPLES.join("\n")}</pre>
