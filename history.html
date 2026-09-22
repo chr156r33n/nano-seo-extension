@@ -2,21 +2,24 @@
 <html>
 <head>
   <meta charset="utf-8">
-  <title>Nano SEO Lab History</title>
+  <title>Nano SEO Lab · Analysis History</title>
   <link rel="stylesheet" href="styles.css">
 </head>
 <body class="logs">
-  <h1>Nano SEO Lab analysis history</h1>
-
-  <div class="row">
-    <button id="refreshBtn">Refresh</button>
-    <button id="downloadBtn" class="secondary">Download history JSON</button>
-    <button id="clearBtn" class="secondary">Clear history</button>
+  <div class="brand-lockup">
+    <div class="brand-mark">CG</div>
+    <div>
+      <div class="eyebrow">Nano SEO Lab · Research data</div>
+      <h1>Analysis history</h1>
+      <p class="muted">Each page read starts a new run. Results and model calls stay grouped beneath that page snapshot.</p>
+    </div>
   </div>
 
-  <p class="muted">
-    Each page capture starts a new analysis run. Model calls are grouped beneath that run.
-  </p>
+  <div class="row" style="margin-top:20px">
+    <button id="refreshBtn">Refresh</button>
+    <button id="downloadBtn" class="secondary">Export history JSON</button>
+    <button id="clearBtn" class="secondary">Clear history</button>
+  </div>
 
   <div id="summary"></div>
   <div id="history"></div>
