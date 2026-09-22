@@ -1,0 +1,27 @@
+<!doctype html><html lang="en-GB"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Images and links mixed fixture</title>
+<meta name="description" content="Fixture with meaningful and harmless image and anchor cases.">
+<link rel="canonical" href="http://localhost:8765/fixtures/images-links-mixed.html">
+<link rel="stylesheet" href="/styles.css">
+</head><body>
+<header><div class="kicker">Fixture · mixed false positives</div><h1>Drain Cleaning Services</h1></header>
+<main>
+<h2>Meaningful service image with missing alt</h2>
+<img src="/assets/hero-service.svg" width="800" height="420">
+<p>The image above is content-bearing and deliberately has no alt attribute.</p>
+
+<h2>Decorative image with correct empty alt</h2>
+<img src="/assets/decorative-wave.svg" alt="" width="800" height="80">
+
+<h2>Links</h2>
+<p><a href="/account" aria-label="Open your account"><span aria-hidden="true">👤</span></a> should be harmless despite no visible anchor text.</p>
+<p><a id="empty-anchor-bad" href="/important-service"></a> is intentionally a true positive.</p>
+<p><a href="/services"><img src="/assets/decorative-wave.svg" alt="View drainage services" width="200" height="20"></a> is accessible through image alt.</p>
+
+<h2>Image dimensions</h2>
+<img src="/assets/hero-service.svg" alt="Drain engineer at work">
+<p>The image immediately above deliberately lacks width and height attributes.</p>
+</main>
+<footer><a href="/">Back to fixtures</a></footer>
+</body></html>
