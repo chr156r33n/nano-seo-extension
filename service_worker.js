@@ -4853,8 +4853,7 @@ async function buildDomDiff() {
 
           if (
             destinationAdded ||
-            destinationRemoved ||
-            destinationChanged
+            destinationRemoved
           ) {
             significance =
               weight >= 1
@@ -4869,9 +4868,15 @@ async function buildDomDiff() {
                 ? "Rendered DOM replaces one uniquely discoverable link destination with another."
                 : destinationAdded
                   ? "Rendered DOM makes a link destination discoverable that was absent from the server link inventory."
-                  : destinationRemoved
-                    ? "Rendered DOM removes the only observed link to a destination from the rendered link inventory."
-                    : "Rendered DOM changes the link destination.";
+                  : "Rendered DOM removes the only observed link to a destination from the rendered link inventory.";
+          } else if (
+            destinationChanged
+          ) {
+            significance =
+              "low";
+
+            reason =
+              "This link instance changes destination, but both destinations remain discoverable elsewhere in the server/rendered link inventories.";
           } else if (
             anchorTextChanged &&
             (
