@@ -1,0 +1,49 @@
+<!doctype html><html lang="en-GB"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Rendered DOM difference fixture</title>
+<meta name="description" content="Controlled client-side heading and link mutations.">
+<link rel="canonical" href="http://localhost:8765/fixtures/dom-diff.html">
+<link rel="stylesheet" href="/styles.css">
+</head><body>
+<header><div class="kicker">Fixture · rendered changes</div><h1>Drainage Services</h1></header>
+<main id="main">
+<h2>Core services</h2>
+<h3 id="level-change">Drain surveys</h3>
+<p>The same heading text will change from H3 to H2 after rendering.</p>
+
+<div id="unique-heading-slot"></div>
+
+<nav>
+<a id="contact-a" href="/contact">Contact us</a>
+<a id="contact-b" href="/contact">Speak to the team</a>
+<a id="services-link" href="/services">Browse services</a>
+</nav>
+
+<div id="unique-link-slot"></div>
+</main>
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+  const oldHeading = document.querySelector("#level-change");
+  const replacement = document.createElement("h2");
+  replacement.id = "level-change";
+  replacement.textContent = oldHeading.textContent;
+  oldHeading.replaceWith(replacement);
+
+  const newHeading = document.createElement("h2");
+  newHeading.id = "emergency-heading";
+  newHeading.textContent = "Emergency drainage response";
+  document.querySelector("#unique-heading-slot").appendChild(newHeading);
+
+  document.querySelector("#contact-a").remove();
+
+  const services = document.querySelector("#services-link");
+  services.textContent = "Compare all drainage and plumbing services";
+
+  const emergency = document.createElement("a");
+  emergency.href = "/emergency-service";
+  emergency.textContent = "Emergency drainage";
+  document.querySelector("#unique-link-slot").appendChild(emergency);
+});
+</script>
+<footer><a href="/">Back to fixtures</a></footer>
+</body></html>
