@@ -1,0 +1,24 @@
+<!doctype html><html lang="en-GB"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Locale and identity contradiction fixture</title>
+<meta name="description" content="Intentional canonical, hreflang and social identity contradictions.">
+<link rel="canonical" href="https://www.example.invalid/wrong-host/local-page">
+<link rel="alternate" hreflang="en-GB" href="http://localhost:8765/fixtures/locale-identity-bad.html">
+<link rel="alternate" hreflang="en-GB" href="http://localhost:8765/fixtures/duplicate-en-gb.html">
+<link rel="alternate" hreflang="fr-FR">
+<link rel="alternate" hreflang="x-default" href="https://example.com/global">
+<meta property="og:title" content="Locale fixture">
+<meta property="og:description" content="Intentional mismatch">
+<meta property="og:url" content="https://preview.example.invalid/locale-page">
+<link rel="stylesheet" href="/styles.css">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"Organization","@id":"http://localhost:8765/#organization","name":"Fixture Co","url":"http://localhost:8765/"}
+</script>
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"Service","name":"Local Drain Repair","url":"https://uat.example.invalid/local-drain-repair"}
+</script>
+</head><body>
+<header><div class="kicker">Fixture · definite positives</div><h1>Local Drain Repair</h1></header>
+<main><h2>Expected behaviour</h2><p>The page-level canonical/social/service URLs are intentionally inconsistent. The root Organization @id is intentionally normal and should not be treated as an exact-page mismatch.</p></main>
+<footer><a href="/">Back to fixtures</a></footer>
+</body></html>

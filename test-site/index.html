@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Nano SEO Lab Honeypot</title>
+<meta name="description" content="Controlled local fixtures for testing Nano SEO Lab.">
+<link rel="canonical" href="http://localhost:8765/">
+<link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+<header><div class="kicker">Nano SEO Lab</div><h1>SEO honeypot fixtures</h1><p>Controlled pages with known positives, false positives and ambiguous cases.</p></header>
+<div class="grid">
+<section class="card bad"><h2><a href="/fixtures/metadata-bad.html">Metadata & canonical</a></h2><p>Definite metadata, canonical, robots and social identity problems.</p></section>
+<section class="card ambiguous"><h2><a href="/fixtures/headings-mixed.html">Headings</a></h2><p>Real hierarchy problems plus harmless utility/cookie headings.</p></section>
+<section class="card ambiguous"><h2><a href="/fixtures/images-links-mixed.html">Images & links</a></h2><p>Real and harmless alt/anchor cases mixed together.</p></section>
+<section class="card bad"><h2><a href="/fixtures/locale-identity-bad.html">Locale & identity</a></h2><p>Canonical, hreflang and schema identity contradictions.</p></section>
+<section class="card ambiguous"><h2><a href="/fixtures/dom-diff.html">Rendered DOM changes</a></h2><p>Known low-impact vs material heading/link changes.</p></section>
+<section class="card good"><h2><a href="/fixtures/page-purpose.html">Page type & intent</a></h2><p>Clear location/service page with supporting informational content.</p></section>
+</div>
+<footer>Ground truth: <a href="/expected.json">expected.json</a></footer>
+</body>
+</html>
