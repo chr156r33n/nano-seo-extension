@@ -494,6 +494,10 @@ th {
   font-size: 11px;
 }
 
+.status.error {
+  background: var(--brand-dark);
+}
+
 .sidepanel pre {
   max-height: 360px;
   overflow: auto;
