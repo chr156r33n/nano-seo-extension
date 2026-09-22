@@ -941,9 +941,11 @@ function renderDomDiffSummary() {
 
   el.textContent =
     `${summary.totalDiffItems ?? 0} net semantic difference(s)` +
+    `${summary.nanoReviewItems != null ? ` · ${summary.nanoReviewItems} Nano-review exception(s)` : ""}` +
+    `${summary.deterministicLowImpactItems != null ? ` · ${summary.deterministicLowImpactItems} deterministic low-impact` : ""}` +
     `${summary.sourceDiffItems != null ? ` · ${summary.sourceDiffItems} source-level add/remove item(s)` : ""}` +
     `${summary.reconciledPairs ? ` · ${summary.reconciledPairs} pair(s) reconciled` : ""}` +
-    ` · ${summary.returnedDiffItems ?? 0} retained for analysis` +
+    ` · ${summary.returnedDiffItems ?? 0} retained` +
     `${summary.droppedByCap ? ` · ${summary.droppedByCap} dropped by cap` : ""}` +
     `${kinds ? ` · ${kinds}` : ""}`;
 }
@@ -1129,6 +1131,8 @@ function domDiffItemCard(item) {
     <div class="small"><strong>Selector:</strong> ${escapeHtml(element.selector || "(not available)")}</div>
     <div class="small"><strong>Zone/component:</strong> ${escapeHtml(element.zone || "unknown")} / ${escapeHtml(element.component || "unknown")}</div>
     <div class="small"><strong>Semantic weight:</strong> ${escapeHtml(element.semantic_weight ?? "(none)")}</div>
+    ${item.net_effect ? `<div class="small"><strong>Deterministic net effect:</strong> ${escapeHtml(item.net_effect.significance || "unknown")} · ${escapeHtml(item.net_effect.reason || "")}</div>` : ""}
+    ${item.nano_review === false ? '<div class="muted small">Resolved deterministically · Nano review skipped</div>' : ""}
     ${valueHtml}
     <button class="secondary" data-dom-jira>Create Jira ticket</button>
     <div data-dom-jira-result></div>
@@ -1769,6 +1773,13 @@ async function analyseAll() {
           )
         : [];
 
+    const diffReviewItems =
+      diffItems.filter(
+        item =>
+          item.nano_review !==
+          false
+      );
+
     const diffBatchSize =
       Math.max(
         1,
@@ -1782,11 +1793,11 @@ async function analyseAll() {
 
     for (
       let i = 0;
-      i < diffItems.length;
+      i < diffReviewItems.length;
       i += diffBatchSize
     ) {
       diffBatches.push(
-        diffItems.slice(
+        diffReviewItems.slice(
           i,
           i + diffBatchSize
         )
@@ -2804,6 +2815,20 @@ $("#assessDomDiffBtn").onclick =
       );
     }
 
+    const reviewItems =
+      domDiff.items.filter(
+        item =>
+          item.nano_review !==
+          false
+      );
+
+    if (!reviewItems.length) {
+      return setStatus(
+        "All heading/link DOM differences were resolved deterministically; there are no Nano-review exceptions.",
+        false
+      );
+    }
+
     const batchSize =
       settings
         .limits
@@ -2812,13 +2837,13 @@ $("#assessDomDiffBtn").onclick =
 
     if (
       domDiffCursor >=
-      domDiff.items.length
+      reviewItems.length
     ) {
       domDiffCursor = 0;
     }
 
     const batch =
-      domDiff.items.slice(
+      reviewItems.slice(
         domDiffCursor,
         domDiffCursor +
           batchSize
@@ -2841,7 +2866,7 @@ $("#assessDomDiffBtn").onclick =
       "muted small";
 
     batchLabel.textContent =
-      `Assessing diff items ${Math.max(1, domDiffCursor - batch.length + 1)}–${domDiffCursor} of ${domDiff.items.length}.`;
+      `Assessing Nano-review exceptions ${Math.max(1, domDiffCursor - batch.length + 1)}–${domDiffCursor} of ${reviewItems.length} (${domDiff.items.length} total diff items).`;
 
     target.appendChild(
       batchLabel
