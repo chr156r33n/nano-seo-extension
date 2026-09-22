@@ -25,6 +25,101 @@ function parseJson(text) {
   }
 }
 
+function numericErrorValue(value) {
+  if (
+    value === null ||
+    value === undefined ||
+    value === ""
+  ) {
+    return null;
+  }
+
+  const number =
+    Number(value);
+
+  return Number.isFinite(
+    number
+  )
+    ? number
+    : null;
+}
+
+function promptQuotaError({
+  error,
+  measuredInputUsage,
+  availableContext,
+  contextWindow
+}) {
+  const chromeRequested =
+    numericErrorValue(
+      error?.requested
+    );
+
+  const chromeAvailable =
+    numericErrorValue(
+      error?.quota
+    ) ??
+    numericErrorValue(
+      error?.contextWindow
+    );
+
+  if (
+    chromeRequested !== null &&
+    chromeAvailable !== null &&
+    chromeRequested >
+      chromeAvailable
+  ) {
+    return nanoContextError({
+      requested:
+        chromeRequested,
+      available:
+        chromeAvailable,
+      contextWindow:
+        chromeAvailable
+    });
+  }
+
+  const diagnostic =
+    new Error(
+      "Nano returned QuotaExceededError, but the measured prompt does not prove that the input exceeds the available context. " +
+      `Preflight: ${measuredInputUsage ?? "unknown"} tokens; calculated remaining context: ${availableContext ?? "unknown"}; ` +
+      `Chrome requested: ${chromeRequested ?? "not exposed"}; Chrome quota/context: ${chromeAvailable ?? "not exposed"}.`
+    );
+
+  diagnostic.name =
+    "NanoQuotaError";
+
+  diagnostic.code =
+    "NANO_QUOTA_ERROR";
+
+  diagnostic.requested =
+    chromeRequested;
+
+  diagnostic.available =
+    chromeAvailable;
+
+  diagnostic.measuredInputUsage =
+    measuredInputUsage ?? null;
+
+  diagnostic.availableContext =
+    availableContext ?? null;
+
+  diagnostic.contextWindow =
+    contextWindow ?? null;
+
+  diagnostic.chromeErrorName =
+    error?.name || null;
+
+  diagnostic.chromeErrorMessage =
+    String(
+      error?.message ||
+      error ||
+      ""
+    );
+
+  return diagnostic;
+}
+
 function nanoContextError({
   requested,
   available,
@@ -512,21 +607,11 @@ async function runNano(msg) {
           )
         )
       ) {
-        throw nanoContextError({
-          requested:
-            Number.isFinite(
-              error?.requested
-            )
-              ? error.requested
-              : measuredInputUsage,
-          available:
-            availableContext,
-          contextWindow:
-            Number.isFinite(
-              error?.contextWindow
-            )
-              ? error.contextWindow
-              : contextWindow
+        throw promptQuotaError({
+          error,
+          measuredInputUsage,
+          availableContext,
+          contextWindow
         });
       }
 
@@ -703,11 +788,27 @@ chrome.runtime
                   ? e.available
                   : null,
               contextWindow:
-                Number.isFinite(
+                numericErrorValue(
                   e?.contextWindow
-                )
-                  ? e.contextWindow
-                  : null
+                ),
+              quota:
+                numericErrorValue(
+                  e?.quota
+                ),
+              measuredInputUsage:
+                numericErrorValue(
+                  e?.measuredInputUsage
+                ),
+              availableContext:
+                numericErrorValue(
+                  e?.availableContext
+                ),
+              chromeErrorName:
+                e?.chromeErrorName ||
+                null,
+              chromeErrorMessage:
+                e?.chromeErrorMessage ||
+                null
             })
         );
 
