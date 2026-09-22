@@ -383,6 +383,50 @@ function pageRepresentation(snapshot, mode, maxChars) {
   };
 }
 
+function withoutResultMeta(value) {
+  if (
+    !value ||
+    typeof value !== "object"
+  ) {
+    return value;
+  }
+
+  const copy =
+    structuredClone(
+      value
+    );
+
+  delete copy._meta;
+
+  return copy;
+}
+
+function makeCallSource(
+  payload,
+  analysisRunId
+) {
+  const snapshot =
+    payload?.snapshot ||
+    {};
+
+  return {
+    analysisRunId:
+      analysisRunId ||
+      null,
+    pageFingerprint:
+      snapshot.fingerprint ||
+      null,
+    url:
+      snapshot.url ||
+      payload?.context?.url ||
+      payload?.exampleUrl ||
+      null,
+    title:
+      snapshot.title ||
+      null
+  };
+}
+
 function taskVars(task, payload, settings, provider = null) {
   if (task === "link_group") {
     return {
@@ -431,8 +475,22 @@ function taskVars(task, payload, settings, provider = null) {
 
   if (task === "alignment") {
     return {
-      page_type_json: JSON.stringify(payload.pageTypeResult, null, 2),
-      intent_json: JSON.stringify(payload.intentResult, null, 2),
+      page_type_json:
+        JSON.stringify(
+          withoutResultMeta(
+            payload.pageTypeResult
+          ),
+          null,
+          2
+        ),
+      intent_json:
+        JSON.stringify(
+          withoutResultMeta(
+            payload.intentResult
+          ),
+          null,
+          2
+        ),
       page_summary_json: JSON.stringify({
         inputMode: payload.inputMode || "raw",
         url: payload.snapshot.url,
@@ -1019,6 +1077,12 @@ async function runTask({
       ? "gemini-nano/chrome"
       : settings.providers[provider]?.model;
 
+  const source =
+    makeCallSource(
+      payload,
+      analysisRunId
+    );
+
   const keyMaterial =
     JSON.stringify({
       task,
@@ -1069,7 +1133,7 @@ async function runTask({
           prompt,
           system,
           schema,
-          payload,
+          source,
           output:
             cached.output,
           raw:
@@ -1171,7 +1235,7 @@ async function runTask({
     prompt,
     system,
     schema,
-    payload,
+    source,
     output:
       result?.parsed || null,
     raw:
