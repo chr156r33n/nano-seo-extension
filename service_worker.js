@@ -4373,6 +4373,621 @@ async function buildDomDiff() {
           ...reconciledItems
         ];
 
+        const countHeadingText = (
+          inventory,
+          text
+        ) => {
+          const target =
+            normaliseText(
+              text
+            ).toLowerCase();
+
+          if (!target) return 0;
+
+          return inventory
+            .headings
+            .filter(
+              h =>
+                normaliseText(
+                  h.text
+                ).toLowerCase() ===
+                target
+            )
+            .length;
+        };
+
+        const countLinkHref = (
+          inventory,
+          href
+        ) => {
+          const target =
+            String(
+              href || ""
+            );
+
+          if (!target) return 0;
+
+          return inventory
+            .links
+            .filter(
+              link =>
+                link.href ===
+                target
+            )
+            .length;
+        };
+
+        const countLinkPair = (
+          inventory,
+          href,
+          text
+        ) => {
+          const targetHref =
+            String(
+              href || ""
+            );
+
+          const targetText =
+            normaliseText(
+              text
+            ).toLowerCase();
+
+          if (
+            !targetHref ||
+            !targetText
+          ) {
+            return 0;
+          }
+
+          return inventory
+            .links
+            .filter(
+              link =>
+                link.href ===
+                  targetHref &&
+                normaliseText(
+                  link.text
+                ).toLowerCase() ===
+                  targetText
+            )
+            .length;
+        };
+
+        const itemWeight = (
+          item
+        ) => {
+          const values = [
+            item.raw,
+            item.rendered
+          ]
+            .filter(
+              value =>
+                value &&
+                typeof value ===
+                  "object"
+            )
+            .map(
+              value =>
+                Number(
+                  value
+                    .element
+                    ?.semantic_weight
+                )
+            )
+            .filter(
+              value =>
+                Number.isFinite(
+                  value
+                )
+            );
+
+          return values.length
+            ? Math.max(
+                ...values
+              )
+            : 1;
+        };
+
+        const significanceFromWeight = (
+          weight,
+          highAt = 1,
+          mediumAt = 0.5
+        ) => {
+          if (
+            weight >=
+            highAt
+          ) {
+            return "high";
+          }
+
+          if (
+            weight >=
+            mediumAt
+          ) {
+            return "medium";
+          }
+
+          return "low";
+        };
+
+        const assessHeadingNetEffect = (
+          item
+        ) => {
+          const rawValue =
+            item.raw &&
+            typeof item.raw ===
+              "object"
+              ? item.raw
+              : {};
+
+          const renderedValue =
+            item.rendered &&
+            typeof item.rendered ===
+              "object"
+              ? item.rendered
+              : {};
+
+          const rawText =
+            normaliseText(
+              rawValue.text
+            );
+
+          const renderedText =
+            normaliseText(
+              renderedValue.text
+            );
+
+          const rawLevel =
+            String(
+              rawValue.level ||
+              ""
+            ).toLowerCase();
+
+          const renderedLevel =
+            String(
+              renderedValue.level ||
+              ""
+            ).toLowerCase();
+
+          const textChanged =
+            rawText.toLowerCase() !==
+            renderedText.toLowerCase();
+
+          const levelChanged =
+            !!rawLevel &&
+            !!renderedLevel &&
+            rawLevel !==
+              renderedLevel;
+
+          const textSimilarity =
+            rawText &&
+            renderedText
+              ? tokenSimilarity(
+                  rawText,
+                  renderedText
+                )
+              : 0;
+
+          const rawTextInRendered =
+            countHeadingText(
+              rendered,
+              rawText
+            );
+
+          const renderedTextInRaw =
+            countHeadingText(
+              raw,
+              renderedText
+            );
+
+          const uniqueTopicRemoved =
+            !!rawText &&
+            rawTextInRendered ===
+              0;
+
+          const uniqueTopicAdded =
+            !!renderedText &&
+            renderedTextInRaw ===
+              0;
+
+          const weight =
+            itemWeight(
+              item
+            );
+
+          const h1LevelChange =
+            levelChanged &&
+            (
+              rawLevel ===
+                "h1" ||
+              renderedLevel ===
+                "h1"
+            );
+
+          let significance =
+            "low";
+
+          let reason =
+            "Heading structure changed without a clear net topic change.";
+
+          if (
+            !textChanged &&
+            levelChanged
+          ) {
+            if (
+              h1LevelChange &&
+              weight >= 1
+            ) {
+              significance =
+                "medium";
+
+              reason =
+                "Heading text is unchanged, but the rendered DOM changes whether the topic is represented as an H1.";
+            } else {
+              reason =
+                "Heading text is unchanged and only its heading level changes; topic meaning is retained.";
+            }
+          } else if (
+            textChanged &&
+            (
+              uniqueTopicAdded ||
+              uniqueTopicRemoved
+            )
+          ) {
+            if (
+              textSimilarity >=
+              0.9
+            ) {
+              significance =
+                weight >= 1
+                  ? "medium"
+                  : "low";
+
+              reason =
+                "Heading wording changes, but the before/after text is very similar.";
+            } else {
+              significance =
+                significanceFromWeight(
+                  weight
+                );
+
+              reason =
+                uniqueTopicAdded &&
+                uniqueTopicRemoved
+                  ? "Rendered DOM replaces one unique heading topic signal with another."
+                  : uniqueTopicAdded
+                    ? "Rendered DOM adds a heading topic signal not present in the server heading inventory."
+                    : "Rendered DOM removes a heading topic signal that is not represented by another rendered heading.";
+            }
+          } else if (
+            item.change_type ===
+              "added_in_rendered" &&
+            uniqueTopicAdded
+          ) {
+            significance =
+              significanceFromWeight(
+                weight
+              );
+
+            reason =
+              "Rendered DOM adds a unique heading topic signal.";
+          } else if (
+            item.change_type ===
+              "removed_in_rendered" &&
+            uniqueTopicRemoved
+          ) {
+            significance =
+              significanceFromWeight(
+                weight
+              );
+
+            reason =
+              "Rendered DOM removes a unique heading topic signal.";
+          } else if (
+            textChanged
+          ) {
+            significance =
+              (
+                weight >= 1 &&
+                textSimilarity <
+                  0.8
+              )
+                ? "medium"
+                : "low";
+
+            reason =
+              "Heading wording changes, but equivalent heading text remains represented elsewhere in the page inventories.";
+          } else {
+            reason =
+              "The heading text remains represented in both server and rendered heading inventories.";
+          }
+
+          return {
+            type:
+              "heading",
+            significance,
+            nano_review:
+              significance !==
+              "low",
+            reason,
+            signals: {
+              text_changed:
+                textChanged,
+              level_changed:
+                levelChanged,
+              h1_level_change:
+                h1LevelChange,
+              text_similarity:
+                Number(
+                  textSimilarity
+                    .toFixed(3)
+                ),
+              raw_text_occurrences_in_rendered:
+                rawTextInRendered,
+              rendered_text_occurrences_in_raw:
+                renderedTextInRaw,
+              unique_topic_added:
+                uniqueTopicAdded,
+              unique_topic_removed:
+                uniqueTopicRemoved,
+              semantic_weight:
+                weight
+            }
+          };
+        };
+
+        const assessLinkNetEffect = (
+          item
+        ) => {
+          const rawValue =
+            item.raw &&
+            typeof item.raw ===
+              "object"
+              ? item.raw
+              : {};
+
+          const renderedValue =
+            item.rendered &&
+            typeof item.rendered ===
+              "object"
+              ? item.rendered
+              : {};
+
+          const rawHref =
+            String(
+              rawValue.href ||
+              ""
+            );
+
+          const renderedHref =
+            String(
+              renderedValue.href ||
+              ""
+            );
+
+          const rawText =
+            normaliseText(
+              rawValue.text
+            );
+
+          const renderedText =
+            normaliseText(
+              renderedValue.text
+            );
+
+          const destinationChanged =
+            !!rawHref &&
+            !!renderedHref &&
+            rawHref !==
+              renderedHref;
+
+          const anchorTextChanged =
+            rawText.toLowerCase() !==
+            renderedText.toLowerCase();
+
+          const anchorSimilarity =
+            rawText &&
+            renderedText
+              ? tokenSimilarity(
+                  rawText,
+                  renderedText
+                )
+              : 0;
+
+          const rawHrefInRendered =
+            countLinkHref(
+              rendered,
+              rawHref
+            );
+
+          const renderedHrefInRaw =
+            countLinkHref(
+              raw,
+              renderedHref
+            );
+
+          const destinationRemoved =
+            !!rawHref &&
+            rawHrefInRendered ===
+              0;
+
+          const destinationAdded =
+            !!renderedHref &&
+            renderedHrefInRaw ===
+              0;
+
+          const rawPairInRendered =
+            countLinkPair(
+              rendered,
+              rawHref,
+              rawText
+            );
+
+          const renderedPairInRaw =
+            countLinkPair(
+              raw,
+              renderedHref,
+              renderedText
+            );
+
+          const anchorSemanticsRemoved =
+            !!rawText &&
+            rawPairInRendered ===
+              0;
+
+          const anchorSemanticsAdded =
+            !!renderedText &&
+            renderedPairInRaw ===
+              0;
+
+          const weight =
+            itemWeight(
+              item
+            );
+
+          let significance =
+            "low";
+
+          let reason =
+            "Link change does not materially alter destination discovery or anchor semantics.";
+
+          if (
+            destinationAdded ||
+            destinationRemoved
+          ) {
+            significance =
+              weight >= 1
+                ? "high"
+                : weight >= 0.25
+                  ? "medium"
+                  : "low";
+
+            reason =
+              destinationAdded &&
+              destinationRemoved
+                ? "Rendered DOM replaces one uniquely discoverable link destination with another."
+                : destinationAdded
+                  ? "Rendered DOM makes a link destination discoverable that was absent from the server link inventory."
+                  : "Rendered DOM removes the only observed link to a destination from the rendered link inventory.";
+          } else if (
+            destinationChanged
+          ) {
+            significance =
+              "low";
+
+            reason =
+              "This link instance changes destination, but both destinations remain discoverable elsewhere in the server/rendered link inventories.";
+          } else if (
+            anchorTextChanged &&
+            (
+              anchorSemanticsAdded ||
+              anchorSemanticsRemoved
+            )
+          ) {
+            if (
+              anchorSimilarity >=
+              0.9
+            ) {
+              significance =
+                "low";
+
+              reason =
+                "Anchor wording changes only slightly while destination discovery is unchanged.";
+            } else {
+              significance =
+                weight >= 1
+                  ? "medium"
+                  : "low";
+
+              reason =
+                "Destination discovery is unchanged, but the rendered DOM materially changes the anchor text associated with that destination.";
+            }
+          } else if (
+            item.change_type ===
+              "added_in_rendered" &&
+            renderedHrefInRaw > 0
+          ) {
+            reason =
+              "Rendered DOM adds another link to a destination that was already discoverable in server HTML.";
+          } else if (
+            item.change_type ===
+              "removed_in_rendered" &&
+            rawHrefInRendered > 0
+          ) {
+            reason =
+              "Rendered DOM removes one link instance, but the destination remains discoverable elsewhere.";
+          }
+
+          return {
+            type:
+              "link",
+            significance,
+            nano_review:
+              significance !==
+              "low",
+            reason,
+            signals: {
+              destination_changed:
+                destinationChanged,
+              destination_added:
+                destinationAdded,
+              destination_removed:
+                destinationRemoved,
+              raw_destination_occurrences_in_rendered:
+                rawHrefInRendered,
+              rendered_destination_occurrences_in_raw:
+                renderedHrefInRaw,
+              anchor_text_changed:
+                anchorTextChanged,
+              anchor_similarity:
+                Number(
+                  anchorSimilarity
+                    .toFixed(3)
+                ),
+              anchor_semantics_added:
+                anchorSemanticsAdded,
+              anchor_semantics_removed:
+                anchorSemanticsRemoved,
+              semantic_weight:
+                weight
+            }
+          };
+        };
+
+        for (
+          const item
+          of netItems
+        ) {
+          if (
+            item.kind ===
+            "heading"
+          ) {
+            item.net_effect =
+              assessHeadingNetEffect(
+                item
+              );
+
+            item.nano_review =
+              item.net_effect
+                .nano_review;
+          } else if (
+            item.kind ===
+            "link"
+          ) {
+            item.net_effect =
+              assessLinkNetEffect(
+                item
+              );
+
+            item.nano_review =
+              item.net_effect
+                .nano_review;
+          } else {
+            item.nano_review =
+              true;
+          }
+        }
+
         netItems.sort(
           (a, b) =>
             a.priority -
@@ -4407,11 +5022,45 @@ async function buildDomDiff() {
         const reconciledPairs =
           reconciledItems.length;
 
-        const kept =
-          items
+        const nanoReviewCandidates =
+          items.filter(
+            item =>
+              item.nano_review !==
+              false
+          );
+
+        const deterministicLowImpact =
+          items.filter(
+            item =>
+              item.nano_review ===
+              false
+          );
+
+        const selected =
+          [
+            ...nanoReviewCandidates,
+            ...deterministicLowImpact
+          ]
             .slice(
               0,
               maxItems
+            );
+
+        const selectedIds =
+          new Set(
+            selected.map(
+              item =>
+                item.id
+            )
+          );
+
+        const kept =
+          items
+            .filter(
+              item =>
+                selectedIds.has(
+                  item.id
+                )
             )
             .map(
               item => {
@@ -4471,6 +5120,19 @@ async function buildDomDiff() {
 
             totalDiffItems:
               total,
+
+            nanoReviewItems:
+              nanoReviewCandidates.length,
+
+            deterministicLowImpactItems:
+              deterministicLowImpact.length,
+
+            returnedNanoReviewItems:
+              kept.filter(
+                item =>
+                  item.nano_review !==
+                  false
+              ).length,
 
             returnedDiffItems:
               kept.length,
