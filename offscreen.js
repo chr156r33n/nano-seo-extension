@@ -1,9 +1,3 @@
-const baseSessions = new Map();
-const MAX_BASE_SESSIONS = 12;
-
-let availabilityPromise = null;
-let availabilityValue = null;
-
 function parseJson(text) {
   try {
     return JSON.parse(text);
@@ -44,136 +38,106 @@ function numericErrorValue(value) {
     : null;
 }
 
-function promptQuotaError({
+function buildErrorResponse(
   error,
-  measuredInputUsage,
-  availableContext,
-  contextWindow
-}) {
-  const chromeRequested =
-    numericErrorValue(
-      error?.requested
-    );
+  meta
+) {
+  return {
+    ok:
+      false,
+    error:
+      String(
+        error?.message ||
+        error
+      ),
+    errorCode:
+      error?.code ||
+      null,
+    requested:
+      numericErrorValue(
+        error?.requested
+      ),
+    available:
+      numericErrorValue(
+        error?.available
+      ),
+    contextWindow:
+      numericErrorValue(
+        error?.contextWindow
+      ),
+    quota:
+      numericErrorValue(
+        error?.quota
+      ),
+    chromeErrorName:
+      error?.name ||
+      null,
+    chromeErrorMessage:
+      String(
+        error?.message ||
+        error ||
+        ""
+      ),
+    meta:
+      meta ||
+      null
+  };
+}
 
-  const chromeAvailable =
-    numericErrorValue(
-      error?.quota
-    ) ??
-    numericErrorValue(
-      error?.contextWindow
+async function runNano(msg) {
+  if (
+    !globalThis
+      .LanguageModel
+  ) {
+    throw new Error(
+      "LanguageModel API is unavailable in this Chrome context."
+    );
+  }
+
+  const totalStarted =
+    performance.now();
+
+  const availabilityStarted =
+    performance.now();
+
+  const availability =
+    await LanguageModel
+      .availability({
+        expectedInputs: [
+          {
+            type:
+              "text",
+            languages: [
+              "en"
+            ]
+          }
+        ],
+        expectedOutputs: [
+          {
+            type:
+              "text",
+            languages: [
+              "en"
+            ]
+          }
+        ]
+      });
+
+  const availabilityMs =
+    Math.round(
+      performance.now() -
+      availabilityStarted
     );
 
   if (
-    chromeRequested !== null &&
-    chromeAvailable !== null &&
-    chromeRequested >
-      chromeAvailable
+    availability ===
+    "unavailable"
   ) {
-    return nanoContextError({
-      requested:
-        chromeRequested,
-      available:
-        chromeAvailable,
-      contextWindow:
-        chromeAvailable
-    });
+    throw new Error(
+      "Gemini Nano is unavailable on this device."
+    );
   }
 
-  const diagnostic =
-    new Error(
-      "Nano returned QuotaExceededError, but the measured prompt does not prove that the input exceeds the available context. " +
-      `Preflight: ${measuredInputUsage ?? "unknown"} tokens; calculated remaining context: ${availableContext ?? "unknown"}; ` +
-      `Chrome requested: ${chromeRequested ?? "not exposed"}; Chrome quota/context: ${chromeAvailable ?? "not exposed"}.`
-    );
-
-  diagnostic.name =
-    "NanoQuotaError";
-
-  diagnostic.code =
-    "NANO_QUOTA_ERROR";
-
-  diagnostic.requested =
-    chromeRequested;
-
-  diagnostic.available =
-    chromeAvailable;
-
-  diagnostic.measuredInputUsage =
-    measuredInputUsage ?? null;
-
-  diagnostic.availableContext =
-    availableContext ?? null;
-
-  diagnostic.contextWindow =
-    contextWindow ?? null;
-
-  diagnostic.chromeErrorName =
-    error?.name || null;
-
-  diagnostic.chromeErrorMessage =
-    String(
-      error?.message ||
-      error ||
-      ""
-    );
-
-  return diagnostic;
-}
-
-function nanoContextError({
-  requested,
-  available,
-  contextWindow
-}) {
-  const error =
-    new Error(
-      `Nano input is too large: ${requested ?? "unknown"} tokens requested, ${available ?? contextWindow ?? "unknown"} available in this session.`
-    );
-
-  error.name =
-    "NanoContextBudgetError";
-
-  error.code =
-    "NANO_INPUT_TOO_LARGE";
-
-  error.requested =
-    requested ?? null;
-
-  error.available =
-    available ?? null;
-
-  error.contextWindow =
-    contextWindow ?? null;
-
-  return error;
-}
-
-function sessionKey(msg) {
-  return JSON.stringify({
-    task:
-      msg.sessionKey || "",
-    system:
-      msg.system || "",
-    temperature:
-      Number.isFinite(
-        msg.nanoConfig
-          ?.temperature
-      )
-        ? msg.nanoConfig
-            .temperature
-        : null,
-    topK:
-      Number.isFinite(
-        msg.nanoConfig
-          ?.topK
-      )
-        ? msg.nanoConfig
-            .topK
-        : null
-  });
-}
-
-function makeSessionOptions(msg) {
   const options = {
     initialPrompts: [
       {
@@ -203,8 +167,7 @@ function makeSessionOptions(msg) {
     ]
   };
 
-  // Extension-only sampling controls are optional.
-  // Chrome requires both values or neither.
+  // Match the pre-session-reuse runner: use both sampling controls or neither.
   if (
     Number.isFinite(
       msg.nanoConfig
@@ -224,276 +187,20 @@ function makeSessionOptions(msg) {
         .topK;
   }
 
-  return options;
-}
-
-async function ensureAvailability() {
-  if (availabilityPromise) {
-    return {
-      availability:
-        await availabilityPromise,
-      availabilityMs:
-        0,
-      availabilityCached:
-        true
-    };
-  }
-
-  const started =
-    performance.now();
-
-  availabilityPromise =
-    LanguageModel
-      .availability({
-        expectedInputs: [
-          {
-            type:
-              "text",
-            languages: [
-              "en"
-            ]
-          }
-        ],
-        expectedOutputs: [
-          {
-            type:
-              "text",
-            languages: [
-              "en"
-            ]
-          }
-        ]
-      })
-      .then(value => {
-        availabilityValue =
-          value;
-
-        return value;
-      })
-      .catch(error => {
-        availabilityPromise =
-          null;
-
-        throw error;
-      });
-
-  const availability =
-    await availabilityPromise;
-
-  return {
-    availability,
-    availabilityMs:
-      Math.round(
-        performance.now() -
-        started
-      ),
-    availabilityCached:
-      false
-  };
-}
-
-function destroyBaseEntry(entry) {
-  try {
-    entry?.session
-      ?.destroy();
-  } catch {}
-}
-
-function trimBaseSessions() {
-  if (
-    baseSessions.size <=
-    MAX_BASE_SESSIONS
-  ) {
-    return;
-  }
-
-  const oldest =
-    [...baseSessions.entries()]
-      .sort(
-        (a, b) =>
-          a[1].lastUsed -
-          b[1].lastUsed
-      )[0];
-
-  if (!oldest) return;
-
-  destroyBaseEntry(
-    oldest[1]
-  );
-
-  baseSessions.delete(
-    oldest[0]
-  );
-}
-
-async function getBaseSession(
-  msg
-) {
-  const key =
-    sessionKey(msg);
-
-  const existing =
-    baseSessions.get(
-      key
-    );
-
-  if (existing) {
-    existing.lastUsed =
-      Date.now();
-
-    return {
-      key,
-      session:
-        existing.session,
-      reused:
-        true,
-      createMs:
-        0
-    };
-  }
-
-  const started =
+  const createStarted =
     performance.now();
 
   const session =
     await LanguageModel
       .create(
-        makeSessionOptions(
-          msg
-        )
+        options
       );
 
-  const createMs =
+  const sessionCreateMs =
     Math.round(
       performance.now() -
-      started
+      createStarted
     );
-
-  baseSessions.set(
-    key,
-    {
-      session,
-      createdAt:
-        Date.now(),
-      lastUsed:
-        Date.now()
-    }
-  );
-
-  trimBaseSessions();
-
-  return {
-    key,
-    session,
-    reused:
-      false,
-    createMs
-  };
-}
-
-async function cloneBaseSession(
-  msg
-) {
-  let base =
-    await getBaseSession(
-      msg
-    );
-
-  const started =
-    performance.now();
-
-  try {
-    const session =
-      await base.session
-        .clone();
-
-    return {
-      ...base,
-      session,
-      cloneMs:
-        Math.round(
-          performance.now() -
-          started
-        )
-    };
-  } catch (error) {
-    // If Chrome invalidated a cached base session, rebuild it once.
-    const cached =
-      baseSessions.get(
-        base.key
-      );
-
-    destroyBaseEntry(
-      cached
-    );
-
-    baseSessions.delete(
-      base.key
-    );
-
-    base =
-      await getBaseSession(
-        msg
-      );
-
-    const retryStarted =
-      performance.now();
-
-    const session =
-      await base.session
-        .clone();
-
-    return {
-      ...base,
-      reused:
-        false,
-      cloneMs:
-        Math.round(
-          performance.now() -
-          retryStarted
-        ),
-      rebuiltAfterCloneError:
-        String(
-          error?.message ||
-          error
-        )
-    };
-  }
-}
-
-async function runNano(msg) {
-  if (
-    !globalThis
-      .LanguageModel
-  ) {
-    throw new Error(
-      "LanguageModel API is unavailable in this Chrome context."
-    );
-  }
-
-  const totalStarted =
-    performance.now();
-
-  const availabilityInfo =
-    await ensureAvailability();
-
-  if (
-    availabilityInfo
-      .availability ===
-    "unavailable"
-  ) {
-    throw new Error(
-      "Gemini Nano is unavailable on this device."
-    );
-  }
-
-  const baseInfo =
-    await cloneBaseSession(
-      msg
-    );
-
-  const session =
-    baseInfo.session;
 
   const contextUsageBefore =
     Number.isFinite(
@@ -509,143 +216,103 @@ async function runNano(msg) {
       ? session.contextWindow
       : null;
 
-  try {
-    // Keep structured-output enforcement, but do not inject the JSON
-    // schema into Nano's model context. Chrome documents the schema as
-    // consuming context-window tokens unless this option is enabled.
-    const promptOptions = {
-      responseConstraint:
-        msg.schema,
-      omitResponseConstraintInput:
-        true
-    };
-
-    const availableContext =
-      Number.isFinite(
+  const baseMeta = () => ({
+    availability,
+    timing: {
+      totalMs:
+        Math.round(
+          performance.now() -
+          totalStarted
+        ),
+      availabilityMs,
+      sessionCreateMs,
+      // Kept for the existing UI while this regression test is running.
+      baseSessionCreateMs:
+        sessionCreateMs,
+      cloneMs:
+        0,
+      promptMs:
+        0,
+      parseMs:
+        0
+    },
+    session: {
+      runnerMode:
+        "fresh_session",
+      baseSessionReused:
+        false,
+      availabilityCached:
+        false,
+      cacheSize:
+        0,
+      rebuiltAfterCloneError:
+        null
+    },
+    input: {
+      promptChars:
+        String(
+          msg.prompt ||
+          ""
+        ).length,
+      systemChars:
+        String(
+          msg.system ||
+          ""
+        ).length,
+      schemaChars:
+        JSON.stringify(
+          msg.schema ||
+          {}
+        ).length,
+      responseConstraintInputOmitted:
+        false
+    },
+    context: {
+      usageBefore:
+        contextUsageBefore,
+      usageAfter:
+        null,
+      window:
         contextWindow
-      )
-        ? Math.max(
-            0,
-            contextWindow -
-            (
-              Number.isFinite(
-                contextUsageBefore
-              )
-                ? contextUsageBefore
-                : 0
-            )
-          )
-        : null;
+    }
+  });
 
+  try {
     const promptStarted =
       performance.now();
 
     let raw;
 
     try {
+      // Deliberately mirror the pre-PR #8 call semantics.
       raw =
         await session.prompt(
           msg.prompt,
-          promptOptions
+          {
+            responseConstraint:
+              msg.schema
+          }
         );
     } catch (error) {
-      const promptMs =
+      const meta =
+        baseMeta();
+
+      meta.timing.promptMs =
         Math.round(
           performance.now() -
           promptStarted
         );
 
-      let finalError =
-        error;
+      meta.timing.totalMs =
+        Math.round(
+          performance.now() -
+          totalStarted
+        );
 
-      if (
-        error?.name ===
-          "QuotaExceededError" ||
-        /input is too large|too large|context window/i.test(
-          String(
-            error?.message ||
-            error ||
-            ""
-          )
-        )
-      ) {
-        finalError =
-          promptQuotaError({
-            error,
-            measuredInputUsage:
-              null,
-            availableContext,
-            contextWindow
-          });
-      }
+      error.nanoMeta =
+        meta;
 
-      finalError.nanoMeta = {
-        availability:
-          availabilityInfo
-            .availability,
-        timing: {
-          totalMs:
-            Math.round(
-              performance.now() -
-              totalStarted
-            ),
-          availabilityMs:
-            availabilityInfo
-              .availabilityMs,
-          baseSessionCreateMs:
-            baseInfo
-              .createMs,
-          cloneMs:
-            baseInfo
-              .cloneMs,
-          promptMs,
-          parseMs:
-            0
-        },
-        session: {
-          baseSessionReused:
-            baseInfo
-              .reused,
-          availabilityCached:
-            availabilityInfo
-              .availabilityCached,
-          cacheSize:
-            baseSessions.size,
-          rebuiltAfterCloneError:
-            baseInfo
-              .rebuiltAfterCloneError ||
-            null
-        },
-        input: {
-          promptChars:
-            String(
-              msg.prompt ||
-              ""
-            ).length,
-          systemChars:
-            String(
-              msg.system ||
-              ""
-            ).length,
-          schemaChars:
-            JSON.stringify(
-              msg.schema ||
-              {}
-            ).length,
-          responseConstraintInputOmitted:
-            true
-        },
-        context: {
-          usageBefore:
-            contextUsageBefore,
-          availableBefore:
-            availableContext,
-          window:
-            contextWindow
-        }
-      };
-
-      throw finalError;
+      throw error;
     }
 
     const promptMs =
@@ -653,6 +320,7 @@ async function runNano(msg) {
         performance.now() -
         promptStarted
       );
+
     const parseStarted =
       performance.now();
 
@@ -672,84 +340,38 @@ async function runNano(msg) {
         ? session.contextUsage
         : null;
 
+    const meta =
+      baseMeta();
+
+    meta.timing.promptMs =
+      promptMs;
+
+    meta.timing.parseMs =
+      parseMs;
+
+    meta.timing.totalMs =
+      Math.round(
+        performance.now() -
+        totalStarted
+      );
+
+    meta.output = {
+      responseChars:
+        String(
+          raw ||
+          ""
+        ).length
+    };
+
+    meta.context.usageAfter =
+      contextUsageAfter;
+
     return {
       ok:
         true,
       raw,
       parsed,
-      meta: {
-        availability:
-          availabilityInfo
-            .availability,
-        timing: {
-          totalMs:
-            Math.round(
-              performance.now() -
-              totalStarted
-            ),
-          availabilityMs:
-            availabilityInfo
-              .availabilityMs,
-          baseSessionCreateMs:
-            baseInfo
-              .createMs,
-          cloneMs:
-            baseInfo
-              .cloneMs,
-          promptMs,
-          parseMs
-        },
-        session: {
-          baseSessionReused:
-            baseInfo
-              .reused,
-          availabilityCached:
-            availabilityInfo
-              .availabilityCached,
-          cacheSize:
-            baseSessions.size,
-          rebuiltAfterCloneError:
-            baseInfo
-              .rebuiltAfterCloneError ||
-            null
-        },
-        input: {
-          promptChars:
-            String(
-              msg.prompt ||
-              ""
-            ).length,
-          systemChars:
-            String(
-              msg.system ||
-              ""
-            ).length,
-          schemaChars:
-            JSON.stringify(
-              msg.schema ||
-              {}
-            ).length,
-          responseConstraintInputOmitted:
-            true
-        },
-        output: {
-          responseChars:
-            String(
-              raw ||
-              ""
-            ).length
-        },
-        context: {
-          usageBefore:
-            contextUsageBefore,
-          availableBefore:
-            availableContext,
-          usageAfter:
-            contextUsageAfter,
-          window:
-            contextWindow
-        }
-      }
+      meta
     };
   } finally {
     session.destroy();
@@ -778,75 +400,16 @@ chrome.runtime
           sendResponse
         )
         .catch(
-          e =>
-            sendResponse({
-              ok:
-                false,
-              error:
-                String(
-                  e?.message ||
-                  e
-                ),
-              errorCode:
-                e?.code ||
-                null,
-              requested:
-                Number.isFinite(
-                  e?.requested
-                )
-                  ? e.requested
-                  : null,
-              available:
-                Number.isFinite(
-                  e?.available
-                )
-                  ? e.available
-                  : null,
-              contextWindow:
-                numericErrorValue(
-                  e?.contextWindow
-                ),
-              quota:
-                numericErrorValue(
-                  e?.quota
-                ),
-              measuredInputUsage:
-                numericErrorValue(
-                  e?.measuredInputUsage
-                ),
-              availableContext:
-                numericErrorValue(
-                  e?.availableContext
-                ),
-              chromeErrorName:
-                e?.chromeErrorName ||
-                null,
-              chromeErrorMessage:
-                e?.chromeErrorMessage ||
-                null,
-              meta:
-                e?.nanoMeta ||
+          error =>
+            sendResponse(
+              buildErrorResponse(
+                error,
+                error?.nanoMeta ||
                 null
-            })
+              )
+            )
         );
 
       return true;
     }
   );
-
-addEventListener(
-  "beforeunload",
-  () => {
-    for (
-      const entry
-      of baseSessions
-        .values()
-    ) {
-      destroyBaseEntry(
-        entry
-      );
-    }
-
-    baseSessions.clear();
-  }
-);
