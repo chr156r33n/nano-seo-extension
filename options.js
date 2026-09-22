@@ -26,13 +26,13 @@ async function load() {
 function render() {
   app.innerHTML = `
     <section>
-      <h2>Providers</h2>
+      <div class="section-kicker">Models</div><h2>Choose models</h2>
 
       <div class="grid">
         <div>
           <label class="block">
             <input id="nanoEnabled" type="checkbox" ${current.providers.nano.enabled ? "checked" : ""}>
-            Nano enabled by default
+            Use Nano by default
           </label>
 
           <label class="block">
@@ -49,7 +49,7 @@ function render() {
         <div>
           <label class="block">
             <input id="geminiEnabled" type="checkbox" ${current.providers.gemini.enabled ? "checked" : ""}>
-            Gemini API enabled by default
+            Use Gemini API by default
           </label>
 
           <label class="block">
@@ -64,7 +64,7 @@ function render() {
 
           <label class="block">
             <input id="openaiEnabled" type="checkbox" ${current.providers.openai.enabled ? "checked" : ""}>
-            OpenAI API enabled by default
+            Use OpenAI API by default
           </label>
 
           <label class="block">
@@ -81,7 +81,7 @@ function render() {
     </section>
 
     <section>
-      <h2>Limits</h2>
+      <div class="section-kicker">Performance</div><h2>Processing limits</h2>
 
       <div class="grid">
         ${Object.entries(current.limits)
@@ -94,22 +94,22 @@ function render() {
     </section>
 
     <section>
-      <h2>Analyse all</h2>
+      <div class="section-kicker">Quick run</div><h2>Run analysis</h2>
 
       <p class="muted">
-        Choose which model-assisted stages run when you click Analyse all. Deterministic page capture always runs.
+        Choose which stages run when you click Run analysis. Reading the page and running the automated checks always happens first.
         Alignment only runs when both Page type and Intent are enabled.
       </p>
 
       <div class="grid">
         ${[
-          ["linkContext", "Link context classification"],
+          ["linkContext", "Understand link roles"],
           ["pageType", "Page type"],
           ["intent", "Intent"],
-          ["alignment", "Page type ↔ intent alignment"],
-          ["triageFindings", "Triage deterministic findings"],
-          ["domDiff", "Server HTML ↔ rendered DOM diff"],
-          ["urlConsistency", "URL / locale consistency"]
+          ["alignment", "Check page type ↔ intent alignment"],
+          ["triageFindings", "Review flagged checks with model context"],
+          ["domDiff", "Compare server HTML with rendered page"],
+          ["urlConsistency", "Review URL and locale signals"]
         ]
           .map(
             ([key, label]) => `
@@ -127,15 +127,15 @@ function render() {
       </div>
 
       <p class="muted small">
-        DOM diff defaults to off because it performs an extra same-origin refetch and is better treated as a deliberate rendering test than an every-page check.
+        Server/rendered comparison defaults to off because it makes an extra same-origin request and is best used as a deliberate rendering test.
       </p>
     </section>
 
     <section>
-      <h2>Semantic importance</h2>
+      <div class="section-kicker">Evidence weighting</div><h2>Semantic importance</h2>
 
       <p class="muted">
-        Shared guidance used by page type, intent, false-positive, DOM-diff and URL-consistency judgements.
+        Shared guidance that tells models which parts of the page matter most when making contextual judgements.
       </p>
 
       <label class="block">
@@ -154,17 +154,17 @@ function render() {
     </section>
 
     <section>
-      <h2>Hreflang agreed values</h2>
+      <div class="section-kicker">Locales</div><h2>Agreed hreflang values</h2>
 
       <p class="muted">
-        One value per line. Leave empty to skip agreed-list validation. No reciprocal crawling is performed.
+        One value per line. Leave empty to skip allow-list validation. This check does not crawl target pages.
       </p>
 
       <textarea id="hreflangAgreedValues" placeholder="en-GB&#10;en-US&#10;fr-FR&#10;x-default">${(current.hreflangAgreedValues || []).join("\n")}</textarea>
     </section>
 
     <section>
-      <h2>Prompts</h2>
+      <div class="section-kicker">Advanced</div><h2>Model prompts</h2>
 
       ${Object.entries(current.prompts)
         .map(
@@ -188,10 +188,10 @@ function render() {
     </section>
 
     <section>
-      <h2>False-positive guidance</h2>
+      <div class="section-kicker">Advanced</div><h2>Finding-specific guidance</h2>
 
       <p class="muted">
-        Only the guidance for the finding being triaged is added to the model input.
+        Only the guidance for the finding being reviewed is added to that model call.
       </p>
 
       ${Object.entries(current.falsePositiveGuidance)
@@ -357,7 +357,7 @@ document
         settings: current
       });
 
-      msg("Saved.");
+      msg("Settings saved.");
     };
 
 document
@@ -392,7 +392,7 @@ document
         });
 
       if (r?.ok) {
-        msg("Cache cleared.");
+        msg("Saved model results cleared.");
       }
     };
 
