@@ -780,6 +780,10 @@ function buildActionRows(report) {
       ?.results ||
     []
   ) {
+    const internal =
+      result.internal ===
+      true;
+
     if (
       result.error
     ) {
@@ -789,7 +793,9 @@ function buildActionRows(report) {
         area:
           "Link response",
         test:
-          "Request failed",
+          internal
+            ? "Internal request failed"
+            : "External request failed",
         action:
           result.requestedUrl,
         basis:
@@ -810,11 +816,13 @@ function buildActionRows(report) {
     ) {
       actions.push({
         priority:
-          "high",
+          internal
+            ? "high"
+            : "medium",
         area:
           "Link response",
         test:
-          `HTTP ${result.status}`,
+          `${internal ? "Internal" : "External"} HTTP ${result.status}`,
         action:
           result.requestedUrl,
         basis:
@@ -836,15 +844,15 @@ function buildActionRows(report) {
     ) {
       actions.push({
         priority:
-          "medium",
+          "review",
         area:
           "Link response",
         test:
-          `HTTP ${result.status}`,
+          `${internal ? "Internal" : "External"} HTTP ${result.status}`,
         action:
           result.requestedUrl,
         basis:
-          "Final response is a client error.",
+          "The destination returned a client error; authentication, bot blocking or access controls may be relevant.",
         state:
           "Manual check"
       });
@@ -853,6 +861,7 @@ function buildActionRows(report) {
     }
 
     if (
+      internal &&
       result.redirected
     ) {
       actions.push({
@@ -861,7 +870,7 @@ function buildActionRows(report) {
         area:
           "Link response",
         test:
-          "Redirect",
+          "Internal redirect",
         action:
           result.requestedUrl,
         basis:
@@ -870,6 +879,31 @@ function buildActionRows(report) {
           "Manual check"
       });
     }
+  }
+
+  for (
+    const error
+    of report.errors ||
+    []
+  ) {
+    actions.push({
+      priority:
+        "review",
+      area:
+        "Incomplete test",
+      test:
+        humanLabel(
+          error.stage ||
+          "analysis"
+        ),
+      action:
+        "Review the failed or incomplete analysis step.",
+      basis:
+        error.error ||
+        "The step did not complete successfully.",
+      state:
+        "Execution error"
+    });
   }
 
   return actions.sort(
@@ -3963,147 +3997,97 @@ $("#checkLinkResponsesBtn").onclick = async () => {
       );
     }
 
-    const preExistingOrigins = [];
-
-    for (
-      const origin
-      of origins
-    ) {
-      const alreadyGranted =
-        await chrome.permissions
-          .contains({
-            origins: [
-              origin
-            ]
-          });
-
-      if (alreadyGranted) {
-        preExistingOrigins.push(
-          origin
-        );
-      }
-    }
-
-    const originsToRequest =
-      origins.filter(
-        origin =>
-          !preExistingOrigins
-            .includes(
-              origin
-            )
-      );
-
-    let granted =
-      true;
-
-    if (
-      originsToRequest.length
-    ) {
-      granted =
-        await chrome.permissions
-          .request({
-            origins:
-              originsToRequest
-          });
-    }
+    const granted =
+      await chrome.permissions
+        .request({
+          origins
+        });
 
     if (!granted) {
       return setStatus(
-        "Link response checking needs temporary access to the link origins on this page.",
+        "Link response checking needs access to the link origins on this page.",
         true
       );
     }
 
-    try {
-      await ensureFullSnapshot();
+    await ensureFullSnapshot();
 
-      const urls =
-        [
-          ...new Set(
-            (
-              snapshot.links ||
-              []
-            )
-              .map(
-                link =>
-                  link.href
-              )
-              .filter(
-                href =>
-                  /^https?:\/\//i.test(
-                    href ||
-                    ""
-                  )
-              )
+    const urls =
+      [
+        ...new Set(
+          (
+            snapshot.links ||
+            []
           )
-        ]
-          .slice(
-            0,
-            settings.limits
-              .maxLinkResponseChecks ||
-              100
-          );
-
-      if (!urls.length) {
-        return setStatus(
-          "No HTTP(S) links were found to check.",
-          true
+            .map(
+              link =>
+                link.href
+            )
+            .filter(
+              href =>
+                /^https?:\/\//i.test(
+                  href ||
+                  ""
+                )
+            )
+        )
+      ]
+        .slice(
+          0,
+          settings.limits
+            .maxLinkResponseChecks ||
+            100
         );
-      }
 
-      const button =
-        $("#checkLinkResponsesBtn");
-
-      button.disabled =
-        true;
-
-      setStatus(
-        `Checking ${urls.length} unique link destination${urls.length === 1 ? "" : "s"}…`
+    if (!urls.length) {
+      return setStatus(
+        "No HTTP(S) links were found to check.",
+        true
       );
-
-      const result =
-        await sw({
-          type:
-            "CHECK_LINK_RESPONSES",
-          urls
-        });
-
-      snapshot.linkResponseChecks =
-        result;
-
-      $("#linkResponseResults")
-        .innerHTML =
-          linkResponseResultsHtml(
-            result
-          );
-
-      if (
-        lastAnalyseAllReport
-      ) {
-        lastAnalyseAllReport
-          .linkResponses =
-            result;
-
-        renderAnalyseAllResults(
-          lastAnalyseAllReport
-        );
-      }
-
-      setStatus("");
-    } finally {
-      if (
-        originsToRequest.length
-      ) {
-        await chrome.permissions
-          .remove({
-            origins:
-              originsToRequest
-          })
-          .catch(
-            () => {}
-          );
-      }
     }
+
+    const button =
+      $("#checkLinkResponsesBtn");
+
+    button.disabled =
+      true;
+
+    setStatus(
+      `Checking ${urls.length} unique link destination${urls.length === 1 ? "" : "s"}…`
+    );
+
+    const result =
+      await sw({
+        type:
+          "CHECK_LINK_RESPONSES",
+        urls,
+        pageUrl:
+          snapshot.url ||
+          ""
+      });
+
+    snapshot.linkResponseChecks =
+      result;
+
+    $("#linkResponseResults")
+      .innerHTML =
+        linkResponseResultsHtml(
+          result
+        );
+
+    if (
+      lastAnalyseAllReport
+    ) {
+      lastAnalyseAllReport
+        .linkResponses =
+          result;
+
+      renderAnalyseAllResults(
+        lastAnalyseAllReport
+      );
+    }
+
+    setStatus("");
   } catch (e) {
     setStatus(
       e?.message ||
