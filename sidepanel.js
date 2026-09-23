@@ -1821,80 +1821,290 @@ function renderUrlSignals() {
   `;
 }
 
-function domDiffItemCard(item) {
-  const value =
-    item.rendered ||
-    item.raw ||
-    "";
-
+function domDiffValueDetails(item, value, label) {
   const packed =
-    typeof value === "object"
+    value &&
+    typeof value ===
+      "object"
       ? value
-      : {text: value};
+      : {
+          text:
+            value || ""
+        };
 
   const element =
     packed.element ||
-    item.element ||
     {};
 
-  const text =
-    packed.text ||
-    packed.href ||
-    String(value || "");
+  const rows = [];
 
+  if (
+    item.kind ===
+    "link"
+  ) {
+    rows.push({
+      label:
+        "Anchor text",
+      value:
+        packed.text ||
+        "(empty)"
+    });
+
+    rows.push({
+      label:
+        "Destination URL",
+      value:
+        packed.href ||
+        "(none)",
+      code:
+        true
+    });
+  } else if (
+    item.kind ===
+    "heading"
+  ) {
+    rows.push({
+      label:
+        "Heading level",
+      value:
+        (
+          packed.level ||
+          element.tag ||
+          "(unknown)"
+        ).toUpperCase()
+    });
+
+    rows.push({
+      label:
+        "Heading text",
+      value:
+        packed.text ||
+        "(empty)"
+    });
+  } else if (
+    packed.text
+  ) {
+    rows.push({
+      label:
+        "Content",
+      value:
+        packed.text
+    });
+  } else {
+    rows.push({
+      label:
+        "Value",
+      value:
+        typeof value ===
+        "object"
+          ? JSON.stringify(
+              value
+            )
+          : String(
+              value ||
+              ""
+            )
+    });
+  }
+
+  return `
+    <div class="dom-diff-side">
+      <div class="result-label">${escapeHtml(label)}</div>
+      ${rows
+        .map(
+          row =>
+            `<div class="result-kv-row compact">
+              <div class="result-label">${escapeHtml(row.label)}</div>
+              <div>${row.code ? `<code>${escapeHtml(row.value)}</code>` : escapeHtml(row.value)}</div>
+            </div>`
+        )
+        .join("")}
+    </div>
+  `;
+}
+
+function domDiffItemCard(item) {
   const rawPacked =
     item.raw &&
-    typeof item.raw === "object"
+    typeof item.raw ===
+      "object"
       ? item.raw
-      : {text: item.raw || ""};
+      : {
+          text:
+            item.raw ||
+            ""
+        };
 
   const renderedPacked =
     item.rendered &&
-    typeof item.rendered === "object"
+    typeof item.rendered ===
+      "object"
       ? item.rendered
-      : {text: item.rendered || ""};
+      : {
+          text:
+            item.rendered ||
+            ""
+        };
 
-  const rawText =
-    rawPacked.text ||
-    rawPacked.href ||
-    String(item.raw || "");
+  const displayPacked =
+    item.rendered &&
+    (
+      typeof item.rendered !==
+        "string" ||
+      item.rendered
+    )
+      ? renderedPacked
+      : rawPacked;
 
-  const renderedText =
-    renderedPacked.text ||
-    renderedPacked.href ||
-    String(item.rendered || "");
+  const element =
+    displayPacked.element ||
+    rawPacked.element ||
+    item.element ||
+    {};
 
-  const valueHtml =
-    item.change_type === "changed_in_rendered"
-      ? (
-          `<div class="small"><strong>Server:</strong></div>` +
-          `<pre>${escapeHtml(rawText)}</pre>` +
-          `<div class="small"><strong>Rendered:</strong></div>` +
-          `<pre>${escapeHtml(renderedText)}</pre>` +
-          (
-            item.reconciliation
-              ? `<div class="muted small">Reconciled pair · ${escapeHtml(item.reconciliation.reason || "matched")} · score ${escapeHtml(item.reconciliation.score ?? "")}</div>`
-              : ""
-          )
-        )
-      : `<pre>${escapeHtml(text)}</pre>`;
+  const changed =
+    [
+      "changed_in_rendered",
+      "changed",
+      "script_count_changed"
+    ].includes(
+      item.change_type
+    );
+
+  const changeLabel =
+    item.change_type ===
+      "added_in_rendered"
+      ? "Added after rendering"
+      : item.change_type ===
+          "removed_in_rendered"
+        ? "Removed after rendering"
+        : changed
+          ? "Changed after rendering"
+          : humanLabel(
+              item.change_type
+            );
+
+  let evidenceHtml =
+    "";
+
+  if (changed) {
+    evidenceHtml = `
+      <details class="dom-change-comparison" open>
+        <summary>Show before / after evidence</summary>
+        <div class="dom-change-grid">
+          ${domDiffValueDetails(
+            item,
+            item.raw,
+            "From · server HTML"
+          )}
+          ${domDiffValueDetails(
+            item,
+            item.rendered,
+            "To · rendered DOM"
+          )}
+        </div>
+      </details>
+    `;
+  } else {
+    const label =
+      item.change_type ===
+        "added_in_rendered"
+        ? "Rendered DOM"
+        : item.change_type ===
+            "removed_in_rendered"
+          ? "Server HTML"
+          : "Evidence";
+
+    const value =
+      item.change_type ===
+        "removed_in_rendered"
+        ? item.raw
+        : item.rendered ||
+          item.raw;
+
+    evidenceHtml =
+      domDiffValueDetails(
+        item,
+        value,
+        label
+      );
+  }
 
   const d =
-    document.createElement("div");
+    document.createElement(
+      "div"
+    );
 
   d.className =
     "card";
 
   d.innerHTML = `
-    <h3>#${item.id} · ${escapeHtml(item.kind)} · ${escapeHtml(item.change_type)}</h3>
-    <div class="small"><strong>Element:</strong> ${escapeHtml(element.tag || "(unknown)")}</div>
-    <div class="small"><strong>Selector:</strong> ${escapeHtml(element.selector || "(not available)")}</div>
-    <div class="small"><strong>Zone/component:</strong> ${escapeHtml(element.zone || "unknown")} / ${escapeHtml(element.component || "unknown")}</div>
-    <div class="small"><strong>Semantic weight:</strong> ${escapeHtml(element.semantic_weight ?? "(none)")}</div>
-    ${item.net_effect ? `<div class="small"><strong>Deterministic net effect:</strong> ${escapeHtml(item.net_effect.significance || "unknown")} · ${escapeHtml(item.net_effect.reason || "")}</div>` : ""}
-    ${item.nano_review === false ? '<div class="muted small">Resolved deterministically · Nano review skipped</div>' : ""}
-    ${valueHtml}
-    <button class="secondary" data-dom-jira>Create Jira ticket</button>
+    <div class="result-primary">
+      ${badgeHtml(changeLabel, changed ? "warn" : "neutral")}
+      ${item.net_effect ? priorityBadgeHtml(item.net_effect.significance || "low") : ""}
+    </div>
+
+    <div class="result-grid two dom-context-grid">
+      <div>
+        <div class="result-label">Zone</div>
+        <div>${escapeHtml(element.zone || "unknown")}</div>
+      </div>
+      <div>
+        <div class="result-label">Component</div>
+        <div>${escapeHtml(element.component || "unknown")}</div>
+      </div>
+      <div>
+        <div class="result-label">Likely importance</div>
+        <div>${escapeHtml(element.semantic_weight ?? "(not scored)")}</div>
+      </div>
+      <div>
+        <div class="result-label">Element</div>
+        <div>${escapeHtml(element.tag || "(unknown)")}</div>
+      </div>
+    </div>
+
+    ${item.net_effect
+      ? `
+        <div class="result-subsection">
+          <div class="result-label">What changed overall</div>
+          <div class="result-copy">
+            <strong>${escapeHtml(humanLabel(item.net_effect.significance || "unknown"))}</strong>
+            · ${escapeHtml(item.net_effect.reason || "")}
+          </div>
+        </div>
+      `
+      : ""}
+
+    ${item.nano_review === false
+      ? '<div class="empty-state good-state" style="margin-top:8px">Resolved by the automated comparison · model review skipped</div>'
+      : ""}
+
+    <div class="result-subsection">
+      <div class="result-label">Change evidence</div>
+      ${evidenceHtml}
+    </div>
+
+    ${item.reconciliation
+      ? `
+        <div class="muted small" style="margin-top:8px">
+          Matched as the same logical element across server/rendered versions
+          · ${escapeHtml(item.reconciliation.reason || "matched")}
+          ${item.reconciliation.score != null ? ` · match score ${escapeHtml(item.reconciliation.score)}` : ""}
+        </div>
+      `
+      : ""}
+
+    <details class="subdetails" style="margin-top:10px">
+      <summary>Technical locator</summary>
+      <div class="small" style="margin-top:6px">
+        <strong>Selector:</strong>
+        <code>${escapeHtml(element.selector || "(not available)")}</code>
+      </div>
+    </details>
+
+    <div class="row section-actions">
+      <button class="secondary" data-dom-jira>Create Jira ticket</button>
+    </div>
     <div data-dom-jira-result></div>
   `;
 
@@ -1910,19 +2120,31 @@ function domDiffItemCard(item) {
 
   jiraBtn.onclick =
     async () => {
-      jiraTarget.innerHTML = "";
+      jiraTarget.innerHTML =
+        "";
 
       try {
         await createJiraTicket({
-          issue: item,
+          issue:
+            item,
           context: {
             url:
-              snapshot?.url || "",
+              snapshot?.url ||
+              "",
             domDiffSummary:
-              domDiff?.summary || {},
+              domDiff?.summary ||
+              {},
             domDiffCaveat:
-              domDiff?.caveat || "",
-            element
+              domDiff?.caveat ||
+              "",
+            element,
+            raw:
+              item.raw,
+            rendered:
+              item.rendered,
+            netEffect:
+              item.net_effect ||
+              null
           },
           target:
             jiraTarget,
@@ -1931,7 +2153,8 @@ function domDiffItemCard(item) {
         });
       } catch (e) {
         setStatus(
-          e?.message || String(e),
+          e?.message ||
+          String(e),
           true
         );
       }
@@ -1939,7 +2162,6 @@ function domDiffItemCard(item) {
 
   return d;
 }
-
 
 function domJudgementSummaryHtml(judgements = []) {
   if (!judgements.length) {
@@ -3715,136 +3937,136 @@ $("#classifyLinksBtn").onclick = async () => {
 };
 
 
-$("#checkLinkResponsesBtn").onclick =
-  async () => {
-    if (!snapshot) {
+$("#checkLinkResponsesBtn").onclick = async () => {
+  if (!snapshot) {
+    return setStatus(
+      "Read the page first.",
+      true
+    );
+  }
+
+  try {
+    const origins =
+      (
+        snapshot.linkOrigins ||
+        []
+      )
+        .map(
+          origin =>
+            `${origin}/*`
+        );
+
+    if (!origins.length) {
       return setStatus(
-        "Read the page first.",
+        "No HTTP(S) link origins were found to check.",
         true
       );
     }
 
-    try {
-      await ensureFullSnapshot();
-
-      const urls =
-        [
-          ...new Set(
-            (
-              snapshot.links ||
-              []
-            )
-              .map(
-                link =>
-                  link.href
-              )
-              .filter(
-                href =>
-                  /^https?:\/\//i.test(
-                    href || ""
-                  )
-              )
-          )
-        ]
-          .slice(
-            0,
-            settings.limits
-              .maxLinkResponseChecks ||
-              100
-          );
-
-      if (!urls.length) {
-        return setStatus(
-          "No HTTP(S) links were found to check.",
-          true
-        );
-      }
-
-      const origins =
-        [
-          ...new Set(
-            urls.map(
-              href => {
-                try {
-                  return `${new URL(href).origin}/*`;
-                } catch {
-                  return null;
-                }
-              }
-            )
-              .filter(Boolean)
-          )
-        ];
-
-      const granted =
-        await chrome.permissions
-          .request({
-            origins
-          });
-
-      if (!granted) {
-        return setStatus(
-          "Link response checking needs temporary access to the link origins on this page.",
-          true
-        );
-      }
-
-      const button =
-        $("#checkLinkResponsesBtn");
-
-      button.disabled =
-        true;
-
-      setStatus(
-        `Checking ${urls.length} unique link destination${urls.length === 1 ? "" : "s"}…`
-      );
-
-      const result =
-        await sw({
-          type:
-            "CHECK_LINK_RESPONSES",
-          urls
+    const granted =
+      await chrome.permissions
+        .request({
+          origins
         });
 
-      snapshot.linkResponseChecks =
-        result;
-
-      $("#linkResponseResults")
-        .innerHTML =
-          linkResponseResultsHtml(
-            result
-          );
-
-      if (
-        lastAnalyseAllReport
-      ) {
-        lastAnalyseAllReport
-          .linkResponses =
-            result;
-
-        renderAnalyseAllResults(
-          lastAnalyseAllReport
-        );
-      }
-
-      setStatus("");
-    } catch (e) {
-      setStatus(
-        e?.message ||
-        String(e),
+    if (!granted) {
+      return setStatus(
+        "Link response checking needs temporary access to the link origins on this page.",
         true
       );
-    } finally {
-      const button =
-        $("#checkLinkResponsesBtn");
-
-      if (button) {
-        button.disabled =
-          false;
-      }
     }
-  };
 
+    await ensureFullSnapshot();
+
+    const urls =
+      [
+        ...new Set(
+          (
+            snapshot.links ||
+            []
+          )
+            .map(
+              link =>
+                link.href
+            )
+            .filter(
+              href =>
+                /^https?:\/\//i.test(
+                  href ||
+                  ""
+                )
+            )
+        )
+      ]
+        .slice(
+          0,
+          settings.limits
+            .maxLinkResponseChecks ||
+            100
+        );
+
+    if (!urls.length) {
+      return setStatus(
+        "No HTTP(S) links were found to check.",
+        true
+      );
+    }
+
+    const button =
+      $("#checkLinkResponsesBtn");
+
+    button.disabled =
+      true;
+
+    setStatus(
+      `Checking ${urls.length} unique link destination${urls.length === 1 ? "" : "s"}…`
+    );
+
+    const result =
+      await sw({
+        type:
+          "CHECK_LINK_RESPONSES",
+        urls
+      });
+
+    snapshot.linkResponseChecks =
+      result;
+
+    $("#linkResponseResults")
+      .innerHTML =
+        linkResponseResultsHtml(
+          result
+        );
+
+    if (
+      lastAnalyseAllReport
+    ) {
+      lastAnalyseAllReport
+        .linkResponses =
+          result;
+
+      renderAnalyseAllResults(
+        lastAnalyseAllReport
+      );
+    }
+
+    setStatus("");
+  } catch (e) {
+    setStatus(
+      e?.message ||
+      String(e),
+      true
+    );
+  } finally {
+    const button =
+      $("#checkLinkResponsesBtn");
+
+    if (button) {
+      button.disabled =
+        false;
+    }
+  }
+};
 
 $("#buildDomDiffBtn").onclick =
   async () => {
