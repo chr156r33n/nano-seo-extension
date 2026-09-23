@@ -25,5 +25,9 @@
   "side_panel": {
     "default_path": "sidepanel.html"
   },
-  "options_page": "options.html"
+  "options_page": "options.html",
+  "optional_host_permissions": [
+    "http://*/*",
+    "https://*/*"
+  ]
 }
