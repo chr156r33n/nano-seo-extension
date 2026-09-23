@@ -387,10 +387,8 @@ function priorityBadgeHtml(value) {
   );
 }
 
-function buildActionRows(report) {
-  const actions = [];
-
-  const triageByCode =
+function deterministicTriageByCode(report) {
+  const byCode =
     new Map();
 
   for (
@@ -401,31 +399,201 @@ function buildActionRows(report) {
     const code =
       entry.issue?.code;
 
-    if (!code) continue;
+    if (
+      !code ||
+      !entry.result
+    ) {
+      continue;
+    }
 
     if (
-      !triageByCode.has(
+      !byCode.has(
         code
       )
     ) {
-      triageByCode.set(
+      byCode.set(
         code,
         []
       );
     }
 
-    if (entry.result) {
-      triageByCode
-        .get(
-          code
-        )
-        .push({
-          provider:
-            entry.provider,
-          ...entry.result
-        });
-    }
+    byCode
+      .get(
+        code
+      )
+      .push({
+        provider:
+          entry.provider,
+        ...entry.result
+      });
   }
+
+  return byCode;
+}
+
+function deterministicFindingDisposition(
+  finding,
+  report,
+  triageMap =
+    deterministicTriageByCode(
+      report
+    )
+) {
+  const reviews =
+    triageMap.get(
+      finding.code
+    ) ||
+    [];
+
+  const judgements =
+    reviews
+      .map(
+        review =>
+          review.judgement
+      )
+      .filter(Boolean);
+
+  const allFalsePositive =
+    judgements.length > 0 &&
+    judgements.every(
+      judgement =>
+        judgement ===
+        "likely_false_positive"
+    );
+
+  const allValid =
+    judgements.length > 0 &&
+    judgements.every(
+      judgement =>
+        judgement ===
+        "likely_valid"
+    );
+
+  const mixedOrContextual =
+    judgements.some(
+      judgement =>
+        [
+          "manual_review",
+          "context_dependent"
+        ].includes(
+          judgement
+        )
+    ) ||
+    (
+      judgements.length > 1 &&
+      new Set(
+        judgements
+      ).size > 1
+    );
+
+  if (
+    allFalsePositive
+  ) {
+    return {
+      key:
+        "likely_false_positive",
+      label:
+        "Likely false positive",
+      tone:
+        "good",
+      actionRequired:
+        false,
+      priority:
+        null,
+      note:
+        "Model review suggests this deterministic condition is not an issue on this page. Kept here for traceability and reference.",
+      reviews
+    };
+  }
+
+  if (
+    allValid
+  ) {
+    return {
+      key:
+        "actionable",
+      label:
+        "Actionable",
+      tone:
+        "bad",
+      actionRequired:
+        true,
+      priority:
+        DETERMINISTIC_PRIORITY[
+          finding.code
+        ] ||
+        "medium",
+      note:
+        "Model review supports the deterministic finding.",
+      reviews
+    };
+  }
+
+  if (
+    mixedOrContextual ||
+    reviews.length
+  ) {
+    return {
+      key:
+        "needs_review",
+      label:
+        "Needs review",
+      tone:
+        "warn",
+      actionRequired:
+        null,
+      priority:
+        "review",
+      note:
+        "Model review is contextual or providers do not fully agree. Human review is appropriate before action.",
+      reviews
+    };
+  }
+
+  return {
+    key:
+      "unreviewed",
+    label:
+      "Unreviewed",
+    tone:
+      "neutral",
+    actionRequired:
+      null,
+    priority:
+      DETERMINISTIC_PRIORITY[
+        finding.code
+      ] ||
+      "medium",
+    note:
+      "This deterministic finding has not been reviewed by a model.",
+    reviews
+  };
+}
+
+function triageReviewSummary(
+  reviews = []
+) {
+  if (
+    !reviews.length
+  ) {
+    return "";
+  }
+
+  return reviews
+    .map(
+      review =>
+        `${review.provider}: ${humanLabel(review.judgement)}${Number.isFinite(review.confidence) ? ` (${Math.round(review.confidence * 100)}%)` : ""}`
+    )
+    .join(" · ");
+}
+
+function buildActionRows(report) {
+  const actions = [];
+
+  const triageByCode =
+    deterministicTriageByCode(
+      report
+    );
 
   for (
     const finding
@@ -433,54 +601,24 @@ function buildActionRows(report) {
       ?.findings ||
     []
   ) {
-    const reviews =
-      triageByCode.get(
-        finding.code
-      ) ||
-      [];
-
-    const judgements =
-      reviews.map(
-        review =>
-          review.judgement
+    const disposition =
+      deterministicFindingDisposition(
+        finding,
+        report,
+        triageByCode
       );
 
     if (
-      judgements.length &&
-      judgements.every(
-        judgement =>
-          judgement ===
-          "likely_false_positive"
-      )
+      disposition.key ===
+      "likely_false_positive"
     ) {
       continue;
     }
 
-    let priority =
-      DETERMINISTIC_PRIORITY[
-        finding.code
-      ] ||
-      "medium";
-
-    if (
-      judgements.includes(
-        "manual_review"
-      ) ||
-      judgements.includes(
-        "context_dependent"
-      )
-    ) {
-      priority =
-        "review";
-    }
-
-    const confirmed =
-      judgements.includes(
-        "likely_valid"
-      );
-
     actions.push({
-      priority,
+      priority:
+        disposition.priority ||
+        "review",
       area:
         "Deterministic",
       test:
@@ -493,20 +631,12 @@ function buildActionRows(report) {
           finding.code
         ),
       basis:
-        reviews.length
-          ? reviews
-              .map(
-                review =>
-                  `${review.provider}: ${humanLabel(review.judgement)}${Number.isFinite(review.confidence) ? ` (${Math.round(review.confidence * 100)}%)` : ""}`
-              )
-              .join(" · ")
-          : "Automated finding; not model-reviewed",
+        triageReviewSummary(
+          disposition.reviews
+        ) ||
+        "Automated finding; not model-reviewed",
       state:
-        confirmed
-          ? "Model-supported"
-          : reviews.length
-            ? "Needs review"
-            : "Unreviewed"
+        disposition.label
     });
   }
 
@@ -2609,47 +2739,179 @@ function renderAnalyseAllResults(report) {
   );
   target.appendChild(fp);
 
-  // Jira buttons for deterministic findings in the consolidated output.
-  if (report.falsePositives.length) {
-    const jiraBox = document.createElement("div");
-    jiraBox.className = "card";
-    jiraBox.innerHTML = "<h3>Finding actions</h3>";
+  // Keep every deterministic finding visible for traceability, but make the
+  // triage disposition explicit so reference-only rows do not look actionable.
+  if (
+    report.deterministic
+      ?.findings
+      ?.length
+  ) {
+    const jiraBox =
+      document.createElement(
+        "div"
+      );
 
-    const findings = snapshot?.auditChecks?.filter(x => x.status === "finding") || [];
-    findings.forEach((issue, index) => {
-      const row = document.createElement("div");
-      row.className = "issue";
-      row.innerHTML = `
-        <div class="issue-head">
-          <div>
-            <strong>${escapeHtml(issue.code)}</strong>
-            <div class="muted small">${escapeHtml(issue.message)}</div>
-          </div>
-          <button class="secondary" data-all-jira>Create Jira ticket</button>
-        </div>
-        <div data-all-jira-result></div>
-      `;
+    jiraBox.className =
+      "card";
 
-      const btn = row.querySelector("[data-all-jira]");
-      const jiraTarget = row.querySelector("[data-all-jira-result]");
-      btn.onclick = async () => {
-        jiraTarget.innerHTML = "";
-        try {
-          await createJiraTicket({
+    jiraBox.innerHTML =
+      "<h3>Finding follow-up</h3>" +
+      '<div class="muted small">All deterministic findings are retained here for reference. The triage status indicates whether action is warranted.</div>';
+
+    const triageMap =
+      deterministicTriageByCode(
+        report
+      );
+
+    const findings =
+      (
+        snapshot?.auditChecks ||
+        []
+      )
+        .filter(
+          issue =>
+            issue.status ===
+            "finding"
+        )
+        .map(
+          issue => ({
             issue,
-            context: pageContextForIssue(issue),
-            target: jiraTarget,
-            button: btn
-          });
-        } catch (e) {
-          setStatus(e?.message || String(e), true);
-        }
-      };
+            disposition:
+              deterministicFindingDisposition(
+                issue,
+                report,
+                triageMap
+              )
+          })
+        )
+        .sort(
+          (a, b) => {
+            const rank = {
+              actionable: 0,
+              needs_review: 1,
+              unreviewed: 2,
+              likely_false_positive: 3
+            };
 
-      jiraBox.appendChild(row);
-    });
+            return (
+              (
+                rank[
+                  a.disposition.key
+                ] ??
+                9
+              ) -
+              (
+                rank[
+                  b.disposition.key
+                ] ??
+                9
+              )
+            );
+          }
+        );
 
-    target.appendChild(jiraBox);
+    findings.forEach(
+      ({
+        issue,
+        disposition
+      }) => {
+        const row =
+          document.createElement(
+            "div"
+          );
+
+        row.className =
+          `issue finding-followup-row finding-${disposition.key}`;
+
+        const reviewSummary =
+          triageReviewSummary(
+            disposition.reviews
+          );
+
+        const rationale =
+          disposition.reviews
+            .map(
+              review =>
+                review.rationale
+            )
+            .filter(Boolean)
+            .join(" · ");
+
+        row.innerHTML = `
+          <div class="issue-head">
+            <div class="finding-followup-copy">
+              <div class="result-primary">
+                <strong>${escapeHtml(humanLabel(issue.code))}</strong>
+                ${badgeHtml(disposition.label, disposition.tone)}
+              </div>
+              <div class="small">${escapeHtml(issue.message)}</div>
+              <div class="finding-disposition-note small">
+                ${escapeHtml(disposition.note)}
+              </div>
+              ${reviewSummary
+                ? `<div class="muted small finding-review-summary">${escapeHtml(reviewSummary)}</div>`
+                : ""}
+              ${rationale
+                ? `<details class="subdetails"><summary>Model rationale</summary><div class="small" style="margin-top:6px">${escapeHtml(rationale)}</div></details>`
+                : ""}
+            </div>
+            <button class="secondary" data-all-jira>
+              ${disposition.key === "likely_false_positive" ? "Create ticket anyway" : "Create Jira ticket"}
+            </button>
+          </div>
+          <div data-all-jira-result></div>
+        `;
+
+        const btn =
+          row.querySelector(
+            "[data-all-jira]"
+          );
+
+        const jiraTarget =
+          row.querySelector(
+            "[data-all-jira-result]"
+          );
+
+        btn.onclick =
+          async () => {
+            jiraTarget.innerHTML =
+              "";
+
+            try {
+              await createJiraTicket({
+                issue,
+                context: {
+                  ...pageContextForIssue(
+                    issue
+                  ),
+                  triageDisposition:
+                    disposition.label,
+                  triageReviews:
+                    disposition.reviews
+                },
+                target:
+                  jiraTarget,
+                button:
+                  btn
+              });
+            } catch (e) {
+              setStatus(
+                e?.message ||
+                String(e),
+                true
+              );
+            }
+          };
+
+        jiraBox.appendChild(
+          row
+        );
+      }
+    );
+
+    target.appendChild(
+      jiraBox
+    );
   }
 
   target.appendChild(
