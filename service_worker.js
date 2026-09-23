@@ -926,7 +926,12 @@ function makeSnapshotSummary(snapshot) {
     urlSignals:
       snapshot.urlSignals || null,
     auditChecks,
-    domDiff
+    domDiff,
+    linkResponseSummary:
+      snapshot
+        .linkResponseChecks
+        ?.summary ||
+      null
   };
 }
 
@@ -3868,6 +3873,13 @@ async function checkLinkResponses(
         "snapshots",
         snapshot
       );
+
+      await chrome.storage.local.set({
+        lastSnapshotSummary:
+          makeSnapshotSummary(
+            snapshot
+          )
+      });
     }
   }
 
