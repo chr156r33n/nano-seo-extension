@@ -747,8 +747,12 @@ async function callGemini({system, prompt, schema, settings}) {
       parts: [{text: prompt}]
     }],
     generationConfig: {
-      responseMimeType: "application/json",
-      responseSchema: schema,
+      responseFormat: {
+        text: {
+          mimeType: "application/json",
+          schema
+        }
+      },
       temperature: 0.2
     }
   };
