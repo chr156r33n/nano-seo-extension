@@ -925,6 +925,27 @@ function makeSnapshotSummary(snapshot) {
       snapshot.urlSignals?.htmlLang || "",
     urlSignals:
       snapshot.urlSignals || null,
+    linkOrigins:
+      [
+        ...new Set(
+          (
+            snapshot.links ||
+            []
+          )
+            .map(
+              link => {
+                try {
+                  return new URL(
+                    link.href
+                  ).origin;
+                } catch {
+                  return null;
+                }
+              }
+            )
+            .filter(Boolean)
+        )
+      ],
     auditChecks,
     domDiff,
     linkResponseSummary:
