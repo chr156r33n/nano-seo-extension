@@ -274,6 +274,765 @@ function analyseTaskDetails(title, entries, task, open = false) {
   return details;
 }
 
+function renderPassedChecks() {
+  const target =
+    $("#passedChecks");
+
+  if (!target) return;
+
+  const passes =
+    (
+      snapshot?.auditChecks ||
+      []
+    )
+      .filter(
+        check =>
+          check.status ===
+          "pass"
+      );
+
+  if (!snapshot) {
+    target.innerHTML =
+      '<div class="empty-state">Read the page to see passed checks.</div>';
+    return;
+  }
+
+  target.innerHTML =
+    passes.length
+      ? `
+        <details class="card analyse-result-group">
+          <summary>
+            <span>${passes.length} checks passed</span>
+            ${badgeHtml("pass", "good")}
+          </summary>
+          <div class="analyse-group-body">
+            <div class="finding-list">
+              ${passes
+                .map(
+                  check =>
+                    `<div class="finding-row compact">
+                      <div>
+                        <div class="finding-title">${escapeHtml(humanLabel(check.code))}</div>
+                        <div class="muted small">${escapeHtml(check.message || "")}</div>
+                      </div>
+                      ${badgeHtml("pass", "good")}
+                    </div>`
+                )
+                .join("")}
+            </div>
+          </div>
+        </details>
+      `
+      : '<div class="empty-state">No deterministic checks are currently recorded as passed.</div>';
+}
+
+const DETERMINISTIC_PRIORITY = {
+  robots_conflict: "high",
+  robots_noindex: "high",
+  canonical_protocol_downgrade: "high",
+  multiple_canonical: "high",
+  canonical_fragment: "high",
+  canonical_presence: "medium",
+  canonical_cross_origin: "medium",
+  jsonld_parse_error: "medium",
+  hreflang_duplicate_value: "medium",
+  hreflang_unapproved_value: "medium",
+  hreflang_invalid_format: "medium",
+  hreflang_empty_href: "medium",
+  internal_http_links: "medium",
+  h1_presence: "medium",
+  multiple_h1: "low",
+  heading_hierarchy: "low",
+  title_presence: "medium",
+  title_length: "low",
+  meta_description_presence: "low",
+  meta_description_length: "low",
+  html_lang_presence: "low",
+  html_lang_format: "low",
+  images_missing_alt: "medium",
+  images_empty_alt: "low",
+  images_missing_dimensions: "low",
+  links_empty_anchor: "medium",
+  viewport_presence: "medium",
+  open_graph_incomplete: "low",
+  og_url_mismatch: "low",
+  twitter_card_incomplete: "low",
+  favicon_presence: "low"
+};
+
+function priorityRank(value) {
+  return {
+    high: 0,
+    medium: 1,
+    review: 2,
+    low: 3
+  }[
+    value
+  ] ?? 4;
+}
+
+function priorityBadgeHtml(value) {
+  const tone =
+    value === "high"
+      ? "bad"
+      : value === "medium" ||
+        value === "review"
+        ? "warn"
+        : "neutral";
+
+  return badgeHtml(
+    value,
+    tone
+  );
+}
+
+function buildActionRows(report) {
+  const actions = [];
+
+  const triageByCode =
+    new Map();
+
+  for (
+    const entry
+    of report.falsePositives ||
+    []
+  ) {
+    const code =
+      entry.issue?.code;
+
+    if (!code) continue;
+
+    if (
+      !triageByCode.has(
+        code
+      )
+    ) {
+      triageByCode.set(
+        code,
+        []
+      );
+    }
+
+    if (entry.result) {
+      triageByCode
+        .get(
+          code
+        )
+        .push({
+          provider:
+            entry.provider,
+          ...entry.result
+        });
+    }
+  }
+
+  for (
+    const finding
+    of report.deterministic
+      ?.findings ||
+    []
+  ) {
+    const reviews =
+      triageByCode.get(
+        finding.code
+      ) ||
+      [];
+
+    const judgements =
+      reviews.map(
+        review =>
+          review.judgement
+      );
+
+    if (
+      judgements.length &&
+      judgements.every(
+        judgement =>
+          judgement ===
+          "likely_false_positive"
+      )
+    ) {
+      continue;
+    }
+
+    let priority =
+      DETERMINISTIC_PRIORITY[
+        finding.code
+      ] ||
+      "medium";
+
+    if (
+      judgements.includes(
+        "manual_review"
+      ) ||
+      judgements.includes(
+        "context_dependent"
+      )
+    ) {
+      priority =
+        "review";
+    }
+
+    const confirmed =
+      judgements.includes(
+        "likely_valid"
+      );
+
+    actions.push({
+      priority,
+      area:
+        "Deterministic",
+      test:
+        humanLabel(
+          finding.code
+        ),
+      action:
+        finding.message ||
+        humanLabel(
+          finding.code
+        ),
+      basis:
+        reviews.length
+          ? reviews
+              .map(
+                review =>
+                  `${review.provider}: ${humanLabel(review.judgement)}${Number.isFinite(review.confidence) ? ` (${Math.round(review.confidence * 100)}%)` : ""}`
+              )
+              .join(" · ")
+          : "Automated finding; not model-reviewed",
+      state:
+        confirmed
+          ? "Model-supported"
+          : reviews.length
+            ? "Needs review"
+            : "Unreviewed"
+    });
+  }
+
+  const alignmentGroups =
+    new Map();
+
+  for (
+    const entry
+    of report.alignment ||
+    []
+  ) {
+    if (
+      entry.error ||
+      !entry.result
+    ) {
+      continue;
+    }
+
+    const value =
+      entry.result
+        .alignment;
+
+    if (
+      value ===
+      "strong"
+    ) {
+      continue;
+    }
+
+    const key =
+      entry.mode ||
+      "default";
+
+    if (
+      !alignmentGroups.has(
+        key
+      )
+    ) {
+      alignmentGroups.set(
+        key,
+        []
+      );
+    }
+
+    alignmentGroups
+      .get(key)
+      .push(entry);
+  }
+
+  for (
+    const [mode, entries]
+    of alignmentGroups
+  ) {
+    const values =
+      entries.map(
+        entry =>
+          entry.result
+            .alignment
+      );
+
+    const priority =
+      values.includes("weak")
+        ? "high"
+        : values.includes("partial")
+          ? "medium"
+          : "review";
+
+    actions.push({
+      priority,
+      area:
+        "Page purpose",
+      test:
+        `Page type ↔ intent · ${humanLabel(mode)}`,
+      action:
+        "Review whether the page structure supports the user intent identified by the models.",
+      basis:
+        entries
+          .map(
+            entry =>
+              `${entry.provider}: ${humanLabel(entry.result.alignment)}${entry.result.mismatch_reason ? ` · ${entry.result.mismatch_reason}` : ""}`
+          )
+          .join(" | "),
+      state:
+        "Model review"
+    });
+  }
+
+  const domById =
+    new Map();
+
+  for (
+    const assessment
+    of report.domDiff
+      ?.assessments ||
+    []
+  ) {
+    for (
+      const result
+      of assessment.result
+        ?.results ||
+      []
+    ) {
+      if (
+        result.judgement ===
+        "probably_harmless"
+      ) {
+        continue;
+      }
+
+      if (
+        !domById.has(
+          result.id
+        )
+      ) {
+        domById.set(
+          result.id,
+          []
+        );
+      }
+
+      domById
+        .get(
+          result.id
+        )
+        .push({
+          provider:
+            assessment.provider,
+          ...result
+        });
+    }
+  }
+
+  for (
+    const [id, results]
+    of domById
+  ) {
+    const impacts =
+      results.map(
+        result =>
+          result.impact
+      );
+
+    const important =
+      results.some(
+        result =>
+          result.judgement ===
+          "likely_important"
+      );
+
+    const highImpact =
+      impacts.some(
+        impact =>
+          [
+            "indexing_control",
+            "link_discovery",
+            "structured_data",
+            "content_retrieval"
+          ].includes(
+            impact
+          )
+      );
+
+    actions.push({
+      priority:
+        important &&
+        highImpact
+          ? "high"
+          : important
+            ? "medium"
+            : "review",
+      area:
+        "Rendering",
+      test:
+        `DOM difference #${id}`,
+      action:
+        results[0]
+          ?.rationale ||
+        "Review the server/rendered difference.",
+      basis:
+        results
+          .map(
+            result =>
+              `${result.provider}: ${humanLabel(result.judgement)} · ${humanLabel(result.impact)}`
+          )
+          .join(" · "),
+      state:
+        "Model review"
+    });
+  }
+
+  const seenUrlActions =
+    new Set();
+
+  for (
+    const entry
+    of report.urlConsistency ||
+    []
+  ) {
+    for (
+      const finding
+      of entry.result
+        ?.findings ||
+      []
+    ) {
+      if (
+        finding.judgement ===
+        "likely_correct"
+      ) {
+        continue;
+      }
+
+      const key =
+        [
+          finding.source,
+          finding.value,
+          finding.suggested_value
+        ].join("|");
+
+      if (
+        seenUrlActions.has(
+          key
+        )
+      ) {
+        continue;
+      }
+
+      seenUrlActions.add(
+        key
+      );
+
+      actions.push({
+        priority:
+          finding.judgement ===
+          "likely_incorrect"
+            ? (
+                [
+                  "canonical",
+                  "cross_signal"
+                ].includes(
+                  finding.source
+                )
+                  ? "high"
+                  : "medium"
+              )
+            : "review",
+        area:
+          "URL / locale",
+        test:
+          humanLabel(
+            finding.source
+          ),
+        action:
+          finding.rationale ||
+          "Review this URL or locale declaration.",
+        basis:
+          finding.suggested_value
+            ? `Current: ${finding.value || "(empty)"} · Suggested: ${finding.suggested_value}`
+            : finding.value ||
+              entry.result
+                ?.summary ||
+              "",
+        state:
+          "Model review"
+      });
+    }
+  }
+
+  for (
+    const result
+    of report.linkResponses
+      ?.results ||
+    []
+  ) {
+    if (
+      result.error
+    ) {
+      actions.push({
+        priority:
+          "review",
+        area:
+          "Link response",
+        test:
+          "Request failed",
+        action:
+          result.requestedUrl,
+        basis:
+          result.error,
+        state:
+          "Manual check"
+      });
+
+      continue;
+    }
+
+    if (
+      Number(result.status) >=
+      500 ||
+      [404, 410].includes(
+        Number(result.status)
+      )
+    ) {
+      actions.push({
+        priority:
+          "high",
+        area:
+          "Link response",
+        test:
+          `HTTP ${result.status}`,
+        action:
+          result.requestedUrl,
+        basis:
+          result.finalUrl &&
+          result.finalUrl !==
+            result.requestedUrl
+            ? `Resolved to ${result.finalUrl}`
+            : "Final response is not successful.",
+        state:
+          "Manual check"
+      });
+
+      continue;
+    }
+
+    if (
+      Number(result.status) >=
+      400
+    ) {
+      actions.push({
+        priority:
+          "medium",
+        area:
+          "Link response",
+        test:
+          `HTTP ${result.status}`,
+        action:
+          result.requestedUrl,
+        basis:
+          "Final response is a client error.",
+        state:
+          "Manual check"
+      });
+
+      continue;
+    }
+
+    if (
+      result.redirected
+    ) {
+      actions.push({
+        priority:
+          "low",
+        area:
+          "Link response",
+        test:
+          "Redirect",
+        action:
+          result.requestedUrl,
+        basis:
+          `Final URL: ${result.finalUrl}`,
+        state:
+          "Manual check"
+      });
+    }
+  }
+
+  return actions.sort(
+    (a, b) =>
+      priorityRank(
+        a.priority
+      ) -
+        priorityRank(
+          b.priority
+        ) ||
+      a.area.localeCompare(
+        b.area
+      )
+  );
+}
+
+function actionSummaryDetails(report) {
+  const actions =
+    buildActionRows(
+      report
+    );
+
+  const details =
+    document.createElement(
+      "details"
+    );
+
+  details.className =
+    "card analyse-result-group action-summary";
+
+  details.open =
+    true;
+
+  const modelOutputs =
+    [
+      ...(report.pageType || []),
+      ...(report.intent || []),
+      ...(report.alignment || []),
+      ...(report.links || []),
+      ...(report.falsePositives || []),
+      ...(report.domDiff?.assessments || []),
+      ...(report.urlConsistency || [])
+    ];
+
+  const testsRun =
+    (
+      report.deterministic
+        ?.checks
+        ?.length ||
+      0
+    ) +
+    modelOutputs.length +
+    (
+      report.linkResponses
+        ?.results
+        ?.length ||
+      0
+    );
+
+  details.innerHTML = `
+    <summary>
+      <span>Prioritised actions</span>
+      <span class="summary-count">${actions.length}</span>
+    </summary>
+    <div class="analyse-group-body">
+      <div class="metric-row">
+        ${metricHtml("Tests/results", testsRun)}
+        ${metricHtml("Actions", actions.length)}
+        ${metricHtml("High", actions.filter(action => action.priority === "high").length)}
+        ${metricHtml("Review", actions.filter(action => action.priority === "review").length)}
+      </div>
+      ${actions.length
+        ? `
+          <div class="action-table-wrap">
+            <table class="action-table">
+              <thead>
+                <tr>
+                  <th>Priority</th>
+                  <th>Area / test</th>
+                  <th>Action</th>
+                  <th>Basis</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${actions
+                  .map(
+                    action =>
+                      `<tr>
+                        <td>${priorityBadgeHtml(action.priority)}</td>
+                        <td><strong>${escapeHtml(action.area)}</strong><div class="muted small">${escapeHtml(action.test)}</div></td>
+                        <td>${escapeHtml(action.action)}</td>
+                        <td><div class="small">${escapeHtml(action.basis || action.state || "")}</div></td>
+                      </tr>`
+                  )
+                  .join("")}
+              </tbody>
+            </table>
+          </div>
+        `
+        : '<div class="empty-state good-state">No actions were generated from the checks and model reviews in this run.</div>'}
+      <div class="muted small" style="margin-top:8px">
+        Priority is calculated from the technical check/impact and model judgement where available. Descriptive model outputs do not create actions by themselves.
+      </div>
+    </div>
+  `;
+
+  return details;
+}
+
+function linkResponseResultsHtml(data) {
+  if (
+    !data?.results?.length
+  ) {
+    return '<div class="empty-state">No link response checks have been run.</div>';
+  }
+
+  const summary =
+    data.summary ||
+    {};
+
+  return `
+    <div class="card">
+      <div class="metric-row">
+        ${metricHtml("Checked", summary.checked || 0)}
+        ${metricHtml("OK", summary.ok || 0)}
+        ${metricHtml("Redirected", summary.redirected || 0)}
+        ${metricHtml("4xx", summary.clientErrors || 0)}
+        ${metricHtml("5xx", summary.serverErrors || 0)}
+        ${metricHtml("Errors", summary.requestErrors || 0)}
+      </div>
+      <details class="subdetails">
+        <summary>Show checked URLs</summary>
+        <div class="action-table-wrap" style="margin-top:8px">
+          <table class="action-table">
+            <thead>
+              <tr>
+                <th>Status</th>
+                <th>Requested URL</th>
+                <th>Final URL</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${data.results
+                .map(
+                  result =>
+                    `<tr>
+                      <td>${result.error ? badgeHtml("error", "bad") : badgeHtml(result.status, result.ok ? "good" : "bad")}</td>
+                      <td><code>${escapeHtml(result.requestedUrl || "")}</code></td>
+                      <td>
+                        <code>${escapeHtml(result.finalUrl || result.error || "")}</code>
+                        ${result.redirected ? '<div class="muted small">Redirected</div>' : ""}
+                      </td>
+                    </tr>`
+                )
+                .join("")}
+            </tbody>
+          </table>
+        </div>
+      </details>
+    </div>
+  `;
+}
+
+
 function deterministicResultDetails(data, open = true) {
   const details = document.createElement("details"); details.className = "card analyse-result-group"; details.open = open;
   const checks = data?.checks || []; const findings = checks.filter(x => x.status === "finding"); const passes = checks.filter(x => x.status === "pass"); const linkStats = data?.linkStats || {}; const imageStats = data?.imageStats || {};
@@ -1568,6 +2327,12 @@ function renderAnalyseAllResults(report) {
   target.appendChild(summary);
 
   target.appendChild(
+    actionSummaryDetails(
+      report
+    )
+  );
+
+  target.appendChild(
     analyseConfigDetails(
       report.analyseAllConfig,
       report.skipped || []
@@ -1857,6 +2622,7 @@ async function analyseAll() {
 
     resetTaskResultState();
     updatePageMeta();
+    renderPassedChecks();
 
     let domDiffError = null;
 
@@ -2080,6 +2846,9 @@ async function analyseAll() {
       },
 
       urlConsistency: [],
+      linkResponses:
+        snapshot.linkResponseChecks ||
+        null,
       errors: [],
       skipped: []
     };
@@ -2692,6 +3461,7 @@ async function load() {
   renderIssues();
   renderDomDiffSummary();
   renderUrlSignals();
+  renderPassedChecks();
 }
 
 $("#analyseAllBtn").onclick = async () => {
@@ -2908,6 +3678,125 @@ $("#classifyLinksBtn").onclick = async () => {
     );
   }
 };
+
+
+$("#checkLinkResponsesBtn").onclick =
+  async () => {
+    if (!snapshot) {
+      return setStatus(
+        "Read the page first.",
+        true
+      );
+    }
+
+    try {
+      await ensureFullSnapshot();
+
+      const urls =
+        [
+          ...new Set(
+            (
+              snapshot.links ||
+              []
+            )
+              .map(
+                link =>
+                  link.href
+              )
+              .filter(
+                href =>
+                  /^https?:\/\//i.test(
+                    href || ""
+                  )
+              )
+          )
+        ]
+          .slice(
+            0,
+            settings.limits
+              .maxLinkResponseChecks ||
+              100
+          );
+
+      if (!urls.length) {
+        return setStatus(
+          "No HTTP(S) links were found to check.",
+          true
+        );
+      }
+
+      const origins =
+        [
+          ...new Set(
+            urls.map(
+              href => {
+                try {
+                  return `${new URL(href).origin}/*`;
+                } catch {
+                  return null;
+                }
+              }
+            )
+              .filter(Boolean)
+          )
+        ];
+
+      const granted =
+        await chrome.permissions
+          .request({
+            origins
+          });
+
+      if (!granted) {
+        return setStatus(
+          "Link response checking needs temporary access to the link origins on this page.",
+          true
+        );
+      }
+
+      const button =
+        $("#checkLinkResponsesBtn");
+
+      button.disabled =
+        true;
+
+      setStatus(
+        `Checking ${urls.length} unique link destination${urls.length === 1 ? "" : "s"}…`
+      );
+
+      const result =
+        await sw({
+          type:
+            "CHECK_LINK_RESPONSES",
+          urls
+        });
+
+      snapshot.linkResponseChecks =
+        result;
+
+      $("#linkResponseResults")
+        .innerHTML =
+          linkResponseResultsHtml(
+            result
+          );
+
+      setStatus("");
+    } catch (e) {
+      setStatus(
+        e?.message ||
+        String(e),
+        true
+      );
+    } finally {
+      const button =
+        $("#checkLinkResponsesBtn");
+
+      if (button) {
+        button.disabled =
+          false;
+      }
+    }
+  };
 
 
 $("#buildDomDiffBtn").onclick =
