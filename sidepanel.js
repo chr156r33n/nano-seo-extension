@@ -462,7 +462,16 @@ function buildActionRows(report) {
       ] ||
       "medium";
 
+    const directDisagreement =
+      judgements.includes(
+        "likely_valid"
+      ) &&
+      judgements.includes(
+        "likely_false_positive"
+      );
+
     if (
+      directDisagreement ||
       judgements.includes(
         "manual_review"
       ) ||
@@ -475,6 +484,7 @@ function buildActionRows(report) {
     }
 
     const confirmed =
+      !directDisagreement &&
       judgements.includes(
         "likely_valid"
       );
@@ -3980,11 +3990,33 @@ $("#checkLinkResponsesBtn").onclick = async () => {
   }
 
   try {
+    const availableOrigins =
+      snapshot.linkOrigins
+        ?.length
+        ? snapshot.linkOrigins
+        : [
+            ...new Set(
+              (
+                snapshot.links ||
+                []
+              )
+                .map(
+                  link => {
+                    try {
+                      return new URL(
+                        link.href
+                      ).origin;
+                    } catch {
+                      return null;
+                    }
+                  }
+                )
+                .filter(Boolean)
+            )
+          ];
+
     const origins =
-      (
-        snapshot.linkOrigins ||
-        []
-      )
+      availableOrigins
         .map(
           origin =>
             `${origin}/*`
