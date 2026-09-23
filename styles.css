@@ -1013,6 +1013,53 @@ th {
   overflow-wrap: anywhere;
 }
 
+.finding-followup-row {
+  transition: opacity .15s ease, border-color .15s ease;
+}
+
+.finding-followup-copy {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.finding-disposition-note {
+  margin-top: 5px;
+}
+
+.finding-review-summary {
+  margin-top: 5px;
+}
+
+.finding-likely_false_positive {
+  background: var(--good-bg);
+  border-color: #cfe3d6;
+}
+
+.finding-likely_false_positive .finding-disposition-note {
+  color: var(--good);
+}
+
+.finding-likely_false_positive button.secondary {
+  opacity: .72;
+}
+
+.finding-needs_review {
+  background: var(--warn-bg);
+  border-color: #ead9a8;
+}
+
+.finding-needs_review .finding-disposition-note {
+  color: var(--warn);
+}
+
+.finding-actionable {
+  border-left: 3px solid var(--bad);
+}
+
+.finding-unreviewed {
+  border-left: 3px solid var(--line-strong);
+}
+
 .error-card,
 .analyse-result-error { border-left: 3px solid var(--brand); }
 
