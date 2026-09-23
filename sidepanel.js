@@ -3464,13 +3464,21 @@ async function load() {
   renderPassedChecks();
 
   if (
-    snapshot?.linkResponseChecks
+    snapshot?.linkResponseSummary
   ) {
-    $("#linkResponseResults")
-      .innerHTML =
-        linkResponseResultsHtml(
-          snapshot.linkResponseChecks
-        );
+    try {
+      await ensureFullSnapshot();
+
+      if (
+        snapshot?.linkResponseChecks
+      ) {
+        $("#linkResponseResults")
+          .innerHTML =
+            linkResponseResultsHtml(
+              snapshot.linkResponseChecks
+            );
+      }
+    } catch {}
   }
 }
 
@@ -3498,6 +3506,15 @@ $("#captureBtn").onclick = async () => {
     renderIssues();
     renderDomDiffSummary();
     renderUrlSignals();
+    renderPassedChecks();
+
+    const linkResponseResult =
+      $("#linkResponseResults");
+
+    if (linkResponseResult) {
+      linkResponseResult.innerHTML =
+        "";
+    }
 
     const domResult =
       $("#domDiffResults");
