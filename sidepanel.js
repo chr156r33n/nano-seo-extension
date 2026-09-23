@@ -3963,11 +3963,49 @@ $("#checkLinkResponsesBtn").onclick = async () => {
       );
     }
 
-    const granted =
-      await chrome.permissions
-        .request({
-          origins
-        });
+    const preExistingOrigins = [];
+
+    for (
+      const origin
+      of origins
+    ) {
+      const alreadyGranted =
+        await chrome.permissions
+          .contains({
+            origins: [
+              origin
+            ]
+          });
+
+      if (alreadyGranted) {
+        preExistingOrigins.push(
+          origin
+        );
+      }
+    }
+
+    const originsToRequest =
+      origins.filter(
+        origin =>
+          !preExistingOrigins
+            .includes(
+              origin
+            )
+      );
+
+    let granted =
+      true;
+
+    if (
+      originsToRequest.length
+    ) {
+      granted =
+        await chrome.permissions
+          .request({
+            origins:
+              originsToRequest
+          });
+    }
 
     if (!granted) {
       return setStatus(
@@ -3976,81 +4014,96 @@ $("#checkLinkResponsesBtn").onclick = async () => {
       );
     }
 
-    await ensureFullSnapshot();
+    try {
+      await ensureFullSnapshot();
 
-    const urls =
-      [
-        ...new Set(
-          (
-            snapshot.links ||
-            []
+      const urls =
+        [
+          ...new Set(
+            (
+              snapshot.links ||
+              []
+            )
+              .map(
+                link =>
+                  link.href
+              )
+              .filter(
+                href =>
+                  /^https?:\/\//i.test(
+                    href ||
+                    ""
+                  )
+              )
           )
-            .map(
-              link =>
-                link.href
-            )
-            .filter(
-              href =>
-                /^https?:\/\//i.test(
-                  href ||
-                  ""
-                )
-            )
-        )
-      ]
-        .slice(
-          0,
-          settings.limits
-            .maxLinkResponseChecks ||
-            100
-        );
+        ]
+          .slice(
+            0,
+            settings.limits
+              .maxLinkResponseChecks ||
+              100
+          );
 
-    if (!urls.length) {
-      return setStatus(
-        "No HTTP(S) links were found to check.",
-        true
+      if (!urls.length) {
+        return setStatus(
+          "No HTTP(S) links were found to check.",
+          true
+        );
+      }
+
+      const button =
+        $("#checkLinkResponsesBtn");
+
+      button.disabled =
+        true;
+
+      setStatus(
+        `Checking ${urls.length} unique link destination${urls.length === 1 ? "" : "s"}…`
       );
-    }
 
-    const button =
-      $("#checkLinkResponsesBtn");
+      const result =
+        await sw({
+          type:
+            "CHECK_LINK_RESPONSES",
+          urls
+        });
 
-    button.disabled =
-      true;
+      snapshot.linkResponseChecks =
+        result;
 
-    setStatus(
-      `Checking ${urls.length} unique link destination${urls.length === 1 ? "" : "s"}…`
-    );
+      $("#linkResponseResults")
+        .innerHTML =
+          linkResponseResultsHtml(
+            result
+          );
 
-    const result =
-      await sw({
-        type:
-          "CHECK_LINK_RESPONSES",
-        urls
-      });
-
-    snapshot.linkResponseChecks =
-      result;
-
-    $("#linkResponseResults")
-      .innerHTML =
-        linkResponseResultsHtml(
-          result
-        );
-
-    if (
-      lastAnalyseAllReport
-    ) {
-      lastAnalyseAllReport
-        .linkResponses =
-          result;
-
-      renderAnalyseAllResults(
+      if (
         lastAnalyseAllReport
-      );
-    }
+      ) {
+        lastAnalyseAllReport
+          .linkResponses =
+            result;
 
-    setStatus("");
+        renderAnalyseAllResults(
+          lastAnalyseAllReport
+        );
+      }
+
+      setStatus("");
+    } finally {
+      if (
+        originsToRequest.length
+      ) {
+        await chrome.permissions
+          .remove({
+            origins:
+              originsToRequest
+          })
+          .catch(
+            () => {}
+          );
+      }
+    }
   } catch (e) {
     setStatus(
       e?.message ||
