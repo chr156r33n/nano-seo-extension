@@ -3462,6 +3462,16 @@ async function load() {
   renderDomDiffSummary();
   renderUrlSignals();
   renderPassedChecks();
+
+  if (
+    snapshot?.linkResponseChecks
+  ) {
+    $("#linkResponseResults")
+      .innerHTML =
+        linkResponseResultsHtml(
+          snapshot.linkResponseChecks
+        );
+  }
 }
 
 $("#analyseAllBtn").onclick = async () => {
