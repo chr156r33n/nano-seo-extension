@@ -3605,7 +3605,8 @@ async function captureActiveTab() {
 
 async function checkOneLinkResponse(
   url,
-  timeoutMs
+  timeoutMs,
+  pageOrigin
 ) {
   const started =
     performance.now();
@@ -3620,12 +3621,13 @@ async function checkOneLinkResponse(
       timeoutMs
     );
 
-  const runFetch =
-    async method =>
+  try {
+    const response =
       await fetch(
         url,
         {
-          method,
+          method:
+            "GET",
           redirect:
             "follow",
           cache:
@@ -3635,37 +3637,24 @@ async function checkOneLinkResponse(
         }
       );
 
-  try {
-    let response;
+    try {
+      await response.body
+        ?.cancel();
+    } catch {}
+
+    let internal =
+      null;
 
     try {
-      response =
-        await runFetch(
-          "HEAD"
-        );
-
-      if (
-        response.status === 405 ||
-        response.status === 501
-      ) {
-        response =
-          await runFetch(
-            "GET"
-          );
-      }
-    } catch (error) {
-      if (
-        error?.name ===
-          "AbortError"
-      ) {
-        throw error;
-      }
-
-      response =
-        await runFetch(
-          "GET"
-        );
-    }
+      internal =
+        Boolean(
+          pageOrigin
+        ) &&
+        new URL(
+          url
+        ).origin ===
+          pageOrigin;
+    } catch {}
 
     return {
       requestedUrl:
@@ -3680,6 +3669,7 @@ async function checkOneLinkResponse(
           response.url !==
             url
         ),
+      internal,
       status:
         response.status,
       ok:
@@ -3696,6 +3686,20 @@ async function checkOneLinkResponse(
         null
     };
   } catch (error) {
+    let internal =
+      null;
+
+    try {
+      internal =
+        Boolean(
+          pageOrigin
+        ) &&
+        new URL(
+          url
+        ).origin ===
+          pageOrigin;
+    } catch {}
+
     return {
       requestedUrl:
         url,
@@ -3703,6 +3707,7 @@ async function checkOneLinkResponse(
         null,
       redirected:
         false,
+      internal,
       status:
         null,
       ok:
@@ -3732,10 +3737,21 @@ async function checkOneLinkResponse(
 }
 
 async function checkLinkResponses(
-  urls = []
+  urls = [],
+  pageUrl = ""
 ) {
   const settings =
     await getSettings();
+
+  let pageOrigin =
+    "";
+
+  try {
+    pageOrigin =
+      new URL(
+        pageUrl
+      ).origin;
+  } catch {}
 
   const maxChecks =
     Math.max(
@@ -3807,7 +3823,8 @@ async function checkLinkResponses(
         results[index] =
           await checkOneLinkResponse(
             uniqueUrls[index],
-            timeoutMs
+            timeoutMs,
+            pageOrigin
           );
       }
     };
@@ -6064,7 +6081,9 @@ chrome.runtime.onMessage.addListener(
       ) {
         return await checkLinkResponses(
           msg.urls ||
-          []
+          [],
+          msg.pageUrl ||
+          ""
         );
       }
 
