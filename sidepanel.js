@@ -301,7 +301,7 @@ function renderPassedChecks() {
   target.innerHTML =
     passes.length
       ? `
-        <details class="card analyse-result-group">
+        <details class="card analyse-result-group" open>
           <summary>
             <span>${passes.length} checks passed</span>
             ${badgeHtml("pass", "good")}
