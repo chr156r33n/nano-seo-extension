@@ -65,9 +65,14 @@
     <div class="section-copy">Classify links by what they do on the page: navigation, editorial, product/category, CTA, utility and more.</div>
     <div class="row section-actions">
       <button id="classifyLinksBtn">Classify next links</button>
+      <button id="checkLinkResponsesBtn" class="secondary">Check link responses</button>
+    </div>
+    <div class="section-copy" style="margin-top:8px">
+      Link response checking is manual only. It follows HTTP(S) links to their final response and may request temporary access to external origins.
     </div>
     <div id="linkProgress" class="muted small"></div>
     <div id="linkResults" class="results"></div>
+    <div id="linkResponseResults" class="results"></div>
   </section>
 
   <section class="tool-section">
@@ -157,6 +162,13 @@
     </div>
 
     <div id="urlConsistencyResults" class="results"></div>
+  </section>
+
+  <section class="tool-section">
+    <div class="section-kicker">Checks passed</div>
+    <h2>What this page got right</h2>
+    <div class="section-copy">Passed deterministic checks are listed explicitly so successful conditions are visible rather than inferred from the absence of findings.</div>
+    <div id="passedChecks" class="results"></div>
   </section>
 
   <section class="tool-section research-section">

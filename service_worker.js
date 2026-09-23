@@ -925,8 +925,34 @@ function makeSnapshotSummary(snapshot) {
       snapshot.urlSignals?.htmlLang || "",
     urlSignals:
       snapshot.urlSignals || null,
+    linkOrigins:
+      [
+        ...new Set(
+          (
+            snapshot.links ||
+            []
+          )
+            .map(
+              link => {
+                try {
+                  return new URL(
+                    link.href
+                  ).origin;
+                } catch {
+                  return null;
+                }
+              }
+            )
+            .filter(Boolean)
+        )
+      ],
     auditChecks,
-    domDiff
+    domDiff,
+    linkResponseSummary:
+      snapshot
+        .linkResponseChecks
+        ?.summary ||
+      null
   };
 }
 
@@ -3577,6 +3603,335 @@ async function captureActiveTab() {
 }
 
 
+async function checkOneLinkResponse(
+  url,
+  timeoutMs
+) {
+  const started =
+    performance.now();
+
+  const controller =
+    new AbortController();
+
+  const timeout =
+    setTimeout(
+      () =>
+        controller.abort(),
+      timeoutMs
+    );
+
+  const runFetch =
+    async method =>
+      await fetch(
+        url,
+        {
+          method,
+          redirect:
+            "follow",
+          cache:
+            "no-store",
+          signal:
+            controller.signal
+        }
+      );
+
+  try {
+    let response;
+
+    try {
+      response =
+        await runFetch(
+          "HEAD"
+        );
+
+      if (
+        response.status === 405 ||
+        response.status === 501
+      ) {
+        response =
+          await runFetch(
+            "GET"
+          );
+      }
+    } catch (error) {
+      if (
+        error?.name ===
+          "AbortError"
+      ) {
+        throw error;
+      }
+
+      response =
+        await runFetch(
+          "GET"
+        );
+    }
+
+    return {
+      requestedUrl:
+        url,
+      finalUrl:
+        response.url ||
+        url,
+      redirected:
+        response.redirected ||
+        (
+          response.url &&
+          response.url !==
+            url
+        ),
+      status:
+        response.status,
+      ok:
+        response.ok,
+      type:
+        response.type ||
+        "",
+      durationMs:
+        Math.round(
+          performance.now() -
+          started
+        ),
+      error:
+        null
+    };
+  } catch (error) {
+    return {
+      requestedUrl:
+        url,
+      finalUrl:
+        null,
+      redirected:
+        false,
+      status:
+        null,
+      ok:
+        false,
+      type:
+        null,
+      durationMs:
+        Math.round(
+          performance.now() -
+          started
+        ),
+      error:
+        error?.name ===
+          "AbortError"
+          ? `Timed out after ${timeoutMs} ms`
+          : String(
+              error?.message ||
+              error ||
+              "Request failed"
+            )
+    };
+  } finally {
+    clearTimeout(
+      timeout
+    );
+  }
+}
+
+async function checkLinkResponses(
+  urls = []
+) {
+  const settings =
+    await getSettings();
+
+  const maxChecks =
+    Math.max(
+      1,
+      settings.limits
+        .maxLinkResponseChecks ||
+        100
+    );
+
+  const concurrency =
+    Math.max(
+      1,
+      Math.min(
+        12,
+        settings.limits
+          .linkResponseConcurrency ||
+          6
+      )
+    );
+
+  const timeoutMs =
+    Math.max(
+      1000,
+      settings.limits
+        .linkResponseTimeoutMs ||
+        12000
+    );
+
+  const uniqueUrls =
+    [
+      ...new Set(
+        (urls || [])
+          .map(
+            value =>
+              String(
+                value ||
+                ""
+              )
+          )
+          .filter(
+            value =>
+              /^https?:\/\//i.test(
+                value
+              )
+          )
+      )
+    ]
+      .slice(
+        0,
+        maxChecks
+      );
+
+  let cursor = 0;
+
+  const results =
+    new Array(
+      uniqueUrls.length
+    );
+
+  const worker =
+    async () => {
+      while (
+        cursor <
+        uniqueUrls.length
+      ) {
+        const index =
+          cursor++;
+
+        results[index] =
+          await checkOneLinkResponse(
+            uniqueUrls[index],
+            timeoutMs
+          );
+      }
+    };
+
+  await Promise.all(
+    Array.from(
+      {
+        length:
+          Math.min(
+            concurrency,
+            uniqueUrls.length
+          )
+      },
+      () =>
+        worker()
+    )
+  );
+
+  const summary = {
+    checked:
+      results.length,
+    ok:
+      results.filter(
+        result =>
+          result.ok
+      ).length,
+    redirected:
+      results.filter(
+        result =>
+          result.redirected
+      ).length,
+    clientErrors:
+      results.filter(
+        result =>
+          Number(result.status) >=
+            400 &&
+          Number(result.status) <
+            500
+      ).length,
+    serverErrors:
+      results.filter(
+        result =>
+          Number(result.status) >=
+          500
+      ).length,
+    requestErrors:
+      results.filter(
+        result =>
+          !!result.error
+      ).length
+  };
+
+  const output = {
+    checkedAt:
+      new Date()
+        .toISOString(),
+    summary,
+    results
+  };
+
+  const {
+    lastSnapshotFingerprint,
+    currentAnalysisRunId
+  } =
+    await chrome.storage.local.get([
+      "lastSnapshotFingerprint",
+      "currentAnalysisRunId"
+    ]);
+
+  if (
+    lastSnapshotFingerprint
+  ) {
+    const snapshot =
+      await dbGet(
+        "snapshots",
+        lastSnapshotFingerprint
+      );
+
+    if (snapshot) {
+      snapshot.linkResponseChecks =
+        output;
+
+      await dbPut(
+        "snapshots",
+        snapshot
+      );
+
+      await chrome.storage.local.set({
+        lastSnapshotSummary:
+          makeSnapshotSummary(
+            snapshot
+          )
+      });
+    }
+  }
+
+  if (
+    currentAnalysisRunId
+  ) {
+    const run =
+      await dbGet(
+        "analysisRuns",
+        currentAnalysisRunId
+      );
+
+    if (run) {
+      run.linkResponseChecks =
+        output;
+
+      run.updatedAt =
+        new Date()
+          .toISOString();
+
+      await dbPut(
+        "analysisRuns",
+        run
+      );
+    }
+  }
+
+  return output;
+}
+
+
 async function buildDomDiff() {
   const tab =
     await getCurrentActiveTab();
@@ -5701,6 +6056,16 @@ chrome.runtime.onMessage.addListener(
         "BUILD_DOM_DIFF"
       ) {
         return await buildDomDiff();
+      }
+
+      if (
+        msg.type ===
+        "CHECK_LINK_RESPONSES"
+      ) {
+        return await checkLinkResponses(
+          msg.urls ||
+          []
+        );
       }
 
       if (
