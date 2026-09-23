@@ -18,6 +18,7 @@ let linkCursor = 0;
 let domDiffCursor = 0;
 let domDiff = null;
 let analyseAllRunning = false;
+let lastAnalyseAllReport = null;
 
 const $ = s => document.querySelector(s);
 
@@ -3412,6 +3413,11 @@ async function analyseAll() {
     renderIssues();
     renderDomDiffSummary();
     renderUrlSignals();
+    renderPassedChecks();
+
+    lastAnalyseAllReport =
+      report;
+
     renderAnalyseAllResults(
       report
     );
@@ -3497,6 +3503,8 @@ $("#captureBtn").onclick = async () => {
     linkCursor = 0;
     domDiffCursor = 0;
     domDiff = null;
+    lastAnalyseAllReport =
+      null;
 
     for (const task of Object.keys(taskResults)) {
       taskResults[task] = {};
@@ -3806,6 +3814,18 @@ $("#checkLinkResponsesBtn").onclick =
           linkResponseResultsHtml(
             result
           );
+
+      if (
+        lastAnalyseAllReport
+      ) {
+        lastAnalyseAllReport
+          .linkResponses =
+            result;
+
+        renderAnalyseAllResults(
+          lastAnalyseAllReport
+        );
+      }
 
       setStatus("");
     } catch (e) {
