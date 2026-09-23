@@ -369,6 +369,102 @@ th {
   box-shadow: none;
 }
 
+/* Full-analysis output sits inside the red shell but renders on light surfaces.
+   Reset foreground colours at the output boundary so light cards never inherit white text. */
+.analyse-all-shell #analyseAllResults {
+  color: var(--ink);
+}
+
+.analyse-all-shell #analyseAllResults .card,
+.analyse-all-shell #analyseAllResults .issue,
+.analyse-all-shell #analyseAllResults .result-card,
+.analyse-all-shell #analyseAllResults .result-row,
+.analyse-all-shell #analyseAllResults .metric,
+.analyse-all-shell #analyseAllResults .action-table,
+.analyse-all-shell #analyseAllResults .dom-diff-side,
+.analyse-all-shell #analyseAllResults .empty-state {
+  color: var(--ink);
+}
+
+.analyse-all-shell #analyseAllResults .muted,
+.analyse-all-shell #analyseAllResults .result-meta,
+.analyse-all-shell #analyseAllResults .confidence,
+.analyse-all-shell #analyseAllResults .metric-label,
+.analyse-all-shell #analyseAllResults .raw-json > summary,
+.analyse-all-shell #analyseAllResults .subdetails > summary,
+.analyse-all-shell #analyseAllResults .dom-diff-preview {
+  color: var(--muted);
+}
+
+.analyse-all-shell #analyseAllResults .result-label {
+  color: var(--brand);
+}
+
+.analyse-all-shell #analyseAllResults .analyse-result-group > summary,
+.analyse-all-shell #analyseAllResults .result-row > summary,
+.analyse-all-shell #analyseAllResults .dom-diff-joined-summary,
+.analyse-all-shell #analyseAllResults .dom-change-comparison > summary {
+  color: var(--ink);
+}
+
+.analyse-all-shell #analyseAllResults pre,
+.analyse-all-shell #analyseAllResults code,
+.analyse-all-shell #analyseAllResults td {
+  color: var(--ink);
+}
+
+.analyse-all-shell #analyseAllResults th {
+  color: var(--muted);
+}
+
+.analyse-all-shell #analyseAllResults .raw-json pre {
+  background: #f2efeb;
+  color: var(--ink);
+}
+
+.analyse-all-shell #analyseAllResults .result-row,
+.analyse-all-shell #analyseAllResults .dom-diff-side,
+.analyse-all-shell #analyseAllResults .empty-state {
+  background: var(--soft);
+}
+
+.analyse-all-shell #analyseAllResults .empty-state.good-state {
+  background: var(--good-bg);
+  color: var(--good);
+}
+
+/* Badges/buttons have their own foreground/background pairs and must not inherit
+   the output-surface text reset. */
+.analyse-all-shell #analyseAllResults .result-badge.good {
+  color: var(--good);
+}
+
+.analyse-all-shell #analyseAllResults .result-badge.warn {
+  color: var(--warn);
+}
+
+.analyse-all-shell #analyseAllResults .result-badge.bad {
+  color: var(--bad);
+}
+
+.analyse-all-shell #analyseAllResults .result-badge.info {
+  color: var(--info);
+}
+
+.analyse-all-shell #analyseAllResults .result-badge.neutral,
+.analyse-all-shell #analyseAllResults .summary-count,
+.analyse-all-shell #analyseAllResults .mini-chip {
+  color: #55514d;
+}
+
+.analyse-all-shell #analyseAllResults button:not(.secondary) {
+  color: #fff;
+}
+
+.analyse-all-shell #analyseAllResults button.secondary {
+  color: var(--ink);
+}
+
 .analyse-progress {
   margin-top: 12px;
 }
