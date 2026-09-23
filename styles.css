@@ -852,6 +852,37 @@ th {
   margin-top: 7px;
 }
 
+.action-summary {
+  border-top: 3px solid var(--brand);
+}
+
+.action-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.action-table {
+  min-width: 720px;
+  background: var(--paper);
+}
+
+.action-table th {
+  color: var(--muted);
+  font-size: 9px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.action-table td {
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.action-table code {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
 .error-card,
 .analyse-result-error { border-left: 3px solid var(--brand); }
 
