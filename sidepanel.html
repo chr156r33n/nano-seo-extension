@@ -45,6 +45,20 @@
       <button id="analyseAllBtn">Run analysis</button>
     </div>
 
+    <div class="batch-controls batch-controls-dark">
+      <label>
+        <span>Links batch</span>
+        <input id="analyseLinkBatchSize" type="number" min="1" max="100" step="1">
+      </label>
+      <label>
+        <span>DOM batch</span>
+        <input id="analyseDomBatchSize" type="number" min="1" max="100" step="1">
+      </label>
+      <div class="batch-help">
+        Nano: 6 recommended max · Gemini/OpenAI: 25 recommended
+      </div>
+    </div>
+
     <div id="analyseAllProgressWrap" class="analyse-progress" hidden>
       <div class="progress-track" aria-hidden="true">
         <div id="analyseAllProgressBar" class="progress-bar"></div>
@@ -64,9 +78,16 @@
   <section class="tool-section">
     <h2>Understand link roles</h2>
     <div class="section-copy">Classify links by what they do on the page: navigation, editorial, product/category, CTA, utility and more.</div>
-    <div class="row section-actions">
+    <div class="run-control-row">
       <button id="classifyLinksBtn">Classify next links</button>
+      <label class="batch-inline">
+        <span>Batch</span>
+        <input id="linkBatchSize" type="number" min="1" max="100" step="1">
+      </label>
       <button id="checkLinkResponsesBtn" class="secondary">Check link responses</button>
+    </div>
+    <div class="section-copy batch-guidance">
+      Recommended: Nano ≤ 6 · Gemini/OpenAI ≈ 25 per batch.
     </div>
     <div class="section-copy" style="margin-top:8px">
       Link response checking is manual only. It follows HTTP(S) links to their final response and may request temporary access to external origins.
@@ -137,9 +158,16 @@
       Compare server HTML with the live DOM and review meaningful differences.
     </div>
 
-    <div class="row section-actions">
+    <div class="run-control-row">
       <button id="buildDomDiffBtn">Compare server vs rendered</button>
       <button id="assessDomDiffBtn" class="secondary">Review next exceptions</button>
+      <label class="batch-inline">
+        <span>Batch</span>
+        <input id="domDiffBatchSize" type="number" min="1" max="100" step="1">
+      </label>
+    </div>
+    <div class="section-copy batch-guidance">
+      Recommended: Nano ≤ 6 · Gemini/OpenAI ≈ 25 per batch.
     </div>
 
     <div id="domDiffSummary" class="muted small"></div>
