@@ -7,19 +7,11 @@
 </head>
 <body class="sidepanel">
   <header class="app-header">
-    <div class="brand-lockup">
-      <div class="brand-mark">CG</div>
-      <div>
-        <div class="eyebrow">Search R&amp;D · Chris-Green.net</div>
-        <h1>Nano SEO Lab</h1>
-        <div class="app-tagline">Browser-native SEO experiments with local and remote models.</div>
-      </div>
-    </div>
+    <h1>Nano SEO Lab</h1>
     <button id="settingsBtn" class="secondary compact">Settings</button>
   </header>
 
   <section class="page-context">
-    <div class="section-kicker">Current page</div>
     <div id="pageMeta" class="page-title">No page captured yet.</div>
     <div id="runMeta" class="muted small"></div>
 
@@ -35,9 +27,8 @@
   <section class="analyse-all-shell">
     <div class="analyse-all-head">
       <div>
-        <div class="section-kicker">Quick run</div>
-        <h2>Run the selected checks</h2>
-        <div class="section-copy">Capture the page, run the checks enabled in Settings, and bring the results together in one report.</div>
+        <h2>Run selected checks</h2>
+        <div class="section-copy">Run the configured checks and combine the results.</div>
       </div>
       <button id="analyseAllBtn">Run analysis</button>
     </div>
@@ -53,14 +44,12 @@
   </section>
 
   <section class="tool-section">
-    <div class="section-kicker">Models</div>
     <h2>Choose who reviews the page</h2>
     <div id="providers" class="checks model-picker"></div>
     <div class="section-copy">Selected models use the same task prompt and output schema so the results stay comparable.</div>
   </section>
 
   <section class="tool-section">
-    <div class="section-kicker">01 · Links</div>
     <h2>Understand link roles</h2>
     <div class="section-copy">Classify links by what they do on the page: navigation, editorial, product/category, CTA, utility and more.</div>
     <div class="row section-actions">
@@ -76,9 +65,8 @@
   </section>
 
   <section class="tool-section">
-    <div class="section-kicker">02 · Page purpose</div>
     <h2>Compare page type and intent</h2>
-    <div class="section-copy">Check how the page is structured, what user goal it serves, and whether those two signals agree.</div>
+    <div class="section-copy">Identify page type and user intent, then compare them.</div>
 
     <details class="control-panel">
       <summary>Evidence sent to the model</summary>
@@ -125,18 +113,16 @@
   </section>
 
   <section class="tool-section">
-    <div class="section-kicker">03 · Checks</div>
     <h2>Review flagged checks</h2>
-    <div class="section-copy">Deterministic checks find conditions quickly. Use model review where page context decides whether a finding is genuinely useful.</div>
+    <div class="section-copy">Automated checks first; use model review where context matters.</div>
     <div id="auditSummary" class="muted small"></div>
     <div id="issues"></div>
   </section>
 
   <section class="tool-section">
-    <div class="section-kicker">04 · Rendering</div>
     <h2>Compare server HTML with the rendered page</h2>
     <div class="section-copy">
-      Compare a same-origin server refetch with the live DOM. Clear low-impact heading/link changes are resolved deterministically; Nano only reviews the exceptions.
+      Compare server HTML with the live DOM and review meaningful differences.
     </div>
 
     <div class="row section-actions">
@@ -149,10 +135,9 @@
   </section>
 
   <section class="tool-section">
-    <div class="section-kicker">05 · Identity</div>
     <h2>Review URL and locale signals</h2>
     <div class="section-copy">
-      Check current URL, canonical, hreflang and other declared page-identity signals for contradictions. This does not crawl target URLs.
+      Review canonical, hreflang and other page-identity signals for contradictions.
     </div>
 
     <div id="urlSignalSummary" class="results"></div>
@@ -165,14 +150,12 @@
   </section>
 
   <section class="tool-section">
-    <div class="section-kicker">Checks passed</div>
     <h2>What this page got right</h2>
-    <div class="section-copy">Passed deterministic checks are listed explicitly so successful conditions are visible rather than inferred from the absence of findings.</div>
+    <div class="section-copy">Passed deterministic checks from the current page.</div>
     <div id="passedChecks" class="results"></div>
   </section>
 
   <section class="tool-section research-section">
-    <div class="section-kicker">Research data</div>
     <h2>History and raw outputs</h2>
     <div class="section-copy">Inspect previous analysis runs or export the underlying model-call data.</div>
     <div class="row section-actions">
