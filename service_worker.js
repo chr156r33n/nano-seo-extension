@@ -672,6 +672,30 @@ function scanUntrustedEvidence(
   };
 }
 
+function evidenceVarsForSecurityScan(
+  vars
+) {
+  const trustedKeys =
+    new Set([
+      "semantic_guidance",
+      "guidance",
+      "agreed_hreflangs_json"
+    ]);
+
+  return Object.fromEntries(
+    Object.entries(
+      vars ||
+      {}
+    )
+      .filter(
+        ([key]) =>
+          !trustedKeys.has(
+            key
+          )
+      )
+  );
+}
+
 function validateSchemaValue(
   value,
   schema,
@@ -1751,7 +1775,10 @@ ${promptDef.system}`;
 
   const securityScan =
     scanUntrustedEvidence(
-      payload
+      evidenceVarsForSecurityScan(
+        vars
+      ),
+      "sent_evidence"
     );
 
   const keyMaterial =
@@ -1804,6 +1831,12 @@ ${promptDef.system}`;
         durationMs: 0,
         output:
           cached.output,
+        security: {
+          injectionScan:
+            securityScan,
+          outputValidation:
+            validation
+        },
         error: null
       };
 
