@@ -1063,6 +1063,462 @@ th {
 .error-card,
 .analyse-result-error { border-left: 3px solid var(--brand); }
 
+/* Compact sidebar system */
+.sidepanel {
+  padding: 0 10px 20px;
+}
+
+.app-header {
+  align-items: center;
+  padding: 8px 0;
+  gap: 8px;
+  background: var(--canvas);
+  backdrop-filter: none;
+}
+
+.app-header h1 {
+  margin: 0;
+  font-size: 17px;
+  line-height: 1.15;
+  letter-spacing: -.015em;
+}
+
+.brand-lockup,
+.brand-mark,
+.eyebrow {
+  display: none;
+}
+
+button {
+  min-height: 30px;
+  padding: 6px 9px;
+  border-radius: 3px;
+  font-size: 11px;
+  line-height: 1.2;
+  letter-spacing: 0;
+  box-shadow: none;
+}
+
+button:hover:not(:disabled) {
+  box-shadow: none;
+}
+
+button.compact {
+  min-height: 28px;
+  padding: 5px 8px;
+  font-size: 11px;
+}
+
+h2 {
+  margin-bottom: 3px;
+  font-size: 14px;
+  line-height: 1.25;
+  letter-spacing: 0;
+}
+
+h3 {
+  font-size: 12px;
+}
+
+.section-kicker,
+.result-label,
+.metric-label,
+.action-table th {
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.section-kicker {
+  display: none;
+}
+
+.section-copy,
+.app-tagline {
+  font-size: 10px;
+  line-height: 1.35;
+}
+
+.tool-section,
+.research-section {
+  padding: 12px 0;
+}
+
+.page-context {
+  margin-top: 8px;
+  padding: 9px 10px;
+  border-radius: 3px;
+  box-shadow: none;
+}
+
+.page-title {
+  margin-top: 0;
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.page-actions {
+  margin-top: 8px;
+  gap: 6px;
+}
+
+.toggle-label {
+  font-size: 9px;
+}
+
+.analyse-all-shell {
+  margin-top: 8px;
+  padding: 10px;
+  border-radius: 3px;
+  box-shadow: none;
+}
+
+.analyse-all-head {
+  align-items: center;
+  gap: 8px;
+}
+
+.analyse-all-head h2 {
+  margin-bottom: 2px;
+}
+
+.analyse-progress {
+  margin-top: 8px;
+}
+
+.section-actions {
+  margin-top: 8px;
+  gap: 6px;
+}
+
+.row,
+.toolbar,
+.checks {
+  gap: 6px;
+}
+
+.model-picker {
+  margin: 6px 0 4px;
+}
+
+.model-picker label {
+  padding: 3px 6px;
+  border-radius: 3px;
+  font-size: 10px;
+  background: transparent;
+}
+
+.control-panel {
+  margin-top: 8px;
+  border-radius: 3px;
+}
+
+.control-panel > summary {
+  padding: 7px 8px;
+  font-size: 10px;
+}
+
+.control-panel-body {
+  padding: 0 8px 6px;
+}
+
+.radio-option {
+  gap: 6px;
+  padding: 6px 0;
+}
+
+.radio-option strong {
+  font-size: 10px;
+}
+
+.radio-option small {
+  font-size: 9px;
+}
+
+.results {
+  margin-top: 6px;
+}
+
+.card,
+.issue {
+  border-radius: 3px;
+}
+
+.card {
+  padding: 8px;
+  margin-top: 6px;
+}
+
+.issue {
+  padding: 8px;
+  margin-top: 6px;
+}
+
+.result-card {
+  padding: 8px;
+  box-shadow: none;
+}
+
+.result-card-head,
+.result-row-head,
+.finding-row {
+  gap: 6px;
+}
+
+.result-meta,
+.result-primary,
+.chip-row,
+.metric-row {
+  gap: 4px;
+}
+
+.result-primary {
+  margin-bottom: 5px;
+}
+
+.result-badge {
+  padding: 2px 5px;
+  border-radius: 3px;
+  font-size: 9px;
+}
+
+.mini-chip {
+  padding: 2px 4px;
+  border-radius: 3px;
+  font-size: 8px;
+}
+
+.result-body {
+  margin-top: 5px;
+}
+
+.result-copy {
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+.result-subsection,
+.subdetails,
+.raw-json {
+  margin-top: 7px;
+}
+
+.result-label {
+  margin-bottom: 2px;
+  font-size: 9px;
+}
+
+.result-grid {
+  gap: 7px;
+  margin-top: 7px;
+}
+
+.result-grid.two {
+  grid-template-columns: 1fr;
+}
+
+.result-list {
+  gap: 5px;
+  margin-top: 5px;
+}
+
+.result-row {
+  padding: 6px;
+}
+
+.result-kv {
+  gap: 5px;
+}
+
+.result-kv-row {
+  grid-template-columns: minmax(72px,.32fr) minmax(0,1fr);
+  gap: 6px;
+}
+
+.raw-json {
+  padding-top: 6px;
+}
+
+.raw-json pre {
+  margin-top: 5px;
+  padding: 6px;
+}
+
+.metric-row {
+  margin-bottom: 6px;
+}
+
+.metric {
+  min-width: 50px;
+  padding: 5px 6px;
+}
+
+.metric-value {
+  font-size: 12px;
+}
+
+.metric-label {
+  font-size: 8px;
+}
+
+.analyse-results-summary,
+.analyse-result-group {
+  margin-top: 6px;
+}
+
+.analyse-group-body {
+  margin-top: 6px;
+}
+
+.finding-list {
+  gap: 3px;
+}
+
+.finding-row,
+.finding-row.compact {
+  padding: 4px 0;
+}
+
+.empty-state {
+  padding: 6px;
+  font-size: 9px;
+}
+
+.dom-diff-joined-summary {
+  gap: 6px;
+  padding: 8px;
+}
+
+.dom-diff-summary-verdict {
+  gap: 3px;
+  max-width: 45%;
+}
+
+.dom-diff-joined-body {
+  padding: 0 8px 8px;
+}
+
+.dom-diff-evidence-card,
+.dom-diff-model-results {
+  margin-top: 7px;
+}
+
+.dom-change-grid {
+  grid-template-columns: 1fr;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.dom-diff-side {
+  padding: 6px;
+  border-radius: 3px;
+}
+
+.action-summary {
+  border-top-width: 2px;
+}
+
+.action-table {
+  min-width: 0;
+  table-layout: fixed;
+  font-size: 10px;
+}
+
+.action-table th,
+.action-table td {
+  padding: 5px 4px;
+  overflow-wrap: anywhere;
+}
+
+.action-table th:nth-child(1),
+.action-table td:nth-child(1) {
+  width: 58px;
+}
+
+.action-table th:nth-child(2),
+.action-table td:nth-child(2) {
+  width: 92px;
+}
+
+.action-table th:nth-child(3),
+.action-table td:nth-child(3) {
+  width: 34%;
+}
+
+.issue-head {
+  display: grid;
+  grid-template-columns: minmax(0,1fr) auto;
+  align-items: start;
+  gap: 8px;
+}
+
+.issue-head > .row,
+.issue-head > div:last-child.row {
+  display: grid;
+  grid-template-columns: 1fr;
+  align-items: stretch;
+  gap: 4px;
+  min-width: 112px;
+}
+
+.issue-head > .row button,
+.issue-head > div:last-child.row button,
+.issue-head > button {
+  width: 100%;
+  white-space: nowrap;
+}
+
+.finding-followup-row .issue-head {
+  grid-template-columns: minmax(0,1fr) 118px;
+}
+
+.finding-followup-row button {
+  width: 100%;
+}
+
+.status {
+  bottom: 6px;
+  margin-top: 6px;
+  padding: 6px 8px;
+  font-size: 10px;
+  box-shadow: none;
+}
+
+@media (max-width: 380px) {
+  .sidepanel {
+    padding-left: 8px;
+    padding-right: 8px;
+  }
+
+  .analyse-all-head,
+  .issue-head,
+  .finding-followup-row .issue-head {
+    grid-template-columns: 1fr;
+  }
+
+  .analyse-all-head {
+    display: grid;
+  }
+
+  .analyse-all-head button,
+  .issue-head > .row,
+  .issue-head > div:last-child.row,
+  .issue-head > button,
+  .finding-followup-row button {
+    width: 100%;
+  }
+
+  .issue-head > .row,
+  .issue-head > div:last-child.row {
+    grid-template-columns: repeat(2,minmax(0,1fr));
+    min-width: 0;
+  }
+
+  .action-table {
+    min-width: 620px;
+    table-layout: auto;
+  }
+}
+
 /* Options / History / Logs */
 .options,
 .logs {
