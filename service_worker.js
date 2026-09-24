@@ -5287,7 +5287,10 @@ async function checkOneLinkResponse(
 }
 
 async function checkLinkResponses(
-  urls = []
+  urls = [],
+  {
+    reset = false
+  } = {}
 ) {
   const settings =
     await getSettings();
@@ -5345,7 +5348,7 @@ async function checkLinkResponses(
 
   let cursor = 0;
 
-  const results =
+  const batchResults =
     new Array(
       uniqueUrls.length
     );
@@ -5359,7 +5362,7 @@ async function checkLinkResponses(
         const index =
           cursor++;
 
-        results[index] =
+        batchResults[index] =
           await checkOneLinkResponse(
             uniqueUrls[index],
             timeoutMs
@@ -5380,6 +5383,60 @@ async function checkLinkResponses(
         worker()
     )
   );
+
+  const {
+    lastSnapshotFingerprint,
+    currentAnalysisRunId
+  } =
+    await chrome.storage.local.get([
+      "lastSnapshotFingerprint",
+      "currentAnalysisRunId"
+    ]);
+
+  let existingResults = [];
+
+  if (
+    !reset &&
+    lastSnapshotFingerprint
+  ) {
+    const existingSnapshot =
+      await dbGet(
+        "snapshots",
+        lastSnapshotFingerprint
+      );
+
+    existingResults =
+      existingSnapshot
+        ?.linkResponseChecks
+        ?.results ||
+      [];
+  }
+
+  const byUrl =
+    new Map();
+
+  for (
+    const result
+    of [
+      ...existingResults,
+      ...batchResults
+    ]
+  ) {
+    if (
+      result
+        ?.requestedUrl
+    ) {
+      byUrl.set(
+        result.requestedUrl,
+        result
+      );
+    }
+  }
+
+  const results =
+    [
+      ...byUrl.values()
+    ];
 
   const summary = {
     checked:
@@ -5420,17 +5477,14 @@ async function checkLinkResponses(
       new Date()
         .toISOString(),
     summary,
-    results
+    results,
+    batch: {
+      checked:
+        batchResults.length,
+      reset:
+        !!reset
+    }
   };
-
-  const {
-    lastSnapshotFingerprint,
-    currentAnalysisRunId
-  } =
-    await chrome.storage.local.get([
-      "lastSnapshotFingerprint",
-      "currentAnalysisRunId"
-    ]);
 
   if (
     lastSnapshotFingerprint
@@ -5485,7 +5539,6 @@ async function checkLinkResponses(
 
   return output;
 }
-
 
 async function buildDomDiff() {
   const tab =
@@ -7619,7 +7672,11 @@ chrome.runtime.onMessage.addListener(
       ) {
         return await checkLinkResponses(
           msg.urls ||
-          []
+          [],
+          {
+            reset:
+              !!msg.reset
+          }
         );
       }
 
