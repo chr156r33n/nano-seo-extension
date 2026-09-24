@@ -1,5 +1,11 @@
 
 let current;
+let allowAllWebsites = false;
+
+const ALL_WEBSITE_ORIGINS = [
+  "http://*/*",
+  "https://*/*"
+];
 
 const app =
   document.querySelector("#app");
@@ -20,8 +26,16 @@ async function load() {
   current =
     mergeSettings(settings);
 
+  allowAllWebsites =
+    await chrome.permissions
+      .contains({
+        origins:
+          ALL_WEBSITE_ORIGINS
+      });
+
   render();
   bindHreflangReferenceActions();
+  bindWebsiteAccessActions();
 }
 
 function bindHreflangReferenceActions() {
@@ -86,6 +100,94 @@ function bindHreflangReferenceActions() {
   }
 }
 
+function bindWebsiteAccessActions() {
+  const toggle =
+    document.querySelector(
+      "#allowAllWebsites"
+    );
+
+  const status =
+    document.querySelector(
+      "#websiteAccessStatus"
+    );
+
+  if (!toggle) {
+    return;
+  }
+
+  const updateStatus =
+    () => {
+      if (!status) {
+        return;
+      }
+
+      status.textContent =
+        allowAllWebsites
+          ? "Persistent access is enabled for ordinary HTTP and HTTPS pages."
+          : "Using on-demand page access. Open Nano SEO Lab from the toolbar on pages that have not been granted access.";
+    };
+
+  updateStatus();
+
+  toggle.onchange =
+    async () => {
+      if (
+        toggle.checked
+      ) {
+        const granted =
+          await chrome.permissions
+            .request({
+              origins:
+                ALL_WEBSITE_ORIGINS
+            });
+
+        allowAllWebsites =
+          Boolean(
+            granted
+          );
+
+        toggle.checked =
+          allowAllWebsites;
+
+        updateStatus();
+
+        msg(
+          allowAllWebsites
+            ? "All-website access enabled."
+            : "Website access was not granted."
+        );
+
+        return;
+      }
+
+      const removed =
+        await chrome.permissions
+          .remove({
+            origins:
+              ALL_WEBSITE_ORIGINS
+          });
+
+      allowAllWebsites =
+        !removed &&
+        await chrome.permissions
+          .contains({
+            origins:
+              ALL_WEBSITE_ORIGINS
+          });
+
+      toggle.checked =
+        allowAllWebsites;
+
+      updateStatus();
+
+      msg(
+        allowAllWebsites
+          ? "Website access is still enabled."
+          : "All-website access disabled."
+      );
+    };
+}
+
 function render() {
   app.innerHTML = `
     <section>
@@ -140,6 +242,28 @@ function render() {
             <input id="openaiKey" type="password" value="${esc(current.providers.openai.apiKey)}">
           </label>
         </div>
+      </div>
+    </section>
+
+    <section>
+      <div class="section-kicker">Website access</div><h2>Page permissions</h2>
+
+      <p class="muted">
+        Nano SEO Lab normally uses Chrome's temporary page access, which means you need to invoke the extension on each tab before it can inspect that page.
+      </p>
+
+      <div class="card">
+        <label class="block">
+          <input id="allowAllWebsites" type="checkbox" ${allowAllWebsites ? "checked" : ""}>
+          Allow all websites
+        </label>
+
+        <p class="muted small" style="margin-bottom:0">
+          When enabled, Chrome grants persistent access to ordinary HTTP and HTTPS pages so Nano SEO Lab can analyse newly-opened tabs without requiring another toolbar click.
+          This does not apply to protected browser pages such as chrome:// URLs.
+        </p>
+
+        <div id="websiteAccessStatus" class="small" style="margin-top:8px"></div>
       </div>
     </section>
 
@@ -478,6 +602,7 @@ document
 
       render();
       bindHreflangReferenceActions();
+      bindWebsiteAccessActions();
       msg("Defaults restored.");
     };
 
