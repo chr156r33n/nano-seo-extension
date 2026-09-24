@@ -4450,6 +4450,11 @@ $("#captureBtn").onclick = async () => {
   }
 };
 
+$("#helpBtn").onclick = () =>
+  chrome.tabs.create({
+    url: chrome.runtime.getURL("help.html")
+  });
+
 $("#settingsBtn").onclick = () =>
   chrome.runtime.openOptionsPage();
 
