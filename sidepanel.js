@@ -18,6 +18,7 @@ let linkCursor = 0;
 let domDiffCursor = 0;
 let domDiff = null;
 let analyseAllRunning = false;
+let linkClassificationRunning = false;
 let lastAnalyseAllReport = null;
 
 const $ = s => document.querySelector(s);
@@ -1688,6 +1689,8 @@ function domDiffResultDetails(data) {
 
 async function runAcross(task, payload, target, mode = null) {
   const providers = enabledProviders();
+  let successCount = 0;
+  let errorCount = 0;
 
   if (!providers.length) {
     throw new Error("Choose at least one model.");
@@ -1741,7 +1744,10 @@ async function runAcross(task, payload, target, mode = null) {
             : null
         )
       );
+
+      successCount += 1;
     } catch (e) {
+      errorCount += 1;
       const card = document.createElement("div");
       card.className = "card";
 
@@ -1754,6 +1760,11 @@ async function runAcross(task, payload, target, mode = null) {
   }
 
   setStatus("");
+
+  return {
+    successCount,
+    errorCount
+  };
 }
 
 async function ensureFullSnapshot() {
@@ -4687,74 +4698,156 @@ $("#alignmentBtn").onclick = async () => {
 };
 
 $("#classifyLinksBtn").onclick = async () => {
+  if (linkClassificationRunning) {
+    return;
+  }
+
   if (!snapshot) {
-    return setStatus("Read the page first.", true);
+    return setStatus(
+      "Read the page first.",
+      true
+    );
   }
 
+  const button =
+    $("#classifyLinksBtn");
+
+  const originalLabel =
+    button?.textContent ||
+    "Classify next links";
+
   try {
+    linkClassificationRunning =
+      true;
+
+    if (button) {
+      button.disabled =
+        true;
+      button.textContent =
+        "Classifying…";
+    }
+
     await ensureFullSnapshot();
-  } catch (e) {
-    return setStatus(
-      e?.message || String(e),
-      true
-    );
-  }
 
-  const max =
-    settings.limits.maxLinksForClassification;
+    const max =
+      settings.limits
+        .maxLinksForClassification;
 
-  const pool =
-    snapshot.links.slice(0, max);
+    const pool =
+      snapshot.links.slice(
+        0,
+        max
+      );
 
-  if (!pool.length) {
-    return setStatus(
-      "No HTTP(S) links found on this page.",
-      true
-    );
-  }
+    if (!pool.length) {
+      return setStatus(
+        "No HTTP(S) links found on this page.",
+        true
+      );
+    }
 
-  if (linkCursor >= pool.length) {
-    linkCursor = 0;
-  }
+    if (
+      linkCursor >=
+      pool.length
+    ) {
+      linkCursor = 0;
+    }
 
-  const batch =
-    pool
-      .slice(
-        linkCursor,
-        linkCursor + runtimeLinkBatchSize()
-      )
-      .map(l => ({
-        id: l.id,
-        href: l.href,
-        internal: l.internal,
-        anchor: l.anchor,
-        rel: l.rel,
-        zone: l.zone,
-        context: l.context
-      }));
+    const batchStart =
+      linkCursor;
 
-  linkCursor += batch.length;
+    const batchEnd =
+      Math.min(
+        batchStart +
+          runtimeLinkBatchSize(),
+        pool.length
+      );
 
-  $("#linkProgress").textContent =
-    `Reviewing links ${Math.max(1, linkCursor - batch.length + 1)}` +
-    `–${linkCursor} of ${pool.length}.`;
+    const batch =
+      pool
+        .slice(
+          batchStart,
+          batchEnd
+        )
+        .map(
+          l => ({
+            id:
+              l.id,
+            href:
+              l.href,
+            internal:
+              l.internal,
+            anchor:
+              l.anchor,
+            rel:
+              l.rel,
+            zone:
+              l.zone,
+            context:
+              l.context
+          })
+        );
 
-  $("#linkResults").innerHTML = "";
+    $("#linkProgress")
+      .textContent =
+        `Classifying links ${batchStart + 1}–${batchEnd} of ${pool.length}…`;
 
-  try {
-    await runAcross(
-      "link_group",
-      {links: batch},
-      $("#linkResults")
-    );
+    $("#linkResults")
+      .innerHTML =
+        "";
+
+    const runSummary =
+      await runAcross(
+        "link_group",
+        {
+          links:
+            batch
+        },
+        $("#linkResults")
+      );
+
+    if (
+      runSummary
+        ?.successCount >
+      0
+    ) {
+      linkCursor =
+        batchEnd;
+
+      $("#linkProgress")
+        .textContent =
+          linkCursor >=
+          pool.length
+            ? `Classified links ${batchStart + 1}–${batchEnd} of ${pool.length}. All links reviewed; the next click starts again from link 1.`
+            : `Classified links ${batchStart + 1}–${batchEnd} of ${pool.length}. Next batch starts at link ${linkCursor + 1}.`;
+    } else {
+      $("#linkProgress")
+        .textContent =
+          `Links ${batchStart + 1}–${batchEnd} were not completed. The same batch will be retried next time.`;
+
+      setStatus(
+        "Link classification did not complete for any selected model.",
+        true
+      );
+    }
   } catch (e) {
     setStatus(
-      e?.message || String(e),
+      e?.message ||
+      String(e),
       true
     );
+  } finally {
+    linkClassificationRunning =
+      false;
+
+    if (button) {
+      button.disabled =
+        false;
+      button.textContent =
+        originalLabel;
+    }
   }
 };
-
 
 
 $("#checkIndexabilityBtn").onclick = async () => {
