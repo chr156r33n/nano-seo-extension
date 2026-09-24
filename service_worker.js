@@ -4910,6 +4910,33 @@ function buildIndexabilitySignalFindings({rendered, current, robotsTxt, canonica
     hasDirective(renderedRobots, "noindex") ||
     hasDirective(renderedGooglebot, "noindex");
 
+  if (
+    current?.status !== null &&
+    (
+      Number(current.status) < 200 ||
+      Number(current.status) >= 400
+    )
+  ) {
+    add(
+      "current_response_non_2xx",
+      "high",
+      "Current page check returned HTTP " + current.status,
+      {
+        requested: current.requestedUrl,
+        final: current.finalUrl
+      }
+    );
+  }
+
+  if (hasDirective(xRobots, "noindex")) {
+    add(
+      "http_x_robots_noindex",
+      "high",
+      "X-Robots-Tag contains noindex",
+      current?.xRobotsTag || ""
+    );
+  }
+
   if (robotsTxt?.allowed === false && anyNoindex) {
     add("robots_blocks_noindex_discovery", "high", "robots.txt blocks this URL while a noindex directive is also present", {
       robotsRule: robotsTxt.matchedRule || null,
