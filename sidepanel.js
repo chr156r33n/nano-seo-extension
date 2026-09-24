@@ -180,6 +180,155 @@ function bindCopyButton(
     };
 }
 
+function copyableTextFromElement(
+  element
+) {
+  const clone =
+    element.cloneNode(
+      true
+    );
+
+  clone
+    .querySelectorAll(
+      "button,summary"
+    )
+    .forEach(
+      node =>
+        node.remove()
+    );
+
+  return (
+    clone.innerText ||
+    clone.textContent ||
+    ""
+  )
+    .replace(
+      /\n{3,}/g,
+      "\n\n"
+    )
+    .trim();
+}
+
+function decorateCopyableOutputs(
+  root = document
+) {
+  const selectors = [
+    ".result-card",
+    ".issue",
+    "#linkResponseResults > .card",
+    "#indexabilityResults > .card",
+    "#urlSignalSummary > .card",
+    ".provider-ticket > .card",
+    ".action-summary"
+  ];
+
+  root
+    .querySelectorAll(
+      selectors.join(",")
+    )
+    .forEach(
+      element => {
+        if (
+          element
+            .querySelector(
+              ":scope > .copy-icon-float"
+            )
+        ) {
+          return;
+        }
+
+        const button =
+          document
+            .createElement(
+              "button"
+            );
+
+        button.type =
+          "button";
+
+        button.className =
+          "copy-icon copy-icon-float";
+
+        button.title =
+          "Copy output";
+
+        button.setAttribute(
+          "aria-label",
+          "Copy output"
+        );
+
+        button.textContent =
+          "⧉";
+
+        button.onclick =
+          async event => {
+            event.preventDefault();
+            event.stopPropagation();
+
+            await navigator.clipboard
+              .writeText(
+                copyableTextFromElement(
+                  element
+                )
+              );
+
+            button.textContent =
+              "✓";
+
+            setTimeout(
+              () =>
+                button.textContent =
+                  "⧉",
+              900
+            );
+          };
+
+        element.appendChild(
+          button
+        );
+      }
+    );
+}
+
+const copyOutputObserver =
+  new MutationObserver(
+    mutations => {
+      for (
+        const mutation
+        of mutations
+      ) {
+        for (
+          const node
+          of mutation.addedNodes
+        ) {
+          if (
+            node.nodeType ===
+            Node.ELEMENT_NODE
+          ) {
+            decorateCopyableOutputs(
+              node.matches?.(
+                ".result-card,.issue,.card,.action-summary"
+              )
+                ? node.parentElement ||
+                  node
+                : node
+            );
+          }
+        }
+      }
+    }
+  );
+
+copyOutputObserver.observe(
+  document.documentElement,
+  {
+    childList:
+      true,
+    subtree:
+      true
+  }
+);
+
 
 function humanLabel(value) {
   return String(value ?? "")
