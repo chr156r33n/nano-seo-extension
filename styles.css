@@ -1782,6 +1782,38 @@ h3 {
   }
 }
 
+/* Prompt-injection warning */
+.security-warning {
+  margin: 6px 0;
+  border: 1px solid #dfc16a;
+  border-radius: 3px;
+  background: var(--warn-bg);
+  color: var(--ink);
+}
+
+.security-warning > summary {
+  padding: 6px 8px;
+  cursor: pointer;
+  color: var(--warn);
+  font-size: 10px;
+  font-weight: 750;
+}
+
+.security-warning-body {
+  padding: 0 8px 8px;
+}
+
+.security-match-list {
+  display: grid;
+  gap: 5px;
+  margin-top: 6px;
+}
+
+.security-match {
+  padding-top: 5px;
+  border-top: 1px solid rgba(134, 97, 15, .18);
+}
+
 /* Options / History / Logs */
 .options,
 .logs {
