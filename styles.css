@@ -1671,6 +1671,117 @@ h3 {
   }
 }
 
+/* Runtime batch controls */
+.batch-controls,
+.run-control-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.batch-controls {
+  margin-top: 8px;
+}
+
+.batch-controls label,
+.batch-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 9px;
+}
+
+.batch-controls input,
+.batch-inline input {
+  width: 52px;
+  min-width: 52px;
+  padding: 4px 5px;
+  border: 1px solid var(--line-strong);
+  border-radius: 2px;
+  background: var(--paper);
+  color: var(--ink);
+  font-size: 10px;
+}
+
+.batch-controls-dark {
+  color: #d6e8e9;
+}
+
+.batch-controls-dark input {
+  border-color: #3e666b;
+  background: #0f3337;
+  color: #fff;
+}
+
+.batch-help,
+.batch-guidance {
+  font-size: 9px;
+  line-height: 1.35;
+}
+
+.batch-help {
+  flex: 1 1 180px;
+  color: #b9d7d9;
+}
+
+.batch-guidance {
+  margin-top: 4px;
+}
+
+.run-control-row {
+  margin-top: 8px;
+}
+
+.link-role-result > summary {
+  display: grid;
+  grid-template-columns: minmax(0,1fr) auto;
+  align-items: start;
+  gap: 6px;
+}
+
+.link-role-name {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-size: 10px;
+  line-height: 1.35;
+}
+
+.link-role-result .result-meta {
+  display: grid;
+  grid-template-columns: auto minmax(0,1fr);
+  align-items: start;
+  gap: 6px;
+}
+
+.link-role-result .result-meta code {
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 380px) {
+  .run-control-row {
+    display: grid;
+    grid-template-columns: 1fr auto;
+  }
+
+  .run-control-row > button.secondary {
+    grid-column: 1 / -1;
+  }
+
+  .batch-controls {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0,1fr));
+  }
+
+  .batch-help {
+    grid-column: 1 / -1;
+  }
+
+  .link-role-result > summary {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* Options / History / Logs */
 .options,
 .logs {
