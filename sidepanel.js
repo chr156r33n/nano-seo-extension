@@ -107,6 +107,242 @@ function humanLabel(value) {
     .replace(/\b\w/g, char => char.toUpperCase());
 }
 
+
+function truncateLabel(value, max = 48) {
+  const text =
+    String(
+      value ||
+      ""
+    )
+      .replace(/\s+/g, " ")
+      .trim();
+
+  if (
+    text.length <= max
+  ) {
+    return text;
+  }
+
+  return `${text.slice(0, Math.max(1, max - 1)).trimEnd()}…`;
+}
+
+function linkInputMap(
+  links = []
+) {
+  return new Map(
+    (
+      links ||
+      []
+    ).map(
+      link => [
+        String(link.id),
+        link
+      ]
+    )
+  );
+}
+
+function linkResultName(
+  result,
+  links = []
+) {
+  const input =
+    linkInputMap(
+      links
+    ).get(
+      String(
+        result?.id
+      )
+    ) ||
+    {};
+
+  const anchor =
+    truncateLabel(
+      input.anchor ||
+      input.text ||
+      input.href ||
+      "(empty anchor)"
+    );
+
+  const location =
+    humanLabel(
+      input.zone ||
+      "unknown location"
+    );
+
+  const category =
+    humanLabel(
+      result?.category ||
+      "uncategorised"
+    );
+
+  return {
+    anchor,
+    location,
+    category,
+    href:
+      input.href ||
+      "",
+    id:
+      result?.id
+  };
+}
+
+function clampBatchSize(
+  value,
+  fallback
+) {
+  const parsed =
+    Number.parseInt(
+      value,
+      10
+    );
+
+  if (
+    !Number.isFinite(parsed)
+  ) {
+    return fallback;
+  }
+
+  return Math.max(
+    1,
+    Math.min(
+      100,
+      parsed
+    )
+  );
+}
+
+function setBatchInputs(
+  ids,
+  value
+) {
+  for (
+    const id
+    of ids
+  ) {
+    const input =
+      document.querySelector(
+        id
+      );
+
+    if (input) {
+      input.value =
+        String(value);
+    }
+  }
+}
+
+function runtimeLinkBatchSize() {
+  const input =
+    $("#analyseLinkBatchSize") ||
+    $("#linkBatchSize");
+
+  return clampBatchSize(
+    input?.value,
+    settings?.limits
+      ?.linkBatchSize ||
+      8
+  );
+}
+
+function runtimeDomBatchSize() {
+  const input =
+    $("#analyseDomBatchSize") ||
+    $("#domDiffBatchSize");
+
+  return clampBatchSize(
+    input?.value,
+    settings?.limits
+      ?.domDiffBatchSize ||
+      6
+  );
+}
+
+function initialiseBatchControls() {
+  const linkDefault =
+    clampBatchSize(
+      settings?.limits
+        ?.linkBatchSize,
+      8
+    );
+
+  const domDefault =
+    clampBatchSize(
+      settings?.limits
+        ?.domDiffBatchSize,
+      6
+    );
+
+  setBatchInputs(
+    [
+      "#analyseLinkBatchSize",
+      "#linkBatchSize"
+    ],
+    linkDefault
+  );
+
+  setBatchInputs(
+    [
+      "#analyseDomBatchSize",
+      "#domDiffBatchSize"
+    ],
+    domDefault
+  );
+
+  const bindGroup =
+    (
+      ids,
+      fallback
+    ) => {
+      for (
+        const id
+        of ids
+      ) {
+        const input =
+          document.querySelector(
+            id
+          );
+
+        if (!input) {
+          continue;
+        }
+
+        input.addEventListener(
+          "input",
+          () => {
+            const value =
+              clampBatchSize(
+                input.value,
+                fallback
+              );
+
+            setBatchInputs(
+              ids,
+              value
+            );
+          }
+        );
+      }
+    };
+
+  bindGroup(
+    [
+      "#analyseLinkBatchSize",
+      "#linkBatchSize"
+    ],
+    linkDefault
+  );
+
+  bindGroup(
+    [
+      "#analyseDomBatchSize",
+      "#domDiffBatchSize"
+    ],
+    domDefault
+  );
+}
+
 function toneForValue(value) {
   const v = String(value ?? "").toLowerCase();
   if (["strong","likely_consistent","likely_correct","likely_false_positive","pass","probably_harmless"].includes(v)) return "good";
@@ -161,16 +397,84 @@ function genericResultHtml(result) {
   return `<div class="result-kv">${rows || '<div class="muted">No result fields.</div>'}</div>`;
 }
 
-function taskResultHtml(task, result) {
+function taskResultHtml(task, result, displayContext = null) {
   const r = withoutMeta(result) || {};
   if (task === "page_type") return `<div class="result-primary">${badgeHtml(r.page_type, "info")}${confidenceHtml(r.confidence)}</div>${evidenceHtml(r.evidence)}`;
   if (task === "intent") return `<div class="result-primary">${badgeHtml(r.primary_intent, "info")}${r.split_intent ? badgeHtml("split intent", "warn") : ""}${confidenceHtml(r.confidence)}</div><div class="result-grid two"><div><div class="result-label">Supporting intent</div>${chipsHtml(r.supporting_intents)}</div><div><div class="result-label">Independent secondary intent</div>${chipsHtml(r.secondary_intents)}</div></div>${evidenceHtml(r.evidence)}`;
   if (task === "alignment") return `<div class="result-primary">${badgeHtml(r.alignment)}${r.split_intent ? badgeHtml("split intent", "warn") : ""}${confidenceHtml(r.confidence)}</div>${r.mismatch_reason ? `<div class="result-subsection"><div class="result-label">Mismatch reason</div><div class="result-copy">${escapeHtml(r.mismatch_reason)}</div></div>` : ""}${evidenceHtml(r.notes, "Notes")}`;
   if (task === "false_positive") return `<div class="result-primary">${badgeHtml(r.judgement)}${confidenceHtml(r.confidence)}</div>${r.rationale ? `<div class="result-copy">${escapeHtml(r.rationale)}</div>` : ""}${evidenceHtml(r.evidence_used, "Evidence reviewed")}${(r.item_assessments || []).length ? `<div class="result-subsection"><div class="result-label">Affected items</div><div class="result-list">${r.item_assessments.map(item => `<div class="result-row static"><div class="result-row-head"><code>${escapeHtml(item.item || "")}</code>${badgeHtml(item.judgement)}</div><div class="result-copy">${escapeHtml(item.rationale || "")}</div></div>`).join("")}</div></div>` : ""}${evidenceHtml(r.useful_context, "Useful context")}`;
   if (task === "link_group") {
-    const rows = r.results || []; const counts = {};
-    for (const row of rows) counts[row.category] = (counts[row.category] || 0) + 1;
-    return `<div class="result-subsection"><div class="result-label">Categories in this batch</div><div class="chip-row">${Object.entries(counts).map(([category,count]) => `<span class="mini-chip">${escapeHtml(humanLabel(category))} <strong>${count}</strong></span>`).join("") || '<span class="muted small">No links returned.</span>'}</div></div><div class="result-list">${rows.map(row => `<details class="result-row"><summary><span>#${escapeHtml(row.id)}</span>${badgeHtml(row.category,"neutral")}${confidenceHtml(row.confidence)}</summary><div class="result-copy">${escapeHtml(row.rationale || "")}</div></details>`).join("")}</div>`;
+    const rows =
+      r.results ||
+      [];
+
+    const counts = {};
+
+    for (
+      const row
+      of rows
+    ) {
+      counts[row.category] =
+        (
+          counts[
+            row.category
+          ] ||
+          0
+        ) + 1;
+    }
+
+    const inputLinks =
+      Array.isArray(
+        displayContext
+      )
+        ? displayContext
+        : displayContext?.links ||
+          [];
+
+    return `
+      <div class="result-subsection">
+        <div class="result-label">Categories in this batch</div>
+        <div class="chip-row">
+          ${Object.entries(counts)
+            .map(
+              ([category, count]) =>
+                `<span class="mini-chip">${escapeHtml(humanLabel(category))} <strong>${count}</strong></span>`
+            )
+            .join("") ||
+            '<span class="muted small">No links returned.</span>'}
+        </div>
+      </div>
+      <div class="result-list">
+        ${rows
+          .map(
+            row => {
+              const label =
+                linkResultName(
+                  row,
+                  inputLinks
+                );
+
+              return `
+                <details class="result-row link-role-result">
+                  <summary>
+                    <span class="link-role-name">
+                      <strong>${escapeHtml(label.anchor)}</strong>
+                      <span class="muted"> · ${escapeHtml(label.location)} · ${escapeHtml(label.category)}</span>
+                    </span>
+                    ${confidenceHtml(row.confidence)}
+                  </summary>
+                  <div class="result-meta">
+                    <span>#${escapeHtml(label.id)}</span>
+                    ${label.href ? `<code>${escapeHtml(label.href)}</code>` : ""}
+                  </div>
+                  <div class="result-copy">${escapeHtml(row.rationale || "")}</div>
+                </details>
+              `;
+            }
+          )
+          .join("")}
+      </div>
+    `;
   }
   if (task === "dom_diff_triage") {
     const rows = r.results || [];
@@ -183,7 +487,7 @@ function taskResultHtml(task, result) {
   return genericResultHtml(r);
 }
 
-function providerCard(task, provider, result, mode = null) {
+function providerCard(task, provider, result, mode = null, displayContext = null) {
   const d = document.createElement("div");
   d.className = "card result-card";
 
@@ -252,7 +556,7 @@ function providerCard(task, provider, result, mode = null) {
       : "";
 
   d.innerHTML =
-    `<div class="result-card-head"><div><div class="result-provider">${escapeHtml(provider)}</div><div class="result-meta">${context}${meta.cacheHit ? '<span class="mini-chip">Cache</span>' : ""}${meta.durationMs ? `<span>${escapeHtml(meta.durationMs)} ms total</span>` : ""}${timingChips}</div></div></div><div class="result-body">${taskResultHtml(task, clean)}</div>${rawJsonDetails(clean)}`;
+    `<div class="result-card-head"><div><div class="result-provider">${escapeHtml(provider)}</div><div class="result-meta">${context}${meta.cacheHit ? '<span class="mini-chip">Cache</span>' : ""}${meta.durationMs ? `<span>${escapeHtml(meta.durationMs)} ms total</span>` : ""}${timingChips}</div></div></div><div class="result-body">${taskResultHtml(task, clean, displayContext)}</div>${rawJsonDetails(clean)}`;
 
   return d;
 }
@@ -270,7 +574,21 @@ function analyseTaskDetails(title, entries, task, open = false) {
       errorCard.innerHTML = `<div class="result-card-head"><div class="result-provider">${escapeHtml(entry.provider || "Unknown provider")}</div>${badgeHtml("error","bad")}</div><div class="result-copy">${escapeHtml(entry.error)}</div>`;
       body.appendChild(errorCard); continue;
     }
-    body.appendChild(providerCard(task, entry.provider || "result", entry.result || {}, context));
+    body.appendChild(
+      providerCard(
+        task,
+        entry.provider || "result",
+        entry.result || {},
+        context,
+        task === "link_group"
+          ? {
+              links:
+                entry.inputLinks ||
+                []
+            }
+          : null
+      )
+    );
   }
   return details;
 }
@@ -1230,7 +1548,19 @@ async function runAcross(task, payload, target, mode = null) {
       }
 
       target.appendChild(
-        providerCard(task, provider, result, mode)
+        providerCard(
+          task,
+          provider,
+          result,
+          mode,
+          task === "link_group"
+            ? {
+                links:
+                  payload.links ||
+                  []
+              }
+            : null
+        )
       );
     } catch (e) {
       const card = document.createElement("div");
@@ -3158,13 +3488,7 @@ async function analyseAll() {
         : [];
 
     const linkBatchSize =
-      Math.max(
-        1,
-        settings
-          .limits
-          .linkBatchSize ||
-          8
-      );
+      runtimeLinkBatchSize();
 
     const linkBatches = [];
 
@@ -3197,13 +3521,7 @@ async function analyseAll() {
       );
 
     const diffBatchSize =
-      Math.max(
-        1,
-        settings
-          .limits
-          .domDiffBatchSize ||
-          6
-      );
+      runtimeDomBatchSize();
 
     const diffBatches = [];
 
@@ -3485,6 +3803,8 @@ async function analyseAll() {
             provider,
             inputCount:
               batch.length,
+            inputLinks:
+              batch,
             result:
               call.ok
                 ? withoutMeta(
@@ -3937,6 +4257,7 @@ async function analyseAll() {
 async function load() {
   settings = await sw({type: "GET_SETTINGS"});
   renderProviders();
+  initialiseBatchControls();
 
   const ctx = await sw({type: "GET_LAST_CONTEXT"});
 
@@ -4164,7 +4485,7 @@ $("#classifyLinksBtn").onclick = async () => {
     pool
       .slice(
         linkCursor,
-        linkCursor + settings.limits.linkBatchSize
+        linkCursor + runtimeLinkBatchSize()
       )
       .map(l => ({
         id: l.id,
@@ -4415,10 +4736,7 @@ $("#assessDomDiffBtn").onclick =
     }
 
     const batchSize =
-      settings
-        .limits
-        .domDiffBatchSize ||
-      6;
+      runtimeDomBatchSize();
 
     if (
       domDiffCursor >=
