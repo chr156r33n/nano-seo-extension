@@ -25,6 +25,18 @@
   </div>
 
   <section class="card" style="margin-top:20px">
+    <h2>On this page</h2>
+    <ol>
+      <li><a href="#start">Start here: analysing a page</a></li>
+      <li><a href="#checks">What the main checks are doing</a></li>
+      <li><a href="#testing">Optional: use it as a model-testing framework</a></li>
+      <li><a href="#nano">Why use Nano?</a></li>
+      <li><a href="#security">Security and untrusted page content</a></li>
+      <li><a href="#interpretation">A sensible way to interpret the results</a></li>
+    </ol>
+  </section>
+
+  <section class="card" id="start">
     <h2>Start here: analysing a page</h2>
     <p>Nano SEO Lab is designed to sit between a traditional SEO extension and a model-powered review. It collects evidence from the page, runs deterministic checks where a rule can be tested directly, and uses a selected model for the parts that benefit from interpretation.</p>
     <ol>
@@ -37,7 +49,7 @@
     <p class="muted small">If you switch to another tab or site, click the extension icon on that page before analysing it. Nano SEO Lab uses temporary page access rather than permanent access to every website.</p>
   </section>
 
-  <section class="card">
+  <section class="card" id="checks">
     <h2>What the main checks are doing</h2>
     <p><strong>Deterministic SEO checks</strong> cover things a browser can establish directly, such as metadata, headings, canonicals, robots directives, links, images, hreflang and structured-data signals. These do not need a language model to decide whether the underlying fact exists.</p>
     <p><strong>Model review</strong> is used where the answer is more contextual: what role a link appears to play, what type of page this is, the likely user intent, whether page type and intent align, whether a flagged issue may be a false positive, and whether server/rendered differences look meaningful.</p>
@@ -46,7 +58,7 @@
     <p><strong>Link response checking</strong> is deliberately manual. When requested, it follows HTTP(S) destinations and records their final responses. It may ask for temporary permission to access external origins.</p>
   </section>
 
-  <section class="card">
+  <section class="card" id="testing">
     <h2>Optional: use it as a model-testing framework</h2>
     <p>You do not need to compare models to use Nano SEO Lab. The comparison features are there for testing how different models and page representations affect the same SEO judgement.</p>
     <p>For a simple comparison, select two or more providers and run the same task. The extension gives each selected model the same task prompt and output structure, which makes disagreement easier to inspect rather than hiding it behind differently shaped responses.</p>
@@ -62,14 +74,14 @@
     <p>Use <strong>Analysis history</strong> and the <strong>Model call log</strong> when you need to inspect or export the underlying runs. Reusing saved model results is useful for ordinary work; turn it off when you specifically want a fresh comparison.</p>
   </section>
 
-  <section class="card">
+  <section class="card" id="nano">
     <h2>Why use Nano?</h2>
     <p>The main attraction of Chrome's Nano model is that, where the browser supports it, model inference can happen locally rather than requiring every page review to be sent to an external model API. That makes it useful for lightweight, repeatable classification and for experimenting with on-device AI as part of an SEO workflow.</p>
     <p>There are trade-offs. Nano is a smaller model, so complex judgements can be less reliable than larger hosted models. It also has tighter practical batch limits, which is why the extension recommends smaller link and DOM-review batches for Nano. Browser and device support can also affect availability.</p>
     <p>For that reason, Nano SEO Lab does not treat a model answer as ground truth. Deterministic checks remain deterministic, model judgements retain their evidence, and the comparison tools make disagreement visible.</p>
   </section>
 
-  <section class="card">
+  <section class="card" id="security">
     <h2>Security and untrusted page content</h2>
     <p>A webpage is data, but it can contain text that looks like an instruction to an AI model. This creates a prompt-injection risk when page content is passed into model-powered analysis.</p>
     <p>Nano SEO Lab uses several layers of defence:</p>
@@ -82,7 +94,7 @@
     <p>These controls reduce risk; they do not make arbitrary webpage content inherently trustworthy. A prompt-injection warning is also not proof that a page is malicious. Legitimate articles can discuss prompts, instructions and security attacks too.</p>
   </section>
 
-  <section class="card">
+  <section class="card" id="interpretation">
     <h2>A sensible way to interpret the results</h2>
     <p>Use deterministic findings as factual page evidence. Treat model results as contextual judgements that can help prioritise or explain that evidence, not as an oracle with unusually strong opinions about title tags.</p>
     <p>For day-to-day work, the prioritised action summary is the quickest route through the results. For research, comparison or debugging, inspect individual model outputs, evidence representations and history instead.</p>
