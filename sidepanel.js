@@ -4889,36 +4889,6 @@ $("#checkLinkResponsesBtn").onclick = async () => {
   }
 
   try {
-    const origins =
-      (
-        snapshot.linkOrigins ||
-        []
-      )
-        .map(
-          origin =>
-            `${origin}/*`
-        );
-
-    if (!origins.length) {
-      return setStatus(
-        "No HTTP(S) link origins were found to check.",
-        true
-      );
-    }
-
-    const granted =
-      await chrome.permissions
-        .request({
-          origins
-        });
-
-    if (!granted) {
-      return setStatus(
-        "Link response checking needs temporary access to the link origins on this page.",
-        true
-      );
-    }
-
     await ensureFullSnapshot();
 
     const urls =
@@ -4951,6 +4921,43 @@ $("#checkLinkResponsesBtn").onclick = async () => {
     if (!urls.length) {
       return setStatus(
         "No HTTP(S) links were found to check.",
+        true
+      );
+    }
+
+    const origins =
+      [
+        ...new Set(
+          urls
+            .map(
+              url => {
+                try {
+                  return `${new URL(url).origin}/*`;
+                } catch {
+                  return null;
+                }
+              }
+            )
+            .filter(Boolean)
+        )
+      ];
+
+    if (!origins.length) {
+      return setStatus(
+        "No valid HTTP(S) link origins were found to check.",
+        true
+      );
+    }
+
+    const granted =
+      await chrome.permissions
+        .request({
+          origins
+        });
+
+    if (!granted) {
+      return setStatus(
+        "Link response checking needs temporary access to the link origins being checked.",
         true
       );
     }
