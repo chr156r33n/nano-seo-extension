@@ -1,26 +1,29 @@
 :root {
   font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  color: #343434;
-  background: #f6f4f1;
-  --brand: #c83b3b;
-  --brand-dark: #9f2d2d;
-  --brand-soft: #f8e9e7;
-  --ink: #343434;
-  --muted: #74716d;
-  --line: #e4e0db;
-  --line-strong: #d3cec8;
+  color: #172126;
+  background: #eef3f5;
+  --brand: #007f86;
+  --brand-dark: #005f66;
+  --brand-soft: #dff4f4;
+  --signal: #00a8b0;
+  --signal-soft: #d7f4f5;
+  --ink: #172126;
+  --ink-2: #26353c;
+  --muted: #66767d;
+  --line: #d6e0e3;
+  --line-strong: #bccbd0;
   --paper: #ffffff;
-  --canvas: #f6f4f1;
-  --soft: #faf9f7;
-  --good: #2f6f4e;
-  --good-bg: #eaf5ee;
-  --warn: #8a6416;
-  --warn-bg: #fbf3dd;
-  --bad: #9f2d2d;
-  --bad-bg: #fae9e7;
-  --info: #4d5966;
-  --info-bg: #edf0f2;
-  --shadow: 0 8px 28px rgba(38, 33, 29, .06);
+  --canvas: #eef3f5;
+  --soft: #f5f8f9;
+  --good: #24704d;
+  --good-bg: #e7f4ec;
+  --warn: #86610f;
+  --warn-bg: #fbf2d8;
+  --bad: #a23d45;
+  --bad-bg: #fae9eb;
+  --info: #3e5964;
+  --info-bg: #e8eff2;
+  --shadow: none;
 }
 
 * { box-sizing: border-box; }
@@ -55,7 +58,7 @@ button {
 
 button:hover:not(:disabled) {
   background: var(--brand-dark);
-  box-shadow: 0 4px 12px rgba(159, 45, 45, .14);
+  box-shadow: 0 4px 12px rgba(0, 127, 134, .12);
 }
 
 button:active:not(:disabled) {
@@ -195,7 +198,7 @@ input:focus,
 textarea:focus,
 button:focus-visible,
 summary:focus-visible {
-  outline: 2px solid rgba(200, 59, 59, .32);
+  outline: 2px solid rgba(0, 168, 176, .30);
   outline-offset: 2px;
 }
 
@@ -1063,6 +1066,155 @@ th {
 .error-card,
 .analyse-result-error { border-left: 3px solid var(--brand); }
 
+/* Nano SEO Lab identity */
+.product-lockup {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+
+.lab-mark {
+  width: 24px;
+  height: 24px;
+  flex: 0 0 24px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--line-strong);
+  background: var(--paper);
+}
+
+.lab-mark svg {
+  width: 18px;
+  height: 18px;
+  overflow: visible;
+}
+
+.lab-mark path {
+  fill: none;
+  stroke: var(--signal);
+  stroke-width: 1.7;
+  stroke-linecap: square;
+  stroke-linejoin: miter;
+}
+
+.lab-mark circle {
+  fill: var(--paper);
+  stroke: var(--signal);
+  stroke-width: 1.5;
+}
+
+.product-name {
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 750;
+}
+
+.product-page-header {
+  margin-bottom: 18px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--line);
+}
+
+.product-page-header .product-lockup {
+  margin-bottom: 10px;
+}
+
+.product-page-header h1 {
+  margin-bottom: 5px;
+}
+
+/* Lab-instrument cues: thin signal lines and cooler surfaces, without decorative chrome. */
+.app-header {
+  border-bottom-color: var(--line-strong);
+}
+
+.app-header::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  bottom: -1px;
+  width: 52px;
+  height: 1px;
+  background: var(--signal);
+}
+
+.page-context {
+  background: var(--ink-2);
+}
+
+.page-context::before {
+  content: "";
+  display: block;
+  width: 34px;
+  height: 2px;
+  margin-bottom: 6px;
+  background: var(--signal);
+}
+
+.analyse-all-shell {
+  background: #123b40;
+  border: 1px solid #1e555b;
+}
+
+.analyse-all-shell .section-copy,
+.analyse-all-shell .muted {
+  color: #b9d7d9;
+}
+
+.analyse-all-head button {
+  background: var(--signal);
+  color: #062c30;
+}
+
+.analyse-all-head button:hover:not(:disabled) {
+  background: #1bb7bd;
+}
+
+.progress-track {
+  background: rgba(215,244,245,.20);
+}
+
+.progress-bar {
+  background: var(--signal);
+}
+
+.result-label {
+  color: var(--brand-dark);
+}
+
+.action-summary {
+  border-top-color: var(--signal);
+}
+
+code,
+pre,
+.metric-value,
+.result-meta,
+.confidence,
+#runMeta,
+#linkProgress,
+#auditSummary,
+#domDiffSummary {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.result-badge,
+.mini-chip,
+.summary-count {
+  border-radius: 2px;
+}
+
+.model-picker label {
+  border-color: var(--line-strong);
+}
+
+.model-picker input:checked + span,
+.model-picker label:has(input:checked) {
+  border-color: #82cdd1;
+  background: var(--signal-soft);
+}
+
 /* Compact sidebar system */
 .sidepanel {
   padding: 0 10px 20px;
@@ -1537,8 +1689,7 @@ h3 {
 
 .options .brand-lockup,
 .logs .brand-lockup {
-  align-items: flex-start;
-  margin-bottom: 18px;
+  display: none;
 }
 
 .options > p.muted,
