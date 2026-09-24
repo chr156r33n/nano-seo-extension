@@ -154,6 +154,11 @@ function renderRun(run) {
         <summary>Provider metadata</summary>
         <pre>${pretty(run.meta || null)}</pre>
       </details>
+
+      <details class="raw-json">
+        <summary>Security metadata${run.security?.injectionScan?.detected ? " · warning" : ""}</summary>
+        <pre>${pretty(run.security || null)}</pre>
+      </details>
     </details>
   `;
 }
