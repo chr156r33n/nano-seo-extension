@@ -459,9 +459,8 @@ function taskResultHtml(task, result, displayContext = null) {
                   <summary>
                     <span class="link-role-name">
                       <strong>${escapeHtml(label.anchor)}</strong>
-                      <span class="muted"> · ${escapeHtml(label.location)}</span>
+                      <span class="muted"> · ${escapeHtml(label.location)} · ${escapeHtml(label.category)}</span>
                     </span>
-                    ${badgeHtml(row.category, "neutral")}
                     ${confidenceHtml(row.confidence)}
                   </summary>
                   <div class="result-meta">
