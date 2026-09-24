@@ -2733,6 +2733,116 @@ async function captureActiveTab() {
               )
             : [];
 
+        const currentPageNumber =
+          (() => {
+            try {
+              const value =
+                new URL(
+                  location.href
+                ).searchParams.get(
+                  "page"
+                );
+
+              const parsed =
+                Number.parseInt(
+                  value || "",
+                  10
+                );
+
+              return Number.isFinite(
+                parsed
+              )
+                ? parsed
+                : null;
+            } catch {
+              return null;
+            }
+          })();
+
+        const paginationPageOneLinks =
+          currentPageNumber &&
+          currentPageNumber > 1
+            ? anchors
+                .map(
+                  a => {
+                    const rawHref =
+                      (
+                        a.getAttribute(
+                          "href"
+                        ) ||
+                        ""
+                      ).trim();
+
+                    let target;
+
+                    try {
+                      target =
+                        new URL(
+                          rawHref,
+                          location.href
+                        );
+                    } catch {
+                      return null;
+                    }
+
+                    if (
+                      target.searchParams.get(
+                        "page"
+                      ) !== "1"
+                    ) {
+                      return null;
+                    }
+
+                    const rel =
+                      (
+                        a.getAttribute(
+                          "rel"
+                        ) ||
+                        ""
+                      ).toLowerCase();
+
+                    const paginationContainer =
+                      a.closest(
+                        '[class*="pagination" i],[id*="pagination" i],[class*="pager" i],[id*="pager" i],nav[aria-label*="pagination" i]'
+                      );
+
+                    const anchorText =
+                      txt(a);
+
+                    const looksLikePagination =
+                      /(^|\s)prev(?:ious)?(\s|$)/i.test(
+                        rel
+                      ) ||
+                      !!paginationContainer ||
+                      anchorText === "1";
+
+                    if (
+                      !looksLikePagination
+                    ) {
+                      return null;
+                    }
+
+                    return {
+                      rawHref,
+                      href:
+                        target.href,
+                      rel:
+                        a.getAttribute(
+                          "rel"
+                        ) || "",
+                      anchor:
+                        anchorText.slice(
+                          0,
+                          120
+                        ),
+                      selector:
+                        selectorFor(a)
+                    };
+                  }
+                )
+                .filter(Boolean)
+            : [];
+
         const linkStats = {
           totalAnchors:
             allAnchorElements.length,
@@ -2871,13 +2981,34 @@ async function captureActiveTab() {
         const desc =
           meta("description");
 
-        const canonicals =
+        const canonicalElements =
           [
             ...document.querySelectorAll(
               'link[rel~="canonical"]'
             )
-          ].map(
+          ];
+
+        const canonicalRawHrefs =
+          canonicalElements.map(
+            el =>
+              (
+                el.getAttribute("href") ||
+                ""
+              ).trim()
+          );
+
+        const canonicals =
+          canonicalElements.map(
             x => x.href
+          );
+
+        const relativeCanonicalHrefs =
+          canonicalRawHrefs.filter(
+            value =>
+              value &&
+              !/^https?:\/\//i.test(
+                value
+              )
           );
 
         const robotsMetaValues =
@@ -2896,6 +3027,30 @@ async function captureActiveTab() {
 
         const robots =
           robotsMetaValues[0] || "";
+
+        const googlebotMetaValues =
+          [
+            ...document.querySelectorAll(
+              'meta[name="googlebot" i]'
+            )
+          ]
+            .map(
+              el =>
+                (
+                  el.content || ""
+                ).trim()
+            )
+            .filter(Boolean);
+
+        const googlebotTokens =
+          googlebotMetaValues
+            .flatMap(
+              value =>
+                value
+                  .toLowerCase()
+                  .split(/[\s,]+/)
+                  .filter(Boolean)
+            );
 
         const robotsTokens =
           robotsMetaValues
@@ -2916,6 +3071,34 @@ async function captureActiveTab() {
             robotsTokens.includes("follow") &&
             robotsTokens.includes("nofollow")
           );
+
+        const robotsGooglebotConflict =
+          (
+            robotsTokens.includes("index") &&
+            googlebotTokens.includes("noindex")
+          ) ||
+          (
+            robotsTokens.includes("noindex") &&
+            googlebotTokens.includes("index")
+          ) ||
+          (
+            robotsTokens.includes("follow") &&
+            googlebotTokens.includes("nofollow")
+          ) ||
+          (
+            robotsTokens.includes("nofollow") &&
+            googlebotTokens.includes("follow")
+          );
+
+        const titleElementCount =
+          document.querySelectorAll(
+            "title"
+          ).length;
+
+        const metaDescriptionCount =
+          document.querySelectorAll(
+            'meta[name="description" i]'
+          ).length;
 
         const viewport =
           document.querySelector(
@@ -3829,6 +4012,22 @@ async function captureActiveTab() {
         );
 
         addCheck(
+          "canonical_relative_href",
+          relativeCanonicalHrefs.length
+            ? "finding"
+            : "pass",
+          relativeCanonicalHrefs.length
+            ? `${relativeCanonicalHrefs.length} canonical href(s) are not absolute HTTP(S) URLs`
+            : "Canonical hrefs use absolute HTTP(S) URLs",
+          {
+            raw:
+              canonicalRawHrefs,
+            relative:
+              relativeCanonicalHrefs
+          }
+        );
+
+        addCheck(
           "robots_noindex",
           /noindex/i.test(
             robots
@@ -3904,6 +4103,22 @@ async function captureActiveTab() {
             ? `Conflicting robots directives detected: ${robotsMetaValues.join(" | ")}`
             : "No conflicting robots meta directives detected",
           robotsMetaValues
+        );
+
+        addCheck(
+          "robots_googlebot_conflict",
+          robotsGooglebotConflict
+            ? "finding"
+            : "pass",
+          robotsGooglebotConflict
+            ? "Robots and Googlebot meta directives explicitly disagree"
+            : "No explicit robots/Googlebot meta contradiction detected",
+          {
+            robots:
+              robotsMetaValues,
+            googlebot:
+              googlebotMetaValues
+          }
         );
 
         const canonicalHasFragment =
@@ -4177,6 +4392,41 @@ async function captureActiveTab() {
           viewport
         );
 
+        addCheck(
+          "pagination_page1_parameter",
+          paginationPageOneLinks.length
+            ? "finding"
+            : "pass",
+          paginationPageOneLinks.length
+            ? `${paginationPageOneLinks.length} pagination link(s) point to an explicit page=1 URL`
+            : currentPageNumber && currentPageNumber > 1
+              ? "No pagination links to an explicit page=1 URL detected"
+              : "Current URL is not an explicit page>1 URL",
+          paginationPageOneLinks
+        );
+
+        addCheck(
+          "duplicate_title_element",
+          titleElementCount > 1
+            ? "finding"
+            : "pass",
+          titleElementCount > 1
+            ? `${titleElementCount} title elements found`
+            : "No duplicate title element detected",
+          titleElementCount
+        );
+
+        addCheck(
+          "duplicate_meta_description",
+          metaDescriptionCount > 1
+            ? "finding"
+            : "pass",
+          metaDescriptionCount > 1
+            ? `${metaDescriptionCount} meta description elements found`
+            : "No duplicate meta description element detected",
+          metaDescriptionCount
+        );
+
         const findings =
           auditChecks
             .filter(
@@ -4210,9 +4460,13 @@ async function captureActiveTab() {
 
           canonicals,
 
+          canonicalRawHrefs,
+
           robots,
 
           robotsMetaValues,
+
+          googlebotMetaValues,
 
           viewport,
 
