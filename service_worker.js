@@ -4599,6 +4599,484 @@ async function captureActiveTab() {
 }
 
 
+
+function directiveTokens(values) {
+  return (values || []).flatMap(value =>
+    String(value || "").toLowerCase()
+      .replace(/^[a-z0-9_-]+\s*:\s*/i, "")
+      .split(/[\s,]+/).filter(Boolean)
+  );
+}
+
+function hasDirective(values, directive) {
+  return directiveTokens(values).includes(directive);
+}
+
+function explicitDirectiveConflict(left, right) {
+  const a = directiveTokens(left);
+  const b = directiveTokens(right);
+  return (
+    (a.includes("index") && b.includes("noindex")) ||
+    (a.includes("noindex") && b.includes("index")) ||
+    (a.includes("follow") && b.includes("nofollow")) ||
+    (a.includes("nofollow") && b.includes("follow"))
+  );
+}
+
+function parseTagAttributes(tag) {
+  const attrs = {};
+  const pattern = /([^\s=/>]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>]+)))?/g;
+  let match;
+  while ((match = pattern.exec(String(tag || "")))) {
+    const key = String(match[1] || "").toLowerCase();
+    if (key === "meta" || key === "link") continue;
+    attrs[key] = match[2] ?? match[3] ?? match[4] ?? "";
+  }
+  return attrs;
+}
+
+function parseHtmlIndexabilitySignals(html, baseUrl) {
+  const canonicals = [];
+  const canonicalRawHrefs = [];
+  const robotsMetaValues = [];
+  const googlebotMetaValues = [];
+  const metaRefreshValues = [];
+  const source = String(html || "").slice(0, 1000000);
+  const tags = source.match(/<(?:meta|link)\b[^>]*>/gi) || [];
+
+  for (const tag of tags) {
+    const attrs = parseTagAttributes(tag);
+
+    if (/^<link\b/i.test(tag)) {
+      const rel = String(attrs.rel || "").toLowerCase().split(/\s+/);
+      if (rel.includes("canonical")) {
+        const raw = String(attrs.href || "").trim();
+        canonicalRawHrefs.push(raw);
+        if (raw) {
+          try {
+            canonicals.push(new URL(raw, baseUrl).href);
+          } catch {
+            canonicals.push(raw);
+          }
+        }
+      }
+      continue;
+    }
+
+    const name = String(attrs.name || attrs["http-equiv"] || "").toLowerCase();
+    const content = String(attrs.content || "").trim();
+    if (name === "robots" && content) robotsMetaValues.push(content);
+    if (name === "googlebot" && content) googlebotMetaValues.push(content);
+    if (name === "refresh" && content) metaRefreshValues.push(content);
+  }
+
+  return {canonicals, canonicalRawHrefs, robotsMetaValues, googlebotMetaValues, metaRefreshValues};
+}
+
+function parseLinkHeaderCanonicals(value, baseUrl) {
+  const output = [];
+  const pattern = /<([^>]+)>\s*;([^,]*)/g;
+  let match;
+
+  while ((match = pattern.exec(String(value || "")))) {
+    const relMatch = (match[2] || "").match(/\brel\s*=\s*(?:"([^"]*)"|'([^']*)'|([^;\s,]+))/i);
+    const rels = String(relMatch?.[1] || relMatch?.[2] || relMatch?.[3] || "")
+      .toLowerCase().split(/\s+/);
+    if (!rels.includes("canonical")) continue;
+
+    try {
+      output.push(new URL(match[1], baseUrl).href);
+    } catch {
+      output.push(match[1]);
+    }
+  }
+
+  return output;
+}
+
+function robotsPatternMatches(pattern, path) {
+  if (pattern === "") return false;
+  const endAnchored = pattern.endsWith("$");
+  const body = endAnchored ? pattern.slice(0, -1) : pattern;
+  const escaped = body
+    .replace(/[-/\\^$*+?.()|[\]{}]/g, "\\async function checkOneLinkResponse(
+  url,
+  timeoutMs
+) {")
+    .replace(/\*/g, ".*");
+  return new RegExp("^" + escaped + (endAnchored ? "$" : ""), "i").test(path);
+}
+
+function evaluateRobotsTxt(text, targetUrl, userAgent = "googlebot") {
+  const groups = [];
+  let agents = [];
+  let rules = [];
+  let sawRule = false;
+
+  const flush = () => {
+    if (agents.length) groups.push({agents: [...agents], rules: [...rules]});
+    agents = [];
+    rules = [];
+    sawRule = false;
+  };
+
+  for (const rawLine of String(text || "").split(/\r?\n/)) {
+    const line = rawLine.replace(/#.*$/, "").trim();
+    if (!line || !line.includes(":")) continue;
+    const colon = line.indexOf(":");
+    const field = line.slice(0, colon).trim().toLowerCase();
+    const value = line.slice(colon + 1).trim();
+
+    if (field === "user-agent") {
+      if (sawRule) flush();
+      agents.push(value.toLowerCase());
+      continue;
+    }
+
+    if ((field === "allow" || field === "disallow") && agents.length) {
+      sawRule = true;
+      rules.push({type: field, pattern: value});
+    }
+  }
+
+  flush();
+
+  const ua = String(userAgent || "").toLowerCase();
+  const exactGroups = groups.filter(group =>
+    group.agents.some(agent => agent !== "*" && ua.includes(agent))
+  );
+  const selected = exactGroups.length
+    ? exactGroups
+    : groups.filter(group => group.agents.includes("*"));
+
+  let path = "/";
+  try {
+    const url = new URL(targetUrl);
+    path = url.pathname + url.search;
+  } catch {}
+
+  const matching = [];
+  for (const group of selected) {
+    for (const rule of group.rules) {
+      if (robotsPatternMatches(rule.pattern, path)) {
+        matching.push({
+          ...rule,
+          specificity: rule.pattern.replace(/[*$]/g, "").length
+        });
+      }
+    }
+  }
+
+  matching.sort((a, b) =>
+    b.specificity - a.specificity ||
+    (a.type === "allow" ? -1 : 1)
+  );
+
+  const winner = matching[0] || null;
+  return {
+    userAgent: exactGroups.length ? userAgent : "*",
+    path,
+    allowed: !winner || winner.type === "allow",
+    matchedRule: winner
+  };
+}
+
+async function fetchIndexabilityResource(url, {parseHtml = false, timeoutMs = 12000} = {}) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const response = await fetch(url, {
+      method: "GET",
+      redirect: "follow",
+      cache: "no-store",
+      credentials: "include",
+      signal: controller.signal
+    });
+
+    const contentType = response.headers.get("content-type") || "";
+    const xRobotsTag = response.headers.get("x-robots-tag") || "";
+    const linkHeader = response.headers.get("link") || "";
+    let text = "";
+
+    if (parseHtml || /text\/plain|text\/html|application\/xhtml\+xml/i.test(contentType)) {
+      text = await response.text();
+    }
+
+    const finalUrl = response.url || url;
+
+    return {
+      requestedUrl: url,
+      finalUrl,
+      redirected: response.redirected || finalUrl !== url,
+      status: response.status,
+      ok: response.ok,
+      contentType,
+      xRobotsTag,
+      linkHeader,
+      headerCanonicals: parseLinkHeaderCanonicals(linkHeader, finalUrl),
+      html: parseHtml ? parseHtmlIndexabilitySignals(text, finalUrl) : null,
+      text,
+      error: null
+    };
+  } catch (error) {
+    return {
+      requestedUrl: url,
+      finalUrl: null,
+      redirected: false,
+      status: null,
+      ok: false,
+      contentType: "",
+      xRobotsTag: "",
+      linkHeader: "",
+      headerCanonicals: [],
+      html: null,
+      text: "",
+      error: error?.name === "AbortError" ? "Request timed out" : String(error?.message || error)
+    };
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function sameUrl(a, b) {
+  if (!a || !b) return false;
+  try {
+    const aa = new URL(a);
+    const bb = new URL(b);
+    aa.hash = "";
+    bb.hash = "";
+    return aa.href === bb.href;
+  } catch {
+    return String(a) === String(b);
+  }
+}
+
+function buildIndexabilitySignalFindings({rendered, current, robotsTxt, canonicalTarget}) {
+  const findings = [];
+  const add = (code, severity, message, evidence) =>
+    findings.push({code, severity, message, evidence});
+
+  const raw = current?.html || {};
+  const renderedCanonicals = rendered?.canonicals || [];
+  const renderedRobots = rendered?.robotsMetaValues || [];
+  const renderedGooglebot = rendered?.googlebotMetaValues || [];
+  const rawCanonicals = raw.canonicals || [];
+  const rawRobots = raw.robotsMetaValues || [];
+  const rawGooglebot = raw.googlebotMetaValues || [];
+  const httpCanonicals = current?.headerCanonicals || [];
+  const xRobots = current?.xRobotsTag ? [current.xRobotsTag] : [];
+
+  if (rawCanonicals[0] && renderedCanonicals[0] && !sameUrl(rawCanonicals[0], renderedCanonicals[0])) {
+    add("raw_rendered_canonical_conflict", "high", "Server HTML and rendered DOM declare different canonical URLs", {raw: rawCanonicals[0], rendered: renderedCanonicals[0]});
+  }
+
+  if (httpCanonicals[0] && renderedCanonicals[0] && !sameUrl(httpCanonicals[0], renderedCanonicals[0])) {
+    add("http_rendered_canonical_conflict", "high", "HTTP Link canonical and rendered HTML canonical disagree", {http: httpCanonicals[0], rendered: renderedCanonicals[0]});
+  }
+
+  if (httpCanonicals[0] && rawCanonicals[0] && !sameUrl(httpCanonicals[0], rawCanonicals[0])) {
+    add("http_raw_canonical_conflict", "high", "HTTP Link canonical and server HTML canonical disagree", {http: httpCanonicals[0], raw: rawCanonicals[0]});
+  }
+
+  if (
+    explicitDirectiveConflict(rawRobots, renderedRobots) ||
+    explicitDirectiveConflict(rawGooglebot, renderedGooglebot)
+  ) {
+    add("raw_rendered_robots_conflict", "high", "Server HTML and rendered DOM contain explicitly conflicting robots directives", {rawRobots, rawGooglebot, renderedRobots, renderedGooglebot});
+  }
+
+  if (
+    explicitDirectiveConflict(xRobots, renderedRobots) ||
+    explicitDirectiveConflict(xRobots, renderedGooglebot) ||
+    explicitDirectiveConflict(xRobots, rawRobots) ||
+    explicitDirectiveConflict(xRobots, rawGooglebot)
+  ) {
+    add("http_html_robots_conflict", "high", "X-Robots-Tag explicitly conflicts with an HTML robots directive", {
+      xRobotsTag: current?.xRobotsTag || "",
+      rawRobots,
+      rawGooglebot,
+      renderedRobots,
+      renderedGooglebot
+    });
+  }
+
+  const anyNoindex =
+    hasDirective(xRobots, "noindex") ||
+    hasDirective(rawRobots, "noindex") ||
+    hasDirective(rawGooglebot, "noindex") ||
+    hasDirective(renderedRobots, "noindex") ||
+    hasDirective(renderedGooglebot, "noindex");
+
+  if (robotsTxt?.allowed === false && anyNoindex) {
+    add("robots_blocks_noindex_discovery", "high", "robots.txt blocks this URL while a noindex directive is also present", {
+      robotsRule: robotsTxt.matchedRule || null,
+      xRobotsTag: current?.xRobotsTag || "",
+      rawRobots,
+      renderedRobots
+    });
+  } else if (robotsTxt?.allowed === false) {
+    add("robots_txt_blocked", "medium", "robots.txt blocks this URL for the evaluated crawler", {robotsRule: robotsTxt.matchedRule || null});
+  }
+
+  if (current?.redirected) {
+    add("current_response_redirect", "medium", "The checked page URL resolves to a different final URL", {requested: current.requestedUrl, final: current.finalUrl});
+    const preferred = renderedCanonicals[0] || rawCanonicals[0] || httpCanonicals[0];
+
+    if (preferred && sameUrl(preferred, current.requestedUrl) && !sameUrl(preferred, current.finalUrl)) {
+      add("redirect_canonical_conflict", "high", "The page redirects but its canonical points back to the pre-redirect URL", {
+        requested: current.requestedUrl,
+        final: current.finalUrl,
+        canonical: preferred
+      });
+    }
+  }
+
+  if (canonicalTarget) {
+    if (canonicalTarget.error) {
+      add("canonical_target_request_error", "review", "The canonical target could not be checked", canonicalTarget.error);
+    } else {
+      if (Number(canonicalTarget.status) >= 400 || Number(canonicalTarget.status) < 200) {
+        add("canonical_target_non_2xx", "high", "Canonical target returned HTTP " + canonicalTarget.status, {
+          url: canonicalTarget.requestedUrl,
+          final: canonicalTarget.finalUrl
+        });
+      }
+
+      if (canonicalTarget.redirected) {
+        add("canonical_target_redirect", "medium", "Canonical target redirects", {
+          requested: canonicalTarget.requestedUrl,
+          final: canonicalTarget.finalUrl
+        });
+      }
+
+      const targetNoindex =
+        hasDirective(canonicalTarget.xRobotsTag ? [canonicalTarget.xRobotsTag] : [], "noindex") ||
+        hasDirective(canonicalTarget.html?.robotsMetaValues || [], "noindex") ||
+        hasDirective(canonicalTarget.html?.googlebotMetaValues || [], "noindex");
+
+      if (targetNoindex) {
+        add("canonical_target_noindex", "high", "Canonical target is marked noindex", {
+          xRobotsTag: canonicalTarget.xRobotsTag || "",
+          robots: canonicalTarget.html?.robotsMetaValues || [],
+          googlebot: canonicalTarget.html?.googlebotMetaValues || []
+        });
+      }
+
+      const targetCanonical =
+        canonicalTarget.headerCanonicals?.[0] ||
+        canonicalTarget.html?.canonicals?.[0] ||
+        "";
+
+      if (targetCanonical && canonicalTarget.finalUrl && !sameUrl(targetCanonical, canonicalTarget.finalUrl)) {
+        add("canonical_target_canonicalises_elsewhere", "high", "Canonical target declares a different canonical URL", {
+          target: canonicalTarget.finalUrl,
+          canonical: targetCanonical
+        });
+      }
+    }
+  }
+
+  return findings;
+}
+
+async function checkIndexabilitySignals(payload) {
+  const url = payload?.url;
+  if (!/^https?:\/\//i.test(url || "")) {
+    throw new Error("A valid HTTP(S) page URL is required.");
+  }
+
+  const rendered = {
+    canonicals: payload?.canonicals || [],
+    canonicalRawHrefs: payload?.canonicalRawHrefs || [],
+    robotsMetaValues: payload?.robotsMetaValues || (payload?.robots ? [payload.robots] : []),
+    googlebotMetaValues: payload?.googlebotMetaValues || []
+  };
+
+  const current = await fetchIndexabilityResource(url, {parseHtml: true});
+
+  let robotsTxt = {
+    url: "",
+    status: null,
+    allowed: null,
+    matchedRule: null,
+    userAgent: "googlebot",
+    error: null
+  };
+
+  try {
+    const origin = new URL(current.finalUrl || url).origin;
+    const robotsUrl = origin + "/robots.txt";
+    const robotsResponse = await fetchIndexabilityResource(robotsUrl);
+
+    robotsTxt = {
+      url: robotsUrl,
+      finalUrl: robotsResponse.finalUrl,
+      redirected: robotsResponse.redirected,
+      status: robotsResponse.status,
+      error: robotsResponse.error,
+      allowed: null,
+      matchedRule: null,
+      userAgent: "googlebot"
+    };
+
+    if (!robotsResponse.error && Number(robotsResponse.status) >= 200 && Number(robotsResponse.status) < 300) {
+      robotsTxt = {
+        ...robotsTxt,
+        ...evaluateRobotsTxt(robotsResponse.text, current.finalUrl || url, "googlebot")
+      };
+    } else if (
+      !robotsResponse.error &&
+      Number(robotsResponse.status) >= 400 &&
+      Number(robotsResponse.status) < 500 &&
+      Number(robotsResponse.status) !== 429
+    ) {
+      robotsTxt.allowed = true;
+    }
+  } catch (error) {
+    robotsTxt.error = String(error?.message || error);
+  }
+
+  const preferredCanonical =
+    rendered.canonicals?.[0] ||
+    current.headerCanonicals?.[0] ||
+    current.html?.canonicals?.[0] ||
+    "";
+
+  let canonicalTarget = null;
+  if (preferredCanonical && /^https?:\/\//i.test(preferredCanonical)) {
+    canonicalTarget = await fetchIndexabilityResource(preferredCanonical, {parseHtml: true});
+  }
+
+  const findings = buildIndexabilitySignalFindings({
+    rendered,
+    current,
+    robotsTxt,
+    canonicalTarget
+  });
+
+  return {
+    checkedAt: new Date().toISOString(),
+    rendered,
+    current,
+    robotsTxt,
+    canonicalTarget,
+    findings,
+    summary: {
+      findings: findings.length,
+      high: findings.filter(item => item.severity === "high").length,
+      review: findings.filter(item => item.severity === "review").length,
+      robotsAllowed: robotsTxt.allowed,
+      effectiveNoindex:
+        hasDirective(current?.xRobotsTag ? [current.xRobotsTag] : [], "noindex") ||
+        hasDirective(current?.html?.robotsMetaValues || [], "noindex") ||
+        hasDirective(current?.html?.googlebotMetaValues || [], "noindex") ||
+        hasDirective(rendered.robotsMetaValues, "noindex") ||
+        hasDirective(rendered.googlebotMetaValues, "noindex")
+    }
+  };
+}
+
 async function checkOneLinkResponse(
   url,
   timeoutMs
@@ -7061,6 +7539,16 @@ chrome.runtime.onMessage.addListener(
         return await checkLinkResponses(
           msg.urls ||
           []
+        );
+      }
+
+      if (
+        msg.type ===
+        "CHECK_INDEXABILITY_SIGNALS"
+      ) {
+        return await checkIndexabilitySignals(
+          msg.payload ||
+          {}
         );
       }
 
