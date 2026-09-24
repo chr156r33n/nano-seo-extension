@@ -624,6 +624,48 @@ th {
   text-transform: capitalize;
 }
 
+.copy-icon {
+  width: 22px;
+  min-width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid var(--line-strong);
+  border-radius: 3px;
+  background: var(--paper);
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 20px;
+  text-align: center;
+  cursor: pointer;
+}
+
+.copy-icon:hover {
+  color: var(--ink);
+  border-color: var(--ink);
+}
+
+.copy-icon-float {
+  position: absolute;
+  top: 7px;
+  right: 7px;
+  z-index: 2;
+}
+
+.result-card,
+.issue,
+#linkResponseResults > .card,
+#indexabilityResults > .card,
+#urlSignalSummary > .card,
+.provider-ticket > .card,
+.action-summary {
+  position: relative;
+}
+
+.result-card > .copy-icon-float {
+  display: none;
+}
+
+
 .result-meta,
 .result-primary,
 .chip-row,
