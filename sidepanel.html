@@ -178,6 +178,20 @@
   </section>
 
   <section class="tool-section">
+    <h2>Check indexability signals</h2>
+    <div class="section-copy">
+      Manually fetch the current page, its robots.txt and canonical target to compare HTTP headers, server HTML and rendered directives.
+    </div>
+    <div class="row section-actions">
+      <button id="checkIndexabilityBtn" class="secondary">Check HTTP &amp; robots signals</button>
+    </div>
+    <div class="section-copy" style="margin-top:8px">
+      This is an explicit network check only. It does not run when you read a page or run the normal analysis.
+    </div>
+    <div id="indexabilityResults" class="results"></div>
+  </section>
+
+  <section class="tool-section">
     <h2>Review URL and locale signals</h2>
     <div class="section-copy">
       Review canonical, hreflang and other page-identity signals for contradictions.
