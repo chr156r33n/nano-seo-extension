@@ -703,12 +703,17 @@ function renderPassedChecks() {
 
 const DETERMINISTIC_PRIORITY = {
   robots_conflict: "high",
+  robots_googlebot_conflict: "high",
   robots_noindex: "high",
   canonical_protocol_downgrade: "high",
   multiple_canonical: "high",
   canonical_fragment: "high",
   canonical_presence: "medium",
   canonical_cross_origin: "medium",
+  canonical_relative_href: "medium",
+  pagination_page1_parameter: "low",
+  duplicate_title_element: "low",
+  duplicate_meta_description: "low",
   jsonld_parse_error: "medium",
   hreflang_duplicate_value: "medium",
   hreflang_unapproved_value: "medium",
@@ -1279,6 +1284,38 @@ function buildActionRows(report) {
   }
 
   for (
+    const finding
+    of report.indexabilitySignals
+      ?.findings ||
+    []
+  ) {
+    actions.push({
+      priority:
+        finding.severity === "review"
+          ? "review"
+          : finding.severity ||
+            "medium",
+      area:
+        "Indexability signals",
+      test:
+        humanLabel(
+          finding.code
+        ),
+      action:
+        finding.message ||
+        "Review the conflicting indexability signal.",
+      basis:
+        finding.evidence
+          ? JSON.stringify(
+              finding.evidence
+            )
+          : "Manual network check",
+      state:
+        "Manual network check"
+    });
+  }
+
+  for (
     const result
     of report.linkResponses
       ?.results ||
@@ -1431,6 +1468,12 @@ function actionSummaryDetails(report) {
         ?.results
         ?.length ||
       0
+    ) +
+    (
+      report.indexabilitySignals
+        ?.findings
+        ?.length ||
+      0
     );
 
   details.innerHTML = `
@@ -1536,6 +1579,86 @@ function linkResponseResultsHtml(data) {
     </div>
   `;
 }
+
+function indexabilityResultsHtml(data) {
+  if (!data) {
+    return '<div class="empty-state">No HTTP / robots signal check has been run.</div>';
+  }
+
+  const current =
+    data.current ||
+    {};
+
+  const robotsTxt =
+    data.robotsTxt ||
+    {};
+
+  const canonicalTarget =
+    data.canonicalTarget;
+
+  const findings =
+    data.findings ||
+    [];
+
+  return `
+    <div class="card">
+      <div class="metric-row">
+        ${metricHtml("Findings", findings.length)}
+        ${metricHtml("High", findings.filter(item => item.severity === "high").length)}
+        ${metricHtml("HTTP", current.status ?? "—")}
+        ${metricHtml("Robots", robotsTxt.allowed === null ? "unknown" : robotsTxt.allowed ? "allowed" : "blocked")}
+      </div>
+      <div class="result-kv">
+        <div class="result-kv-row">
+          <div class="result-label">Final page URL</div>
+          <code>${escapeHtml(current.finalUrl || current.requestedUrl || "")}</code>
+        </div>
+        <div class="result-kv-row">
+          <div class="result-label">X-Robots-Tag</div>
+          <div>${escapeHtml(current.xRobotsTag || "(none)")}</div>
+        </div>
+        <div class="result-kv-row">
+          <div class="result-label">HTTP canonical</div>
+          <code>${escapeHtml((current.headerCanonicals || []).join(" | ") || "(none)")}</code>
+        </div>
+        <div class="result-kv-row">
+          <div class="result-label">Server HTML canonical</div>
+          <code>${escapeHtml((current.html?.canonicals || []).join(" | ") || "(none)")}</code>
+        </div>
+        <div class="result-kv-row">
+          <div class="result-label">Rendered canonical</div>
+          <code>${escapeHtml((data.rendered?.canonicals || []).join(" | ") || "(none)")}</code>
+        </div>
+        <div class="result-kv-row">
+          <div class="result-label">robots.txt</div>
+          <div>${escapeHtml(robotsTxt.allowed === null ? "Could not determine" : robotsTxt.allowed ? "Allowed" : "Blocked")}${robotsTxt.matchedRule ? ` · ${escapeHtml(robotsTxt.matchedRule.type)}: ${escapeHtml(robotsTxt.matchedRule.pattern)}` : ""}</div>
+        </div>
+        <div class="result-kv-row">
+          <div class="result-label">Canonical target</div>
+          <div>${canonicalTarget ? `${escapeHtml(canonicalTarget.status ?? "error")} · <code>${escapeHtml(canonicalTarget.finalUrl || canonicalTarget.requestedUrl || canonicalTarget.error || "")}</code>` : "Not checked"}</div>
+        </div>
+      </div>
+      <div class="result-subsection">
+        <div class="result-label">Conflicts / findings</div>
+        <div class="finding-list">
+          ${findings.length
+            ? findings.map(
+                finding =>
+                  `<div class="finding-row compact">
+                    <div>
+                      <div class="finding-title">${escapeHtml(humanLabel(finding.code))}</div>
+                      <div class="muted small">${escapeHtml(finding.message || "")}</div>
+                    </div>
+                    ${priorityBadgeHtml(finding.severity === "review" ? "review" : finding.severity || "medium")}
+                  </div>`
+              ).join("")
+            : '<div class="empty-state good-state">No conflicts detected across the checked signals.</div>'}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
 
 
 function deterministicResultDetails(data, open = true) {
@@ -3757,6 +3880,9 @@ async function analyseAll() {
       linkResponses:
         snapshot.linkResponseChecks ||
         null,
+      indexabilitySignals:
+        snapshot.indexabilitySignals ||
+        null,
       errors: [],
       skipped: []
     };
@@ -4626,6 +4752,130 @@ $("#classifyLinksBtn").onclick = async () => {
       e?.message || String(e),
       true
     );
+  }
+};
+
+
+
+$("#checkIndexabilityBtn").onclick = async () => {
+  if (!snapshot) {
+    return setStatus(
+      "Read the page first.",
+      true
+    );
+  }
+
+  const button =
+    $("#checkIndexabilityBtn");
+
+  try {
+    await ensureFullSnapshot();
+
+    const origins =
+      new Set();
+
+    for (
+      const value
+      of [
+        snapshot.url,
+        snapshot.canonicals?.[0]
+      ]
+    ) {
+      if (!value) continue;
+
+      try {
+        origins.add(
+          `${new URL(value, snapshot.url).origin}/*`
+        );
+      } catch {}
+    }
+
+    const requestedOrigins =
+      [...origins];
+
+    if (
+      requestedOrigins.length
+    ) {
+      const granted =
+        await chrome.permissions
+          .request({
+            origins:
+              requestedOrigins
+          });
+
+      if (!granted) {
+        return setStatus(
+          "The HTTP / robots check needs temporary access to the page and canonical target origins.",
+          true
+        );
+      }
+    }
+
+    button.disabled =
+      true;
+
+    setStatus(
+      "Checking HTTP headers, server HTML, robots.txt and canonical target…"
+    );
+
+    const result =
+      await sw({
+        type:
+          "CHECK_INDEXABILITY_SIGNALS",
+        payload: {
+          url:
+            snapshot.url,
+          canonicals:
+            snapshot.canonicals ||
+            [],
+          canonicalRawHrefs:
+            snapshot.canonicalRawHrefs ||
+            [],
+          robots:
+            snapshot.robots ||
+            "",
+          robotsMetaValues:
+            snapshot.robotsMetaValues ||
+            [],
+          googlebotMetaValues:
+            snapshot.googlebotMetaValues ||
+            []
+        }
+      });
+
+    snapshot.indexabilitySignals =
+      result;
+
+    $("#indexabilityResults")
+      .innerHTML =
+        indexabilityResultsHtml(
+          result
+        );
+
+    if (
+      lastAnalyseAllReport
+    ) {
+      lastAnalyseAllReport
+        .indexabilitySignals =
+          result;
+
+      renderAnalyseAllResults(
+        lastAnalyseAllReport
+      );
+    }
+
+    setStatus("");
+  } catch (e) {
+    setStatus(
+      e?.message ||
+      String(e),
+      true
+    );
+  } finally {
+    if (button) {
+      button.disabled =
+        false;
+    }
   }
 };
 
