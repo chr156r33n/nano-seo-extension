@@ -101,6 +101,234 @@ function escapeHtml(s) {
   }[c]));
 }
 
+function copyIconHtml(label = "Copy result") {
+  return `<button class="copy-icon" type="button" data-copy-result title="${escapeHtml(label)}" aria-label="${escapeHtml(label)}">⧉</button>`;
+}
+
+function resultCopyText(value) {
+  if (
+    value === null ||
+    value === undefined
+  ) {
+    return "";
+  }
+
+  if (
+    typeof value === "string"
+  ) {
+    return value;
+  }
+
+  try {
+    return JSON.stringify(
+      value,
+      null,
+      2
+    );
+  } catch {
+    return String(value);
+  }
+}
+
+function bindCopyButton(
+  root,
+  value,
+  message = "Copied."
+) {
+  const button =
+    root?.querySelector(
+      "[data-copy-result]"
+    );
+
+  if (!button) return;
+
+  button.onclick =
+    async event => {
+      event.preventDefault();
+      event.stopPropagation();
+
+      await navigator.clipboard
+        .writeText(
+          resultCopyText(
+            value
+          )
+        );
+
+      const original =
+        button.textContent;
+
+      button.textContent =
+        "✓";
+
+      setTimeout(
+        () => {
+          button.textContent =
+            original;
+        },
+        900
+      );
+
+      setStatus(
+        message
+      );
+
+      setTimeout(
+        () =>
+          setStatus(""),
+        1200
+      );
+    };
+}
+
+function copyableTextFromElement(
+  element
+) {
+  const clone =
+    element.cloneNode(
+      true
+    );
+
+  clone
+    .querySelectorAll(
+      "button,summary"
+    )
+    .forEach(
+      node =>
+        node.remove()
+    );
+
+  return (
+    clone.innerText ||
+    clone.textContent ||
+    ""
+  )
+    .replace(
+      /\n{3,}/g,
+      "\n\n"
+    )
+    .trim();
+}
+
+function decorateCopyableOutputs(
+  root = document
+) {
+  const selectors = [
+    ".result-card",
+    ".issue",
+    "#linkResponseResults > .card",
+    "#indexabilityResults > .card",
+    "#urlSignalSummary > .card",
+    ".provider-ticket > .card",
+    ".action-summary"
+  ];
+
+  root
+    .querySelectorAll(
+      selectors.join(",")
+    )
+    .forEach(
+      element => {
+        if (
+          element
+            .querySelector(
+              ":scope > .copy-icon-float"
+            )
+        ) {
+          return;
+        }
+
+        const button =
+          document
+            .createElement(
+              "button"
+            );
+
+        button.type =
+          "button";
+
+        button.className =
+          "copy-icon copy-icon-float";
+
+        button.title =
+          "Copy output";
+
+        button.setAttribute(
+          "aria-label",
+          "Copy output"
+        );
+
+        button.textContent =
+          "⧉";
+
+        button.onclick =
+          async event => {
+            event.preventDefault();
+            event.stopPropagation();
+
+            await navigator.clipboard
+              .writeText(
+                copyableTextFromElement(
+                  element
+                )
+              );
+
+            button.textContent =
+              "✓";
+
+            setTimeout(
+              () =>
+                button.textContent =
+                  "⧉",
+              900
+            );
+          };
+
+        element.appendChild(
+          button
+        );
+      }
+    );
+}
+
+const copyOutputObserver =
+  new MutationObserver(
+    mutations => {
+      for (
+        const mutation
+        of mutations
+      ) {
+        for (
+          const node
+          of mutation.addedNodes
+        ) {
+          if (
+            node.nodeType ===
+            Node.ELEMENT_NODE
+          ) {
+            decorateCopyableOutputs(
+              node.matches?.(
+                ".result-card,.issue,.card,.action-summary"
+              )
+                ? node.parentElement ||
+                  node
+                : node
+            );
+          }
+        }
+      }
+    }
+  );
+
+copyOutputObserver.observe(
+  document.documentElement,
+  {
+    childList:
+      true,
+    subtree:
+      true
+  }
+);
+
 
 function humanLabel(value) {
   return String(value ?? "")
@@ -613,7 +841,19 @@ function providerCard(task, provider, result, mode = null, displayContext = null
       : "";
 
   d.innerHTML =
-    `<div class="result-card-head"><div><div class="result-provider">${escapeHtml(provider)}</div><div class="result-meta">${context}${meta.cacheHit ? '<span class="mini-chip">Cache</span>' : ""}${meta.durationMs ? `<span>${escapeHtml(meta.durationMs)} ms total</span>` : ""}${timingChips}</div></div></div>${securityWarningHtml(security)}<div class="result-body">${taskResultHtml(task, clean, displayContext)}</div>${rawJsonDetails(clean)}`;
+    `<div class="result-card-head"><div><div class="result-provider">${escapeHtml(provider)}</div><div class="result-meta">${context}${meta.cacheHit ? '<span class="mini-chip">Cache</span>' : ""}${meta.durationMs ? `<span>${escapeHtml(meta.durationMs)} ms total</span>` : ""}${timingChips}</div></div>${copyIconHtml("Copy this result")}</div>${securityWarningHtml(security)}<div class="result-body">${taskResultHtml(task, clean, displayContext)}</div>${rawJsonDetails(clean)}`;
+
+  bindCopyButton(
+    d,
+    {
+      provider,
+      task,
+      mode,
+      result:
+        clean
+    },
+    "Result copied."
+  );
 
   return d;
 }
@@ -1665,7 +1905,47 @@ function indexabilityResultsHtml(data) {
 function deterministicResultDetails(data, open = true) {
   const details = document.createElement("details"); details.className = "card analyse-result-group"; details.open = open;
   const checks = data?.checks || []; const findings = checks.filter(x => x.status === "finding"); const passes = checks.filter(x => x.status === "pass"); const linkStats = data?.linkStats || {}; const imageStats = data?.imageStats || {};
-  details.innerHTML = `<summary><span>Deterministic checks</span><span class="summary-count">${checks.length}</span></summary><div class="analyse-group-body"><div class="metric-row">${metricHtml("Checks",checks.length)}${metricHtml("Passed",passes.length)}${metricHtml("Findings",findings.length)}${metricHtml("Links",linkStats.totalAnchors ?? 0)}${metricHtml("Images",imageStats.total ?? data?.imageCount ?? 0)}</div><div class="result-subsection"><div class="result-label">Findings</div><div class="finding-list">${findings.map(issue => `<div class="finding-row"><div><div class="finding-title">${escapeHtml(humanLabel(issue.code))}</div><div class="muted small">${escapeHtml(issue.message || "")}</div></div>${badgeHtml("finding","bad")}</div>`).join("") || '<div class="empty-state good-state">No deterministic findings.</div>'}</div></div><details class="subdetails"><summary>Passed checks (${passes.length})</summary><div class="finding-list">${passes.map(check => `<div class="finding-row compact"><div><div class="finding-title">${escapeHtml(humanLabel(check.code))}</div><div class="muted small">${escapeHtml(check.message || "")}</div></div>${badgeHtml("pass","good")}</div>`).join("")}</div></details>${rawJsonDetails(data)}</div>`;
+  details.innerHTML = `<summary><span>Deterministic checks</span><span class="summary-count">${checks.length}</span></summary><div class="analyse-group-body"><div class="metric-row">${metricHtml("Checks",checks.length)}${metricHtml("Passed",passes.length)}${metricHtml("Findings",findings.length)}${metricHtml("Links",linkStats.totalAnchors ?? 0)}${metricHtml("Images",imageStats.total ?? data?.imageCount ?? 0)}</div><div class="result-subsection"><div class="result-label">Findings</div><div class="finding-list">${findings.map((issue, index) => `<div class="finding-row"><div><div class="finding-title">${escapeHtml(humanLabel(issue.code))}</div><div class="muted small">${escapeHtml(issue.message || "")}</div></div><div class="row"><button class="copy-icon" type="button" data-copy-finding="${index}" title="Copy finding" aria-label="Copy finding">⧉</button>${badgeHtml("finding","bad")}</div></div>`).join("") || '<div class="empty-state good-state">No deterministic findings.</div>'}</div></div><details class="subdetails"><summary>Passed checks (${passes.length})</summary><div class="finding-list">${passes.map(check => `<div class="finding-row compact"><div><div class="finding-title">${escapeHtml(humanLabel(check.code))}</div><div class="muted small">${escapeHtml(check.message || "")}</div></div>${badgeHtml("pass","good")}</div>`).join("")}</div></details>${rawJsonDetails(data)}</div>`;
+
+  details
+    .querySelectorAll(
+      "[data-copy-finding]"
+    )
+    .forEach(
+      button => {
+        const finding =
+          findings[
+            Number(
+              button.dataset
+                .copyFinding
+            )
+          ];
+
+        button.onclick =
+          async event => {
+            event.preventDefault();
+            event.stopPropagation();
+
+            await navigator.clipboard
+              .writeText(
+                resultCopyText(
+                  finding
+                )
+              );
+
+            button.textContent =
+              "✓";
+
+            setTimeout(
+              () =>
+                button.textContent =
+                  "⧉",
+              900
+            );
+          };
+      }
+    );
+
   return details;
 }
 
@@ -3048,40 +3328,78 @@ async function createJiraTicket({
     );
   }
 
-  button.disabled = true;
+  const providers =
+    enabledProviders();
+
+  if (!providers.length) {
+    throw new Error(
+      "Choose at least one model."
+    );
+  }
+
+  button.disabled =
+    true;
+
+  target.innerHTML =
+    "";
 
   try {
-    setStatus(
-      "Drafting Jira ticket with Nano…"
-    );
+    for (
+      const provider
+      of providers
+    ) {
+      setStatus(
+        `Drafting Jira ticket · ${provider}…`
+      );
 
-    const ticket =
-      await sw({
-        type: "RUN_TASK",
-        task: "jira_ticket",
-        provider: "nano",
-        analysisRunId: analysisRun?.id || null,
-        payload: {
-          issue,
-          context,
-          exampleUrl:
-            snapshot.url
-        },
-        useCache:
-          $("#useCache").checked
-      });
+      const ticket =
+        await sw({
+          type:
+            "RUN_TASK",
+          task:
+            "jira_ticket",
+          provider,
+          analysisRunId:
+            analysisRun?.id ||
+            null,
+          payload: {
+            issue,
+            context,
+            exampleUrl:
+              snapshot.url
+          },
+          useCache:
+            $("#useCache")
+              .checked
+        });
 
-    renderJiraTicket(
-      target,
-      ticket
-    );
+      const wrapper =
+        document.createElement(
+          "div"
+        );
+
+      wrapper.className =
+        "provider-ticket";
+
+      wrapper.innerHTML =
+        `<div class="result-provider">${escapeHtml(provider)}</div>`;
+
+      renderJiraTicket(
+        wrapper,
+        ticket
+      );
+
+      target.appendChild(
+        wrapper
+      );
+    }
 
     setStatus("");
   } finally {
-    button.disabled = false;
+    button.disabled =
+      false;
   }
 }
-
 
 function resetTaskResultState() {
   for (const task of Object.keys(taskResults)) {
@@ -4981,6 +5299,9 @@ $("#checkLinkResponsesBtn").onclick = async () => {
     );
   }
 
+  const button =
+    $("#checkLinkResponsesBtn");
+
   try {
     await ensureFullSnapshot();
 
@@ -5003,13 +5324,7 @@ $("#checkLinkResponsesBtn").onclick = async () => {
                 )
             )
         )
-      ]
-        .slice(
-          0,
-          settings.limits
-            .maxLinkResponseChecks ||
-            100
-        );
+      ];
 
     if (!urls.length) {
       return setStatus(
@@ -5055,45 +5370,80 @@ $("#checkLinkResponsesBtn").onclick = async () => {
       );
     }
 
-    const button =
-      $("#checkLinkResponsesBtn");
-
     button.disabled =
       true;
 
-    setStatus(
-      `Checking ${urls.length} unique link destination${urls.length === 1 ? "" : "s"}…`
-    );
+    const batchSize =
+      Math.max(
+        1,
+        settings.limits
+          .maxLinkResponseChecks ||
+          100
+      );
 
-    const result =
-      await sw({
-        type:
-          "CHECK_LINK_RESPONSES",
-        urls
-      });
+    let combined =
+      null;
 
-    snapshot.linkResponseChecks =
-      result;
-
-    $("#linkResponseResults")
-      .innerHTML =
-        linkResponseResultsHtml(
-          result
+    for (
+      let start = 0;
+      start < urls.length;
+      start += batchSize
+    ) {
+      const end =
+        Math.min(
+          start +
+            batchSize,
+          urls.length
         );
+
+      setStatus(
+        `Checking link responses ${start + 1}–${end} of ${urls.length}…`
+      );
+
+      combined =
+        await sw({
+          type:
+            "CHECK_LINK_RESPONSES",
+          urls:
+            urls.slice(
+              start,
+              end
+            ),
+          reset:
+            start === 0
+        });
+
+      snapshot.linkResponseChecks =
+        combined;
+
+      $("#linkResponseResults")
+        .innerHTML =
+          linkResponseResultsHtml(
+            combined
+          );
+    }
 
     if (
       lastAnalyseAllReport
     ) {
       lastAnalyseAllReport
         .linkResponses =
-          result;
+          combined;
 
       renderAnalyseAllResults(
         lastAnalyseAllReport
       );
     }
 
-    setStatus("");
+    setStatus(
+      `Checked all ${urls.length} unique link destinations.`
+    );
+
+    setTimeout(
+      () =>
+        setStatus(""),
+      1800
+    );
   } catch (e) {
     setStatus(
       e?.message ||
@@ -5101,9 +5451,6 @@ $("#checkLinkResponsesBtn").onclick = async () => {
       true
     );
   } finally {
-    const button =
-      $("#checkLinkResponsesBtn");
-
     if (button) {
       button.disabled =
         false;

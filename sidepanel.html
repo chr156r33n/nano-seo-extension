@@ -75,7 +75,7 @@
   <section class="tool-section">
     <h2>Choose who reviews the page</h2>
     <div id="providers" class="checks model-picker"></div>
-    <div class="section-copy">Selected models use the same task prompt and output schema so the results stay comparable.</div>
+    <div class="section-copy">Selected models are used for all model-powered actions, including Jira drafting. Where several are selected, each runs the same task so results stay comparable.</div>
   </section>
 
   <section class="tool-section">
@@ -93,7 +93,7 @@
       Recommended: Nano ≤ 6 · Gemini/OpenAI ≈ 25 per batch.
     </div>
     <div class="section-copy" style="margin-top:8px">
-      Link response checking is manual only. It follows HTTP(S) links to their final response and may request temporary access to external origins.
+      Link response checking is manual only. It checks every unique HTTP(S) destination on the page in manageable batches, follows redirects to the final response, and may request temporary access to external origins.
     </div>
     <div id="linkProgress" class="muted small"></div>
     <div id="linkResults" class="results"></div>
