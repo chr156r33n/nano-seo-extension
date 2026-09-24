@@ -374,6 +374,55 @@ function evidenceHtml(items = [], title = "Evidence") {
   return `<div class="result-subsection"><div class="result-label">${escapeHtml(title)}</div><ul class="evidence-list">${values.map(item => `<li>${escapeHtml(item)}</li>`).join("")}</ul></div>`;
 }
 
+function securityForResult(
+  result
+) {
+  return result?._meta
+    ?.security ||
+    result?._security ||
+    null;
+}
+
+function securityWarningHtml(
+  security
+) {
+  const scan =
+    security?.injectionScan;
+
+  if (
+    !scan?.detected
+  ) {
+    return "";
+  }
+
+  const matches =
+    scan.matches ||
+    [];
+
+  return `
+    <details class="security-warning">
+      <summary>
+        Potential prompt injection · ${escapeHtml(scan.count)} signal${scan.count === 1 ? "" : "s"}
+      </summary>
+      <div class="security-warning-body">
+        <div class="small">
+          Instruction-like text was present in untrusted evidence sent to this model. The evidence was not removed or changed.
+        </div>
+        ${matches.length
+          ? `<div class="security-match-list">${matches
+              .map(
+                match =>
+                  `<div class="security-match">
+                    <div class="muted small">${escapeHtml(humanLabel(match.rule))} · ${escapeHtml(match.path)}</div>
+                    <div class="small">${escapeHtml(match.excerpt || "")}</div>
+                  </div>`
+              )
+              .join("")}</div>`
+          : ""}
+      </div>
+    </details>
+  `;
+}
 function rawJsonDetails(value) {
   return `<details class="raw-json"><summary>Raw JSON</summary><pre>${escapeHtml(JSON.stringify(value, null, 2))}</pre></details>`;
 }
@@ -387,7 +436,7 @@ function genericResultHtml(result) {
   if (Array.isArray(result)) {
     return `<div class="result-list">${result.map(item => `<div class="result-row static">${genericResultHtml(item)}</div>`).join("") || '<div class="muted">No results.</div>'}</div>`;
   }
-  const rows = Object.entries(result).filter(([key]) => key !== "_meta").map(([key, value]) => {
+  const rows = Object.entries(result).filter(([key]) => !key.startsWith("_")).map(([key, value]) => {
     let rendered = "";
     if (Array.isArray(value)) rendered = value.length ? chipsHtml(value.map(item => typeof item === "string" ? item : JSON.stringify(item))) : '<span class="muted">None</span>';
     else if (value && typeof value === "object") rendered = `<code>${escapeHtml(JSON.stringify(value))}</code>`;
@@ -494,10 +543,17 @@ function providerCard(task, provider, result, mode = null, displayContext = null
   const meta =
     result?._meta || {};
 
+  const security =
+    securityForResult(
+      result
+    );
+
   const clean =
     withoutMeta(
       result
     ) || {};
+
+  delete clean._security;
 
   const context =
     mode
@@ -556,7 +612,7 @@ function providerCard(task, provider, result, mode = null, displayContext = null
       : "";
 
   d.innerHTML =
-    `<div class="result-card-head"><div><div class="result-provider">${escapeHtml(provider)}</div><div class="result-meta">${context}${meta.cacheHit ? '<span class="mini-chip">Cache</span>' : ""}${meta.durationMs ? `<span>${escapeHtml(meta.durationMs)} ms total</span>` : ""}${timingChips}</div></div></div><div class="result-body">${taskResultHtml(task, clean, displayContext)}</div>${rawJsonDetails(clean)}`;
+    `<div class="result-card-head"><div><div class="result-provider">${escapeHtml(provider)}</div><div class="result-meta">${context}${meta.cacheHit ? '<span class="mini-chip">Cache</span>' : ""}${meta.durationMs ? `<span>${escapeHtml(meta.durationMs)} ms total</span>` : ""}${timingChips}</div></div></div>${securityWarningHtml(security)}<div class="result-body">${taskResultHtml(task, clean, displayContext)}</div>${rawJsonDetails(clean)}`;
 
   return d;
 }
@@ -2966,9 +3022,30 @@ async function runTaskSilent(task, provider, payload, mode = null) {
 }
 
 function withoutMeta(result) {
-  if (!result || typeof result !== "object") return result;
-  const clean = {...result};
+  if (
+    !result ||
+    typeof result !== "object"
+  ) {
+    return result;
+  }
+
+  const security =
+    securityForResult(
+      result
+    );
+
+  const clean = {
+    ...result
+  };
+
   delete clean._meta;
+  delete clean._security;
+
+  if (security) {
+    clean._security =
+      security;
+  }
+
   return clean;
 }
 
@@ -2980,11 +3057,38 @@ function analyseResultDetails(title, value, open = false) {
   return details;
 }
 
+function reportSecurityWarnings(
+  report
+) {
+  const entries = [
+    ...(report.pageType || []),
+    ...(report.intent || []),
+    ...(report.alignment || []),
+    ...(report.links || []),
+    ...(report.falsePositives || []),
+    ...(report.domDiff?.assessments || []),
+    ...(report.urlConsistency || [])
+  ];
+
+  return entries.filter(
+    entry =>
+      securityForResult(
+        entry.result
+      )?.injectionScan
+        ?.detected
+  ).length;
+}
+
 function renderAnalyseAllResults(report) {
   const target = $("#analyseAllResults");
   if (!target) return;
 
   target.innerHTML = "";
+
+  const securityWarnings =
+    reportSecurityWarnings(
+      report
+    );
 
   const summary = document.createElement("div");
   summary.className = "card analyse-results-summary";
@@ -3001,6 +3105,7 @@ function renderAnalyseAllResults(report) {
       ${metricHtml("Findings", report.deterministic?.findings?.length || 0)}
       ${metricHtml("Providers", report.providers.length)}
       ${metricHtml("Modes", report.modes.length)}
+      ${metricHtml("Injection warnings", securityWarnings)}
     </div>
     <div class="result-label">Providers</div>
     ${chipsHtml(report.providers)}
