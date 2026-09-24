@@ -1605,6 +1605,11 @@ function makeSnapshotSummary(snapshot) {
       ],
     auditChecks,
     domDiff,
+    indexabilitySignalSummary:
+      snapshot
+        .indexabilitySignals
+        ?.summary ||
+      null,
     linkResponseSummary:
       snapshot
         .linkResponseChecks
@@ -5055,7 +5060,7 @@ async function checkIndexabilitySignals(payload) {
     canonicalTarget
   });
 
-  return {
+  const output = {
     checkedAt: new Date().toISOString(),
     rendered,
     current,
@@ -5075,6 +5080,58 @@ async function checkIndexabilitySignals(payload) {
         hasDirective(rendered.googlebotMetaValues, "noindex")
     }
   };
+
+  const {
+    lastSnapshotFingerprint,
+    currentAnalysisRunId
+  } = await chrome.storage.local.get([
+    "lastSnapshotFingerprint",
+    "currentAnalysisRunId"
+  ]);
+
+  if (lastSnapshotFingerprint) {
+    const snapshot = await dbGet(
+      "snapshots",
+      lastSnapshotFingerprint
+    );
+
+    if (snapshot) {
+      snapshot.indexabilitySignals = output;
+
+      await dbPut(
+        "snapshots",
+        snapshot
+      );
+
+      await chrome.storage.local.set({
+        lastSnapshotSummary:
+          makeSnapshotSummary(
+            snapshot
+          )
+      });
+    }
+  }
+
+  if (currentAnalysisRunId) {
+    const run = await dbGet(
+      "analysisRuns",
+      currentAnalysisRunId
+    );
+
+    if (run) {
+      run.indexabilitySignals = output;
+      run.updatedAt =
+        new Date()
+          .toISOString();
+
+      await dbPut(
+        "analysisRuns",
+        run
+      );
+    }
+  }
+
+  return output;
 }
 
 async function checkOneLinkResponse(
