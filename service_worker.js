@@ -4704,10 +4704,7 @@ function robotsPatternMatches(pattern, path) {
   const endAnchored = pattern.endsWith("$");
   const body = endAnchored ? pattern.slice(0, -1) : pattern;
   const escaped = body
-    .replace(/[-/\\^$*+?.()|[\]{}]/g, "\\async function checkOneLinkResponse(
-  url,
-  timeoutMs
-) {")
+    .replace(/[-/\\^$*+?.()|[\]{}]/g, "\\$&")
     .replace(/\*/g, ".*");
   return new RegExp("^" + escaped + (endAnchored ? "$" : ""), "i").test(path);
 }
