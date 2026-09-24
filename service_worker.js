@@ -64,6 +64,37 @@ chrome.action.onClicked.addListener((tab) => {
   });
 });
 
+async function hasPersistentPageAccess(
+  url
+) {
+  try {
+    const parsed =
+      new URL(
+        url || ""
+      );
+
+    if (
+      ![
+        "http:",
+        "https:"
+      ].includes(
+        parsed.protocol
+      )
+    ) {
+      return false;
+    }
+
+    return await chrome.permissions
+      .contains({
+        origins: [
+          `${parsed.origin}/*`
+        ]
+      });
+  } catch {
+    return false;
+  }
+}
+
 async function getCurrentActiveTab() {
   const [tab] =
     await chrome.tabs.query({
@@ -88,12 +119,17 @@ async function getCurrentActiveTab() {
     stored.nanoSeoGrantedTabId ??
     null;
 
+  const hasPersistentAccess =
+    await hasPersistentPageAccess(
+      tab.url
+    );
+
   if (
-    grantedTabId !== null &&
+    !hasPersistentAccess &&
     grantedTabId !== tab.id
   ) {
     throw new Error(
-      "This tab has not been opened with Nano SEO Lab yet. Click the Nano SEO Lab toolbar icon on this page, then run the check again."
+      "Nano SEO Lab does not currently have access to this page. Open Config and enable Allow all websites, or click the Nano SEO Lab toolbar icon on this page for one-time access."
     );
   }
 
@@ -120,7 +156,7 @@ function friendlyPageAccessError(error) {
   ) {
     return new Error(
       `Chrome page access is missing or expired for this tab. ` +
-      `Click the Nano SEO Lab toolbar icon on this page, then run the analysis again.`
+      `Enable Allow all websites in Config for persistent access, or click the Nano SEO Lab toolbar icon on this page for one-time access.`
     );
   }
 
