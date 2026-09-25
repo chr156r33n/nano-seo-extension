@@ -5069,6 +5069,28 @@ function scanSourceHeadIntegrity(html, baseUrl) {
           rawClose.index +
           rawClose[0].length;
       } else {
+        if (
+          !likelyBreak
+        ) {
+          likelyBreak = {
+            tag,
+            offset:
+              absoluteOffset,
+            excerpt:
+              token
+                .replace(
+                  /\s+/g,
+                  " "
+                )
+                .slice(
+                  0,
+                  240
+                ),
+            reason:
+              "unclosed_raw_text_element"
+          };
+        }
+
         break;
       }
     }
@@ -5144,7 +5166,10 @@ function scanSourceHeadIntegrity(html, baseUrl) {
     declarations,
     message:
       likelyBreak
-        ? `A <${likelyBreak.tag}> element appears inside source <head>; later metadata may be parsed outside the head.`
+        ? likelyBreak.reason ===
+            "unclosed_raw_text_element"
+          ? `An unclosed <${likelyBreak.tag}> element appears in source <head>; later markup may be consumed as text rather than parsed as metadata.`
+          : `A <${likelyBreak.tag}> element appears inside source <head>; later metadata may be parsed outside the head.`
         : explicitClose
           ? "No likely head-breaking element was detected before </head>."
           : "No explicit </head> tag was found; browser parser recovery determines where head mode ends."
