@@ -1160,7 +1160,64 @@ function compactDomModelValue(
               element.semantic_weight
             )
           : null
-    }
+    },
+    ...(value.local_context
+      ? {
+          local_context: {
+            container_selector:
+              String(
+                value.local_context
+                  .container_selector ||
+                ""
+              ).slice(
+                0,
+                320
+              ),
+            heading:
+              String(
+                value.local_context
+                  .heading ||
+                ""
+              ).slice(
+                0,
+                180
+              ),
+            aria_label:
+              String(
+                value.local_context
+                  .aria_label ||
+                ""
+              ).slice(
+                0,
+                180
+              ),
+            image_alt:
+              String(
+                value.local_context
+                  .image_alt ||
+                ""
+              ).slice(
+                0,
+                180
+              ),
+            text:
+              String(
+                value.local_context
+                  .text ||
+                ""
+              ).slice(
+                0,
+                360
+              ),
+            link_count:
+              Number(
+                value.local_context
+                  .link_count ||
+                0
+              )
+          }
+        }
+      : {})
   };
 }
 
@@ -7535,6 +7592,207 @@ async function buildDomDiff() {
           };
         };
 
+        const localIdentityContextFor = (
+          el
+        ) => {
+          if (!el) {
+            return null;
+          }
+
+          const ownText =
+            normaliseText(
+              el.tagName ===
+                "INPUT"
+                ? el.value
+                : el.textContent
+            );
+
+          let best =
+            null;
+
+          let cur =
+            el.parentElement;
+
+          for (
+            let depth = 0;
+            cur &&
+              depth < 7;
+            depth += 1,
+            cur =
+              cur.parentElement
+          ) {
+            if (
+              cur.matches?.(
+                "html,body"
+              )
+            ) {
+              break;
+            }
+
+            const text =
+              normaliseText(
+                cur.textContent
+              );
+
+            const headingEl =
+              cur.querySelector?.(
+                "h1,h2,h3,h4,h5,h6"
+              );
+
+            const heading =
+              clip(
+                headingEl
+                  ?.textContent ||
+                  "",
+                180
+              );
+
+            const imageAlt =
+              clip(
+                cur.querySelector?.(
+                  "img[alt]"
+                )
+                  ?.getAttribute(
+                    "alt"
+                  ) ||
+                  "",
+                180
+              );
+
+            const ariaLabel =
+              clip(
+                cur.getAttribute?.(
+                  "aria-label"
+                ) ||
+                  cur.getAttribute?.(
+                    "title"
+                  ) ||
+                  "",
+                180
+              );
+
+            const linkCount =
+              cur.querySelectorAll?.(
+                "a[href]"
+              )
+                ?.length ||
+              0;
+
+            const textIsDistinct =
+              !!text &&
+              text.toLowerCase() !==
+                ownText.toLowerCase();
+
+            let score =
+              0;
+
+            if (
+              heading &&
+              heading.toLowerCase() !==
+                ownText.toLowerCase()
+            ) {
+              score += 4;
+            }
+
+            if (ariaLabel) {
+              score += 2;
+            }
+
+            if (imageAlt) {
+              score += 1.5;
+            }
+
+            if (
+              textIsDistinct
+            ) {
+              score += 2;
+            }
+
+            if (
+              text.length >= 20 &&
+              text.length <= 700
+            ) {
+              score += 1;
+            } else if (
+              text.length >
+              1400
+            ) {
+              score -= 3;
+            }
+
+            if (
+              linkCount <= 8
+            ) {
+              score += 1;
+            } else if (
+              linkCount > 20
+            ) {
+              score -= 3;
+            }
+
+            if (
+              cur.matches?.(
+                "main,article"
+              )
+            ) {
+              score -= 1;
+            }
+
+            if (
+              cur.matches?.(
+                "nav,header,footer"
+              )
+            ) {
+              score -= 3;
+            }
+
+            score -=
+              depth *
+              0.08;
+
+            const candidate = {
+              score,
+              container_selector:
+                selectorFor(
+                  cur
+                ),
+              heading,
+              aria_label:
+                ariaLabel,
+              image_alt:
+                imageAlt,
+              text:
+                clip(
+                  text,
+                  360
+                ),
+              link_count:
+                linkCount
+            };
+
+            if (
+              !best ||
+              candidate.score >
+                best.score
+            ) {
+              best =
+                candidate;
+            }
+          }
+
+          if (!best) {
+            return null;
+          }
+
+          const {
+            score,
+            ...context
+          } =
+            best;
+
+          return context;
+        };
+
         const currentUrl =
           location.href;
 
@@ -7717,7 +7975,11 @@ async function buildDomDiff() {
                       220
                     ),
                   element:
-                    elementContext(el)
+                    elementContext(el),
+                  local_context:
+                    localIdentityContextFor(
+                      el
+                    )
                 })
               )
               .filter(
@@ -7746,7 +8008,11 @@ async function buildDomDiff() {
                       160
                     ),
                   element:
-                    elementContext(el)
+                    elementContext(el),
+                  local_context:
+                    localIdentityContextFor(
+                      el
+                    )
                 })
               )
               .filter(
@@ -7778,7 +8044,11 @@ async function buildDomDiff() {
                           260
                         ),
                       element:
-                        elementContext(el)
+                        elementContext(el),
+                      local_context:
+                        localIdentityContextFor(
+                          el
+                        )
                     })
                   )
                   .filter(
@@ -7804,7 +8074,11 @@ async function buildDomDiff() {
                       160
                     ),
                   element:
-                    elementContext(el)
+                    elementContext(el),
+                  local_context:
+                    localIdentityContextFor(
+                      el
+                    )
                 })
               )
               .filter(
@@ -8853,6 +9127,75 @@ async function buildDomDiff() {
             rawSelector ===
               renderedSelector;
 
+          const rawContext =
+            rawValue &&
+            typeof rawValue ===
+              "object"
+              ? rawValue
+                  .local_context ||
+                {}
+              : {};
+
+          const renderedContext =
+            renderedValue &&
+            typeof renderedValue ===
+              "object"
+              ? renderedValue
+                  .local_context ||
+                {}
+              : {};
+
+          const rawContextHeading =
+            normaliseText(
+              rawContext.heading
+            )
+              .toLowerCase();
+
+          const renderedContextHeading =
+            normaliseText(
+              renderedContext.heading
+            )
+              .toLowerCase();
+
+          const sameContextHeading =
+            !!rawContextHeading &&
+            rawContextHeading ===
+              renderedContextHeading;
+
+          const rawContextIdentity =
+            normaliseText(
+              [
+                rawContext.heading,
+                rawContext.aria_label,
+                rawContext.image_alt,
+                rawContext.text
+              ]
+                .filter(Boolean)
+                .join(
+                  " "
+                )
+            );
+
+          const renderedContextIdentity =
+            normaliseText(
+              [
+                renderedContext.heading,
+                renderedContext.aria_label,
+                renderedContext.image_alt,
+                renderedContext.text
+              ]
+                .filter(Boolean)
+                .join(
+                  " "
+                )
+            );
+
+          const contextSimilarity =
+            tokenSimilarity(
+              rawContextIdentity,
+              renderedContextIdentity
+            );
+
           const similarity =
             tokenSimilarity(
               rawText,
@@ -8880,9 +9223,27 @@ async function buildDomDiff() {
               similarity >= 0.6
             ) {
               return {
-                score: 0.96,
+                score:
+                  sameContextHeading ||
+                  contextSimilarity >=
+                    0.75
+                    ? 0.98
+                    : 0.95,
                 reason:
-                  "same_heading_selector"
+                  sameContextHeading ||
+                  contextSimilarity >=
+                    0.75
+                    ? "same_heading_selector_and_context"
+                    : "same_heading_selector",
+                context_similarity:
+                  Number(
+                    contextSimilarity
+                      .toFixed(
+                        3
+                      )
+                  ),
+                same_context_heading:
+                  sameContextHeading
               };
             }
 
@@ -8911,9 +9272,28 @@ async function buildDomDiff() {
                 renderedHref
             ) {
               return {
-                score: 1,
+                score:
+                  sameContextHeading ||
+                  contextSimilarity >=
+                    0.8
+                    ? 1
+                    : 0.98,
                 reason:
-                  "same_link_destination"
+                  sameContextHeading
+                    ? "same_link_destination_and_context_heading"
+                    : contextSimilarity >=
+                        0.8
+                      ? "same_link_destination_and_context"
+                      : "same_link_destination",
+                context_similarity:
+                  Number(
+                    contextSimilarity
+                      .toFixed(
+                        3
+                      )
+                  ),
+                same_context_heading:
+                  sameContextHeading
               };
             }
 
@@ -8926,10 +9306,85 @@ async function buildDomDiff() {
                   0.6
               )
             ) {
+              if (
+                sameContextHeading
+              ) {
+                return {
+                  score:
+                    0.995,
+                  reason:
+                    "same_link_selector_and_context_heading",
+                  context_similarity:
+                    Number(
+                      contextSimilarity
+                        .toFixed(
+                          3
+                        )
+                    ),
+                  same_context_heading:
+                    true
+                };
+              }
+
+              if (
+                contextSimilarity >=
+                  0.75
+              ) {
+                return {
+                  score:
+                    0.985,
+                  reason:
+                    "same_link_selector_and_context",
+                  context_similarity:
+                    Number(
+                      contextSimilarity
+                        .toFixed(
+                          3
+                        )
+                    ),
+                  same_context_heading:
+                    false
+                };
+              }
+
               return {
-                score: 0.96,
+                score:
+                  0.94,
                 reason:
-                  "same_link_selector"
+                  "same_repeated_link_selector",
+                context_similarity:
+                  Number(
+                    contextSimilarity
+                      .toFixed(
+                        3
+                      )
+                  ),
+                same_context_heading:
+                  false
+              };
+            }
+
+            if (
+              rawText &&
+              rawText ===
+                renderedText &&
+              contextSimilarity >=
+                0.75
+            ) {
+              return {
+                score:
+                  0.96,
+                reason:
+                  "same_link_text_and_context",
+                context_similarity:
+                  Number(
+                    contextSimilarity
+                      .toFixed(
+                        3
+                      )
+                  ),
+                same_context_heading:
+                  sameContextHeading
               };
             }
 
@@ -8941,9 +9396,19 @@ async function buildDomDiff() {
                 12
             ) {
               return {
-                score: 0.92,
+                score:
+                  0.92,
                 reason:
-                  "same_link_text"
+                  "same_link_text",
+                context_similarity:
+                  Number(
+                    contextSimilarity
+                      .toFixed(
+                        3
+                      )
+                  ),
+                same_context_heading:
+                  sameContextHeading
               };
             }
           }
@@ -8959,9 +9424,25 @@ async function buildDomDiff() {
               similarity >= 0.6
             ) {
               return {
-                score: 0.95,
+                score:
+                  contextSimilarity >=
+                    0.75
+                    ? 0.97
+                    : 0.94,
                 reason:
-                  "same_element_selector"
+                  contextSimilarity >=
+                    0.75
+                    ? "same_element_selector_and_context"
+                    : "same_element_selector",
+                context_similarity:
+                  Number(
+                    contextSimilarity
+                      .toFixed(
+                        3
+                      )
+                  ),
+                same_context_heading:
+                  sameContextHeading
               };
             }
 
@@ -9209,6 +9690,14 @@ async function buildDomDiff() {
                 sameText,
               same_destination:
                 sameDestination,
+              context_similarity:
+                candidate
+                  .context_similarity ??
+                null,
+              same_context_heading:
+                candidate
+                  .same_context_heading ??
+                false,
               source_ids: [
                 candidate
                   .removed
