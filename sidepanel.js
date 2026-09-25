@@ -945,6 +945,7 @@ function renderPassedChecks() {
 const DETERMINISTIC_PRIORITY = {
   robots_conflict: "high",
   robots_googlebot_conflict: "high",
+  rendered_head_invalid_element: "high",
   robots_noindex: "high",
   canonical_protocol_downgrade: "high",
   multiple_canonical: "high",
@@ -1834,11 +1835,23 @@ function indexabilityResultsHtml(data) {
     data.robotsTxt ||
     {};
 
+  const headIntegrity =
+    data.headIntegrity ||
+    {};
+
   const canonicalTarget =
     data.canonicalTarget;
 
   const findings =
     data.findings ||
+    [];
+
+  const crawlerRows =
+    robotsTxt.crawlers ||
+    [];
+
+  const affectedHead =
+    headIntegrity.lost ||
     [];
 
   return `
@@ -1849,6 +1862,7 @@ function indexabilityResultsHtml(data) {
         ${metricHtml("HTTP", current.status ?? "—")}
         ${metricHtml("Robots", robotsTxt.allowed === null ? "unknown" : robotsTxt.allowed ? "allowed" : "blocked")}
       </div>
+
       <div class="result-kv">
         <div class="result-kv-row">
           <div class="result-label">Final page URL</div>
@@ -1872,13 +1886,79 @@ function indexabilityResultsHtml(data) {
         </div>
         <div class="result-kv-row">
           <div class="result-label">robots.txt</div>
-          <div>${escapeHtml(robotsTxt.allowed === null ? "Could not determine" : robotsTxt.allowed ? "Allowed" : "Blocked")}${robotsTxt.matchedRule ? ` · ${escapeHtml(robotsTxt.matchedRule.type)}: ${escapeHtml(robotsTxt.matchedRule.pattern)}` : ""}</div>
+          <div>${escapeHtml(robotsTxt.allowed === null ? "Could not determine" : robotsTxt.allowed ? "Allowed for Googlebot" : "Blocked for Googlebot")}${robotsTxt.matchedRule ? ` · ${escapeHtml(robotsTxt.matchedRule.type)}: ${escapeHtml(robotsTxt.matchedRule.pattern)}` : ""}</div>
         </div>
         <div class="result-kv-row">
           <div class="result-label">Canonical target</div>
           <div>${canonicalTarget ? `${escapeHtml(canonicalTarget.status ?? "error")} · <code>${escapeHtml(canonicalTarget.finalUrl || canonicalTarget.requestedUrl || canonicalTarget.error || "")}</code>` : "Not checked"}</div>
         </div>
       </div>
+
+      <div class="result-subsection">
+        <div class="result-label">AI / dataset crawler robots access</div>
+        ${crawlerRows.length
+          ? `
+            <div class="action-table-wrap" style="margin-top:6px">
+              <table class="action-table crawler-access-table">
+                <thead>
+                  <tr>
+                    <th>Agent / token</th>
+                    <th>Purpose</th>
+                    <th>Current URL</th>
+                    <th>Matched rule</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${crawlerRows.map(
+                    crawler =>
+                      `<tr>
+                        <td><strong>${escapeHtml(crawler.userAgent || "")}</strong><div class="muted small">${escapeHtml(crawler.label || "")}</div></td>
+                        <td>${escapeHtml(humanLabel(crawler.category || ""))}</td>
+                        <td>${badgeHtml(crawler.allowed ? "allowed" : "blocked", crawler.allowed ? "good" : "bad")}</td>
+                        <td><code>${escapeHtml(crawler.matchedRule ? `${crawler.matchedRule.type}: ${crawler.matchedRule.pattern}` : "No matching rule")}</code></td>
+                      </tr>`
+                  ).join("")}
+                </tbody>
+              </table>
+            </div>
+            <div class="muted small" style="margin-top:6px">Google-Extended and Applebot-Extended are control tokens rather than standalone page-fetching crawlers. User-triggered agents are shown as a robots.txt rule evaluation, not a guarantee of runtime fetch behaviour.</div>
+          `
+          : '<div class="empty-state">Crawler-specific access could not be evaluated from robots.txt.</div>'}
+      </div>
+
+      <div class="result-subsection">
+        <div class="result-label">Source &lt;head&gt; integrity</div>
+        <div class="small">${escapeHtml(headIntegrity.message || "Not checked")}</div>
+        ${headIntegrity.likelyBreak
+          ? `<div class="finding-row compact" style="margin-top:6px">
+              <div>
+                <div class="finding-title">Likely parser break: &lt;${escapeHtml(headIntegrity.likelyBreak.tag || "")}&gt;</div>
+                <code>${escapeHtml(headIntegrity.likelyBreak.excerpt || "")}</code>
+              </div>
+              ${badgeHtml(affectedHead.length ? "metadata at risk" : "review", affectedHead.length ? "bad" : "warn")}
+            </div>`
+          : ""}
+        ${affectedHead.length
+          ? `
+            <div class="small" style="margin-top:8px"><strong>Metadata after the likely break (${affectedHead.length})</strong></div>
+            <div class="finding-list">
+              ${affectedHead.map(
+                item =>
+                  `<div class="finding-row compact">
+                    <div>
+                      <div class="finding-title">${escapeHtml(humanLabel(item.kind || item.tag || "metadata"))}</div>
+                      <div class="muted small">${escapeHtml(item.value || item.excerpt || "")}</div>
+                    </div>
+                    ${badgeHtml("may be displaced", "bad")}
+                  </div>`
+              ).join("")}
+            </div>
+          `
+          : headIntegrity.likelyBreak
+            ? '<div class="muted small" style="margin-top:6px">No SEO-critical declarations were detected after the likely break point.</div>'
+            : ""}
+      </div>
+
       <div class="result-subsection">
         <div class="result-label">Conflicts / findings</div>
         <div class="finding-list">
@@ -1899,7 +1979,6 @@ function indexabilityResultsHtml(data) {
     </div>
   `;
 }
-
 
 
 function deterministicResultDetails(data, open = true) {
