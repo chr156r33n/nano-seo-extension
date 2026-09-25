@@ -168,316 +168,402 @@ function bindWebsiteAccessActions() {
 }
 
 function render() {
+  const exclusionCheckIds =
+    [
+      ...new Set([
+        ...Object.keys(
+          current.falsePositiveGuidance ||
+          {}
+        ),
+        "raw_rendered_canonical_conflict",
+        "http_rendered_canonical_conflict",
+        "http_raw_canonical_conflict",
+        "raw_rendered_robots_conflict",
+        "http_html_robots_conflict",
+        "current_response_non_2xx",
+        "http_x_robots_noindex",
+        "robots_blocks_noindex_discovery",
+        "robots_txt_blocked",
+        "current_response_redirect",
+        "redirect_canonical_conflict",
+        "canonical_target_request_error",
+        "canonical_target_non_2xx",
+        "canonical_target_redirect",
+        "canonical_target_noindex",
+        "canonical_target_canonicalises_elsewhere",
+        "source_head_missing",
+        "source_head_likely_break",
+        "source_head_missing_close",
+        "ai_crawlers_blocked"
+      ])
+    ]
+      .sort();
+
+  const issueProfileCodes =
+    Object.keys({
+      ...(current.falsePositiveGuidance || {}),
+      ...(current.deterministicImpactProfiles || {})
+    })
+      .sort();
+
   app.innerHTML = `
-    <section>
-      <div class="section-kicker">Models</div><h2>Choose models</h2>
+    <div class="settings-groups">
+      <details class="settings-group">
+        <summary>
+          <span>
+            <span class="section-kicker">Models & access</span>
+            <strong>Providers and page permissions</strong>
+            <small>Choose default models and how the extension can access webpages.</small>
+          </span>
+        </summary>
+        <div class="settings-group-body">
+          <h2>Choose models</h2>
 
-      <div class="grid">
-        <div>
-          <label class="block">
-            <input id="nanoEnabled" type="checkbox" ${current.providers.nano.enabled ? "checked" : ""}>
-            Use Nano by default
-          </label>
-
-          <label class="block">
-            Nano temperature
-            <input id="nanoTemp" type="number" step="0.1" value="${current.providers.nano.temperature}">
-          </label>
-
-          <label class="block">
-            Nano topK
-            <input id="nanoTopK" type="number" value="${current.providers.nano.topK}">
-          </label>
-        </div>
-
-        <div>
-          <label class="block">
-            <input id="geminiEnabled" type="checkbox" ${current.providers.gemini.enabled ? "checked" : ""}>
-            Use Gemini API by default
-          </label>
-
-          <label class="block">
-            Gemini model
-            <input id="geminiModel" type="text" value="${esc(current.providers.gemini.model)}">
-          </label>
-
-          <label class="block">
-            Gemini API key
-            <input id="geminiKey" type="password" value="${esc(current.providers.gemini.apiKey)}">
-          </label>
-
-          <label class="block">
-            <input id="openaiEnabled" type="checkbox" ${current.providers.openai.enabled ? "checked" : ""}>
-            Use OpenAI API by default
-          </label>
-
-          <label class="block">
-            OpenAI model
-            <input id="openaiModel" type="text" value="${esc(current.providers.openai.model)}">
-          </label>
-
-          <label class="block">
-            OpenAI API key
-            <input id="openaiKey" type="password" value="${esc(current.providers.openai.apiKey)}">
-          </label>
-        </div>
-      </div>
-    </section>
-
-    <section>
-      <div class="section-kicker">Website access</div><h2>Page permissions</h2>
-
-      <p class="muted">
-        Nano SEO Lab normally uses Chrome's temporary page access, which means you need to invoke the extension on each tab before it can inspect that page.
-      </p>
-
-      <div class="card">
-        <label class="block">
-          <input id="allowAllWebsites" type="checkbox" ${allowAllWebsites ? "checked" : ""}>
-          Allow all websites
-        </label>
-
-        <p class="muted small" style="margin-bottom:0">
-          When enabled, Chrome grants persistent access to ordinary HTTP and HTTPS pages so Nano SEO Lab can analyse newly-opened tabs without requiring another toolbar click.
-          This does not apply to protected browser pages such as chrome:// URLs.
-        </p>
-
-        <div id="websiteAccessStatus" class="small" style="margin-top:8px"></div>
-      </div>
-    </section>
-
-    <section>
-      <div class="section-kicker">Performance</div><h2>Processing limits</h2>
-
-      <div class="grid">
-        ${Object.entries(current.limits)
-          .map(
-            ([k, v]) =>
-              `<label class="block">${k}<input data-limit="${k}" type="number" value="${v}"></label>`
-          )
-          .join("")}
-      </div>
-    </section>
-
-    <section>
-      <div class="section-kicker">Quick run</div><h2>Run analysis</h2>
-
-      <p class="muted">
-        Choose which stages run when you click Run analysis. Reading the page and running the automated checks always happens first.
-        Alignment only runs when both Page type and Intent are enabled.
-      </p>
-
-      <div class="grid">
-        ${[
-          ["linkContext", "Understand link roles"],
-          ["pageType", "Page type"],
-          ["intent", "Intent"],
-          ["alignment", "Check page type ↔ intent alignment"],
-          ["triageFindings", "Review flagged checks with model context"],
-          ["domDiff", "Compare server HTML with rendered page"],
-          ["urlConsistency", "Review URL and locale signals"]
-        ]
-          .map(
-            ([key, label]) => `
+          <div class="grid">
+            <div>
               <label class="block">
-                <input
-                  data-analyse-all="${key}"
-                  type="checkbox"
-                  ${current.analyseAll?.[key] ? "checked" : ""}
-                >
-                ${label}
-              </label>
-            `
-          )
-          .join("")}
-      </div>
-
-      <p class="muted small">
-        Server/rendered comparison defaults to off because it makes an extra same-origin request and is best used as a deliberate rendering test.
-      </p>
-    </section>
-
-    <section>
-      <div class="section-kicker">Evidence weighting</div><h2>Semantic importance</h2>
-
-      <p class="muted">
-        Shared guidance that tells models which parts of the page matter most when making contextual judgements.
-      </p>
-
-      <label class="block">
-        Global semantic-importance guidance
-        <textarea id="semanticImportanceGuidance">${current.semanticImportanceGuidance}</textarea>
-      </label>
-
-      <div class="grid">
-        ${Object.entries(current.semanticWeights)
-          .map(
-            ([k, v]) =>
-              `<label class="block">${k}<input data-semantic-weight="${k}" type="number" step="0.05" value="${v}"></label>`
-          )
-          .join("")}
-      </div>
-    </section>
-
-    <section>
-      <div class="section-kicker">Audit profiles</div><h2>Site check exclusions</h2>
-
-      <p class="muted">
-        Suppress known or non-actionable deterministic findings for specific hostnames before they are sent to a model.
-        One profile per line: <code>hostname | check_code, check_code | optional note</code>
-      </p>
-
-      <textarea
-        id="siteCheckExclusions"
-        placeholder="www.example.com | title_length, meta_description_length | CMS constraint&#10;*.example.co.uk | canonical_relative_href | known platform behaviour"
-      >${(current.siteCheckExclusions || []).map(profile => [profile.hostname, (profile.checks || []).join(", "), profile.note || ""].join(" | ").replace(/ \| $/, "")).join("\n")}</textarea>
-
-      <p class="muted small">
-        Exact hostnames and <code>*.example.com</code> wildcards are supported. Excluded checks remain visible for traceability but are not treated as findings, triaged by a model, or added to prioritised actions.
-      </p>
-
-      <details class="control-panel">
-        <summary>Available check IDs</summary>
-        <div class="control-panel-body">
-          <pre>${[...new Set([...Object.keys(current.falsePositiveGuidance || {}), ...["raw_rendered_canonical_conflict","http_rendered_canonical_conflict","http_raw_canonical_conflict","raw_rendered_robots_conflict","http_html_robots_conflict","current_response_non_2xx","http_x_robots_noindex","robots_blocks_noindex_discovery","robots_txt_blocked","current_response_redirect","redirect_canonical_conflict","canonical_target_request_error","canonical_target_non_2xx","canonical_target_redirect","canonical_target_noindex","canonical_target_canonicalises_elsewhere","source_head_missing","source_head_likely_break","source_head_missing_close","ai_crawlers_blocked"]])].sort().join("\n")}</pre>
-        </div>
-      </details>
-    </section>
-    <section>
-      <div class="section-kicker">Locales</div><h2>Agreed hreflang values</h2>
-
-      <p class="muted">
-        One value per line. This remains the project-specific allow-list used for validation.
-      </p>
-
-      <textarea id="hreflangAgreedValues" placeholder="en-GB&#10;en-US&#10;fr-FR&#10;x-default">${(current.hreflangAgreedValues || []).join("\n")}</textarea>
-
-      <div class="card" style="margin-top:14px">
-        <h3>Hreflang reference</h3>
-        <p class="muted small">
-          The list above is a project-specific allow-list, not a list of locales that must be present.
-          Valid language/region combinations such as en-GB are checked independently against the language and region standards.
-        </p>
-
-        <div class="row" style="margin:10px 0">
-          <button id="appendXDefaultHreflang" class="secondary" type="button">
-            Add x-default
-          </button>
-        </div>
-
-        <details class="control-panel">
-          <summary>Show all language codes</summary>
-          <div class="control-panel-body">
-            <pre>${HREFLANG_LANGUAGE_CODES.join("\n")}</pre>
-          </div>
-        </details>
-
-        <details class="control-panel">
-          <summary>Show all region codes</summary>
-          <div class="control-panel-body">
-            <pre>${HREFLANG_REGION_CODES.join("\n")}</pre>
-          </div>
-        </details>
-
-        <details class="control-panel">
-          <summary>Common region / script examples</summary>
-          <div class="control-panel-body">
-            <pre>${HREFLANG_SPECIAL_EXAMPLES.join("\n")}</pre>
-          </div>
-        </details>
-      </div>
-    </section>
-
-    <section>
-      <div class="section-kicker">Advanced</div><h2>Model prompts</h2>
-
-      ${Object.entries(current.prompts)
-        .map(
-          ([task, p]) => `
-            <div class="card">
-              <h3>${task}</h3>
-
-              <label class="block">
-                System prompt
-                <textarea data-prompt="${task}" data-part="system">${p.system}</textarea>
+                <input id="nanoEnabled" type="checkbox" ${current.providers.nano.enabled ? "checked" : ""}>
+                Use Nano by default
               </label>
 
               <label class="block">
-                User prompt template
-                <textarea data-prompt="${task}" data-part="user">${p.user}</textarea>
+                Nano temperature
+                <input id="nanoTemp" type="number" step="0.1" value="${current.providers.nano.temperature}">
+              </label>
+
+              <label class="block">
+                Nano topK
+                <input id="nanoTopK" type="number" value="${current.providers.nano.topK}">
               </label>
             </div>
-          `
-        )
-        .join("")}
-    </section>
 
-    <section>
-      <div class="section-kicker">Advanced</div><h2>Deterministic issue profiles</h2>
+            <div>
+              <label class="block">
+                <input id="geminiEnabled" type="checkbox" ${current.providers.gemini.enabled ? "checked" : ""}>
+                Use Gemini API by default
+              </label>
 
-      <p class="muted">
-        Each profile supplies a small trusted consequence map to model triage. The model receives only the profile for the finding being reviewed.
-      </p>
+              <label class="block">
+                Gemini model
+                <input id="geminiModel" type="text" value="${esc(current.providers.gemini.model)}">
+              </label>
 
-      ${Object.keys({
-        ...(current.falsePositiveGuidance || {}),
-        ...(current.deterministicImpactProfiles || {})
-      })
-        .sort()
-        .map(
-          code => {
-            const profile =
-              current.deterministicImpactProfiles?.[code] ||
-              {
-                impacts: [],
-                baselinePriority: "context-dependent",
-                consequence: ""
-              };
+              <label class="block">
+                Gemini API key
+                <input id="geminiKey" type="password" value="${esc(current.providers.gemini.apiKey)}">
+              </label>
 
-            const guidance =
-              current.falsePositiveGuidance?.[code] ||
-              "";
+              <label class="block">
+                <input id="openaiEnabled" type="checkbox" ${current.providers.openai.enabled ? "checked" : ""}>
+                Use OpenAI API by default
+              </label>
 
-            return `
-              <div class="card">
-                <h3>${code}</h3>
+              <label class="block">
+                OpenAI model
+                <input id="openaiModel" type="text" value="${esc(current.providers.openai.model)}">
+              </label>
 
-                <label class="block">
-                  Impact labels
-                  <input
-                    data-impact-labels="${code}"
-                    value="${(profile.impacts || []).join(", ")}"
-                    placeholder="Indexing, CTR, Accessibility"
-                  >
-                </label>
+              <label class="block">
+                OpenAI API key
+                <input id="openaiKey" type="password" value="${esc(current.providers.openai.apiKey)}">
+              </label>
+            </div>
+          </div>
 
-                <label class="block">
-                  Baseline priority
-                  <select data-impact-priority="${code}">
-                    ${["low","medium","high","context-dependent"]
-                      .map(
-                        value =>
-                          `<option value="${value}" ${profile.baselinePriority === value ? "selected" : ""}>${value}</option>`
-                      )
-                      .join("")}
-                  </select>
-                </label>
+          <div class="settings-subsection">
+            <h2>Page permissions</h2>
+            <p class="muted">
+              Nano SEO Lab normally uses Chrome's temporary page access, which means you need to invoke the extension on each tab before it can inspect that page.
+            </p>
 
-                <label class="block">
-                  Consequence summary
-                  <textarea data-impact-consequence="${code}">${profile.consequence || ""}</textarea>
-                </label>
+            <div class="card">
+              <label class="block">
+                <input id="allowAllWebsites" type="checkbox" ${allowAllWebsites ? "checked" : ""}>
+                Allow all websites
+              </label>
 
-                <label class="block">
-                  Model edge-case guidance
-                  <textarea data-guidance="${code}">${guidance}</textarea>
-                </label>
+              <p class="muted small" style="margin-bottom:0">
+                When enabled, Chrome grants persistent access to ordinary HTTP and HTTPS pages so Nano SEO Lab can analyse newly-opened tabs without requiring another toolbar click.
+                This does not apply to protected browser pages such as chrome:// URLs.
+              </p>
+
+              <div id="websiteAccessStatus" class="small" style="margin-top:8px"></div>
+            </div>
+          </div>
+        </div>
+      </details>
+
+      <details class="settings-group">
+        <summary>
+          <span>
+            <span class="section-kicker">Analysis workflow</span>
+            <strong>Run stages and processing limits</strong>
+            <small>Control what Run analysis does and how much work each batch can perform.</small>
+          </span>
+        </summary>
+        <div class="settings-group-body">
+          <h2>Run analysis</h2>
+
+          <p class="muted">
+            Choose which stages run when you click Run analysis. Reading the page and running the automated checks always happens first.
+            Alignment only runs when both Page type and Intent are enabled.
+          </p>
+
+          <div class="grid">
+            ${[
+              ["linkContext", "Understand link roles"],
+              ["pageType", "Page type"],
+              ["intent", "Intent"],
+              ["alignment", "Check page type ↔ intent alignment"],
+              ["triageFindings", "Review flagged checks with model context"],
+              ["domDiff", "Compare server HTML with rendered page"],
+              ["urlConsistency", "Review URL and page-identity signals"]
+            ]
+              .map(
+                ([key, label]) => `
+                  <label class="block">
+                    <input
+                      data-analyse-all="${key}"
+                      type="checkbox"
+                      ${current.analyseAll?.[key] ? "checked" : ""}
+                    >
+                    ${label}
+                  </label>
+                `
+              )
+              .join("")}
+          </div>
+
+          <p class="muted small">
+            Server/rendered comparison defaults to off because it makes an extra same-origin request and is best used as a deliberate rendering test.
+          </p>
+
+          <div class="settings-subsection">
+            <h2>Processing limits</h2>
+            <div class="grid">
+              ${Object.entries(current.limits)
+                .map(
+                  ([k, v]) =>
+                    `<label class="block">${k}<input data-limit="${k}" type="number" value="${v}"></label>`
+                )
+                .join("")}
+            </div>
+          </div>
+        </div>
+      </details>
+
+      <details class="settings-group">
+        <summary>
+          <span>
+            <span class="section-kicker">Evidence & locales</span>
+            <strong>Semantic weighting and hreflang policy</strong>
+            <small>Configure how page evidence is weighted and any project-specific locale allow-list.</small>
+          </span>
+        </summary>
+        <div class="settings-group-body">
+          <h2>Semantic importance</h2>
+
+          <p class="muted">
+            Shared guidance that tells models which parts of the page matter most when making contextual judgements.
+          </p>
+
+          <label class="block">
+            Global semantic-importance guidance
+            <textarea id="semanticImportanceGuidance">${esc(current.semanticImportanceGuidance)}</textarea>
+          </label>
+
+          <div class="grid">
+            ${Object.entries(current.semanticWeights)
+              .map(
+                ([k, v]) =>
+                  `<label class="block">${k}<input data-semantic-weight="${k}" type="number" step="0.05" value="${v}"></label>`
+              )
+              .join("")}
+          </div>
+
+          <div class="settings-subsection">
+            <h2>Hreflang allow-list</h2>
+
+            <p class="muted">
+              One value per line. This is an optional project-specific allow-list, not a list of locales that must be present.
+            </p>
+
+            <textarea id="hreflangAgreedValues" placeholder="en-GB&#10;en-US&#10;fr-FR&#10;x-default">${(current.hreflangAgreedValues || []).map(esc).join("\n")}</textarea>
+
+            <div class="row" style="margin-top:10px">
+              <button id="appendXDefaultHreflang" class="secondary" type="button">
+                Add x-default
+              </button>
+            </div>
+
+            <details class="control-panel">
+              <summary>Hreflang reference</summary>
+              <div class="control-panel-body">
+                <p class="muted small">
+                  Valid language/region combinations such as en-GB are checked independently against language and region standards.
+                </p>
+
+                <details class="subdetails">
+                  <summary>All language codes</summary>
+                  <pre>${HREFLANG_LANGUAGE_CODES.join("\n")}</pre>
+                </details>
+
+                <details class="subdetails">
+                  <summary>All region codes</summary>
+                  <pre>${HREFLANG_REGION_CODES.join("\n")}</pre>
+                </details>
+
+                <details class="subdetails">
+                  <summary>Common region / script examples</summary>
+                  <pre>${HREFLANG_SPECIAL_EXAMPLES.join("\n")}</pre>
+                </details>
               </div>
-            `;
-          }
-        )
-        .join("")}
-    </section>
+            </details>
+          </div>
+        </div>
+      </details>
+
+      <details class="settings-group">
+        <summary>
+          <span>
+            <span class="section-kicker">Site-specific rules</span>
+            <strong>Hostname check exclusions</strong>
+            <small>Suppress known or non-actionable findings before model triage.</small>
+          </span>
+        </summary>
+        <div class="settings-group-body">
+          <h2>Site check exclusions</h2>
+
+          <p class="muted">
+            One profile per line:
+            <code>hostname | check_code, check_code | optional note</code>
+          </p>
+
+          <textarea
+            id="siteCheckExclusions"
+            placeholder="www.example.com | title_length, meta_description_length | CMS constraint&#10;*.example.co.uk | canonical_relative_href | known platform behaviour"
+          >${(current.siteCheckExclusions || []).map(profile => [profile.hostname, (profile.checks || []).join(", "), profile.note || ""].join(" | ").replace(/ \| $/, "")).map(esc).join("\n")}</textarea>
+
+          <p class="muted small">
+            Exact hostnames and <code>*.example.com</code> wildcards are supported. Excluded checks remain visible for traceability but are not treated as findings, triaged by a model, or added to prioritised actions.
+          </p>
+
+          <details class="control-panel">
+            <summary>Available check IDs</summary>
+            <div class="control-panel-body">
+              <pre>${exclusionCheckIds.join("\n")}</pre>
+            </div>
+          </details>
+        </div>
+      </details>
+
+      <details class="settings-group">
+        <summary>
+          <span>
+            <span class="section-kicker">Issue profiles</span>
+            <strong>Deterministic impact and consequence mapping</strong>
+            <small>Edit baseline impact, priority and model edge-case guidance for each check.</small>
+          </span>
+        </summary>
+        <div class="settings-group-body">
+          <p class="muted">
+            Only the profile for the finding being reviewed is added to that model call.
+          </p>
+
+          <div class="settings-nested-list">
+            ${issueProfileCodes
+              .map(
+                code => {
+                  const profile =
+                    current.deterministicImpactProfiles?.[code] ||
+                    {
+                      impacts: [],
+                      baselinePriority: "context-dependent",
+                      consequence: ""
+                    };
+
+                  const guidance =
+                    current.falsePositiveGuidance?.[code] ||
+                    "";
+
+                  return `
+                    <details class="settings-nested">
+                      <summary>${esc(code)}</summary>
+                      <div class="settings-nested-body">
+                        <label class="block">
+                          Impact labels
+                          <input
+                            data-impact-labels="${esc(code)}"
+                            value="${esc((profile.impacts || []).join(", "))}"
+                            placeholder="Indexing, CTR, Accessibility"
+                          >
+                        </label>
+
+                        <label class="block">
+                          Baseline priority
+                          <select data-impact-priority="${esc(code)}">
+                            ${["low","medium","high","context-dependent"]
+                              .map(
+                                value =>
+                                  `<option value="${value}" ${profile.baselinePriority === value ? "selected" : ""}>${value}</option>`
+                              )
+                              .join("")}
+                          </select>
+                        </label>
+
+                        <label class="block">
+                          Consequence summary
+                          <textarea data-impact-consequence="${esc(code)}">${esc(profile.consequence || "")}</textarea>
+                        </label>
+
+                        <label class="block">
+                          Model edge-case guidance
+                          <textarea data-guidance="${esc(code)}">${esc(guidance)}</textarea>
+                        </label>
+                      </div>
+                    </details>
+                  `;
+                }
+              )
+              .join("")}
+          </div>
+        </div>
+      </details>
+
+      <details class="settings-group">
+        <summary>
+          <span>
+            <span class="section-kicker">Advanced</span>
+            <strong>Model prompts</strong>
+            <small>Edit task-specific system and user prompts.</small>
+          </span>
+        </summary>
+        <div class="settings-group-body">
+          <div class="settings-nested-list">
+            ${Object.entries(current.prompts)
+              .map(
+                ([task, p]) => `
+                  <details class="settings-nested">
+                    <summary>${esc(task)}</summary>
+                    <div class="settings-nested-body">
+                      <label class="block">
+                        System prompt
+                        <textarea data-prompt="${esc(task)}" data-part="system">${esc(p.system)}</textarea>
+                      </label>
+
+                      <label class="block">
+                        User prompt template
+                        <textarea data-prompt="${esc(task)}" data-part="user">${esc(p.user)}</textarea>
+                      </label>
+                    </div>
+                  </details>
+                `
+              )
+              .join("")}
+          </div>
+        </div>
+      </details>
+    </div>
   `;
 }
 
