@@ -7863,6 +7863,671 @@ async function buildDomDiff() {
             : 0;
         };
 
+
+        const wordTokens = (
+          value
+        ) =>
+          (
+            normaliseText(
+              value
+            )
+              .toLowerCase()
+              .match(
+                /[\p{L}\p{N}]+(?:['’\-][\p{L}\p{N}]+)*/gu
+              ) ||
+            []
+          );
+
+        const tokenCounts = (
+          tokens
+        ) => {
+          const counts =
+            new Map();
+
+          for (
+            const token
+            of tokens
+          ) {
+            counts.set(
+              token,
+              (
+                counts.get(
+                  token
+                ) ||
+                0
+              ) +
+                1
+            );
+          }
+
+          return counts;
+        };
+
+        const tokenDelta = (
+          beforeTokens,
+          afterTokens
+        ) => {
+          const beforeCounts =
+            tokenCounts(
+              beforeTokens
+            );
+
+          const afterCounts =
+            tokenCounts(
+              afterTokens
+            );
+
+          let shared = 0;
+
+          const removed = [];
+          const added = [];
+
+          for (
+            const [
+              token,
+              count
+            ]
+            of beforeCounts
+          ) {
+            const afterCount =
+              afterCounts.get(
+                token
+              ) ||
+              0;
+
+            shared +=
+              Math.min(
+                count,
+                afterCount
+              );
+
+            const difference =
+              count -
+              afterCount;
+
+            if (
+              difference >
+              0
+            ) {
+              removed.push(
+                difference > 1
+                  ? token +
+                    " ×" +
+                    difference
+                  : token
+              );
+            }
+          }
+
+          for (
+            const [
+              token,
+              count
+            ]
+            of afterCounts
+          ) {
+            const beforeCount =
+              beforeCounts.get(
+                token
+              ) ||
+              0;
+
+            const difference =
+              count -
+              beforeCount;
+
+            if (
+              difference >
+              0
+            ) {
+              added.push(
+                difference > 1
+                  ? token +
+                    " ×" +
+                    difference
+                  : token
+              );
+            }
+          }
+
+          return {
+            shared_occurrences:
+              shared,
+            removed_terms:
+              removed.slice(
+                0,
+                16
+              ),
+            added_terms:
+              added.slice(
+                0,
+                16
+              )
+          };
+        };
+
+        const uniqueMatches = (
+          value,
+          regex
+        ) =>
+          [
+            ...new Set(
+              String(
+                value ||
+                ""
+              ).match(
+                regex
+              ) ||
+              []
+            )
+          ]
+            .slice(
+              0,
+              12
+            );
+
+        const signalDelta = (
+          beforeValues,
+          afterValues
+        ) => ({
+          removed:
+            beforeValues
+              .filter(
+                value =>
+                  !afterValues.includes(
+                    value
+                  )
+              ),
+          added:
+            afterValues
+              .filter(
+                value =>
+                  !beforeValues.includes(
+                    value
+                  )
+              )
+        });
+
+        const textTransformation = (
+          beforeValue,
+          afterValue
+        ) => {
+          const before =
+            normaliseText(
+              beforeValue
+            );
+
+          const after =
+            normaliseText(
+              afterValue
+            );
+
+          const beforeTokens =
+            wordTokens(
+              before
+            );
+
+          const afterTokens =
+            wordTokens(
+              after
+            );
+
+          const delta =
+            tokenDelta(
+              beforeTokens,
+              afterTokens
+            );
+
+          const beforeSignals = {
+            numbers:
+              uniqueMatches(
+                before,
+                /\b\d+(?:[.,]\d+)*\b/g
+              ),
+            currency:
+              uniqueMatches(
+                before,
+                /(?:[$£€¥]\s?\d[\d,.]*|\b\d[\d,.]*\s?(?:USD|GBP|EUR|JPY)\b)/gi
+              ),
+            percentages:
+              uniqueMatches(
+                before,
+                /\b\d+(?:[.,]\d+)?%/g
+              ),
+            date_like:
+              uniqueMatches(
+                before,
+                /\b\d{1,4}[\/-]\d{1,2}(?:[\/-]\d{1,4})?\b/g
+              )
+          };
+
+          const afterSignals = {
+            numbers:
+              uniqueMatches(
+                after,
+                /\b\d+(?:[.,]\d+)*\b/g
+              ),
+            currency:
+              uniqueMatches(
+                after,
+                /(?:[$£€¥]\s?\d[\d,.]*|\b\d[\d,.]*\s?(?:USD|GBP|EUR|JPY)\b)/gi
+              ),
+            percentages:
+              uniqueMatches(
+                after,
+                /\b\d+(?:[.,]\d+)?%/g
+              ),
+            date_like:
+              uniqueMatches(
+                after,
+                /\b\d{1,4}[\/-]\d{1,2}(?:[\/-]\d{1,4})?\b/g
+              )
+          };
+
+          const originalRetention =
+            beforeTokens.length
+              ? delta.shared_occurrences /
+                beforeTokens.length
+              : afterTokens.length
+                ? 0
+                : 1;
+
+          const shorterRetention =
+            Math.min(
+              beforeTokens.length,
+              afterTokens.length
+            )
+              ? delta.shared_occurrences /
+                Math.min(
+                  beforeTokens.length,
+                  afterTokens.length
+                )
+              : beforeTokens.length ===
+                  afterTokens.length
+                ? 1
+                : 0;
+
+          return {
+            changed:
+              before.toLowerCase() !==
+              after.toLowerCase(),
+            before_chars:
+              before.length,
+            after_chars:
+              after.length,
+            char_delta:
+              after.length -
+              before.length,
+            before_words:
+              beforeTokens.length,
+            after_words:
+              afterTokens.length,
+            word_delta:
+              afterTokens.length -
+              beforeTokens.length,
+            shared_word_occurrences:
+              delta.shared_occurrences,
+            original_word_retention:
+              Number(
+                originalRetention
+                  .toFixed(
+                    3
+                  )
+              ),
+            shorter_text_word_retention:
+              Number(
+                shorterRetention
+                  .toFixed(
+                    3
+                  )
+              ),
+            token_jaccard:
+              Number(
+                tokenSimilarity(
+                  before,
+                  after
+                )
+                  .toFixed(
+                    3
+                  )
+              ),
+            added_terms:
+              delta.added_terms,
+            removed_terms:
+              delta.removed_terms,
+            factual_tokens: {
+              numbers:
+                signalDelta(
+                  beforeSignals
+                    .numbers,
+                  afterSignals
+                    .numbers
+                ),
+              currency:
+                signalDelta(
+                  beforeSignals
+                    .currency,
+                  afterSignals
+                    .currency
+                ),
+              percentages:
+                signalDelta(
+                  beforeSignals
+                    .percentages,
+                  afterSignals
+                    .percentages
+                ),
+              date_like:
+                signalDelta(
+                  beforeSignals
+                    .date_like,
+                  afterSignals
+                    .date_like
+                )
+            }
+          };
+        };
+
+        const urlTransformation = (
+          beforeValue,
+          afterValue
+        ) => {
+          const empty = {
+            comparable:
+              false
+          };
+
+          if (
+            !beforeValue ||
+            !afterValue
+          ) {
+            return empty;
+          }
+
+          try {
+            const before =
+              new URL(
+                beforeValue
+              );
+
+            const after =
+              new URL(
+                afterValue
+              );
+
+            const beforeSegments =
+              before.pathname
+                .split(
+                  "/"
+                )
+                .filter(Boolean);
+
+            const afterSegments =
+              after.pathname
+                .split(
+                  "/"
+                )
+                .filter(Boolean);
+
+            let sharedTerminal =
+              0;
+
+            while (
+              sharedTerminal <
+                beforeSegments.length &&
+              sharedTerminal <
+                afterSegments.length &&
+              beforeSegments[
+                beforeSegments.length -
+                1 -
+                sharedTerminal
+              ] ===
+                afterSegments[
+                  afterSegments.length -
+                  1 -
+                  sharedTerminal
+                ]
+            ) {
+              sharedTerminal +=
+                1;
+            }
+
+            const shorterPathLength =
+              Math.min(
+                beforeSegments.length,
+                afterSegments.length
+              );
+
+            const beforeIsTerminalSuffix =
+              beforeSegments.length <
+                afterSegments.length &&
+              sharedTerminal ===
+                beforeSegments.length;
+
+            const afterIsTerminalSuffix =
+              afterSegments.length <
+                beforeSegments.length &&
+              sharedTerminal ===
+                afterSegments.length;
+
+            const beforeQueryKeys =
+              [
+                ...new Set(
+                  [
+                    ...before
+                      .searchParams
+                      .keys()
+                  ]
+                )
+              ];
+
+            const afterQueryKeys =
+              [
+                ...new Set(
+                  [
+                    ...after
+                      .searchParams
+                      .keys()
+                  ]
+                )
+              ];
+
+            const trimSlash =
+              value =>
+                value.length > 1
+                  ? value.replace(
+                      /\/+$/,
+                      ""
+                    )
+                  : value;
+
+            return {
+              comparable:
+                true,
+              same_scheme:
+                before.protocol ===
+                after.protocol,
+              same_host:
+                before.hostname ===
+                after.hostname,
+              same_origin:
+                before.origin ===
+                after.origin,
+              scheme_changed:
+                before.protocol !==
+                after.protocol,
+              host_changed:
+                before.hostname !==
+                after.hostname,
+              port_changed:
+                before.port !==
+                after.port,
+              path_changed:
+                before.pathname !==
+                after.pathname,
+              normalised_path_same:
+                trimSlash(
+                  before.pathname
+                ) ===
+                trimSlash(
+                  after.pathname
+                ),
+              query_changed:
+                before.search !==
+                after.search,
+              fragment_changed:
+                before.hash !==
+                after.hash,
+              before_path_segments:
+                beforeSegments.length,
+              after_path_segments:
+                afterSegments.length,
+              shared_terminal_path_segments:
+                sharedTerminal,
+              shorter_path_terminal_retention:
+                shorterPathLength
+                  ? Number(
+                      (
+                        sharedTerminal /
+                        shorterPathLength
+                      ).toFixed(
+                        3
+                      )
+                    )
+                  : beforeSegments.length ===
+                      afterSegments.length
+                    ? 1
+                    : 0,
+              added_path_prefix:
+                beforeIsTerminalSuffix
+                  ? afterSegments
+                      .slice(
+                        0,
+                        afterSegments.length -
+                          beforeSegments.length
+                      )
+                  : [],
+              removed_path_prefix:
+                afterIsTerminalSuffix
+                  ? beforeSegments
+                      .slice(
+                        0,
+                        beforeSegments.length -
+                          afterSegments.length
+                      )
+                  : [],
+              query_keys_added:
+                afterQueryKeys
+                  .filter(
+                    key =>
+                      !beforeQueryKeys.includes(
+                        key
+                      )
+                  ),
+              query_keys_removed:
+                beforeQueryKeys
+                  .filter(
+                    key =>
+                      !afterQueryKeys.includes(
+                        key
+                      )
+                  )
+            };
+          } catch {
+            return empty;
+          }
+        };
+
+        const transformationFingerprint = (
+          kind,
+          rawValue,
+          renderedValue
+        ) => {
+          const rawObject =
+            rawValue &&
+            typeof rawValue ===
+              "object"
+              ? rawValue
+              : {};
+
+          const renderedObject =
+            renderedValue &&
+            typeof renderedValue ===
+              "object"
+              ? renderedValue
+              : {};
+
+          const rawText =
+            rawValue &&
+            typeof rawValue ===
+              "object"
+              ? rawObject.text ||
+                ""
+              : rawValue ||
+                "";
+
+          const renderedText =
+            renderedValue &&
+            typeof renderedValue ===
+              "object"
+              ? renderedObject.text ||
+                ""
+              : renderedValue ||
+                "";
+
+          const fingerprint = {
+            text:
+              textTransformation(
+                rawText,
+                renderedText
+              )
+          };
+
+          if (
+            kind ===
+            "heading"
+          ) {
+            fingerprint.heading = {
+              before_level:
+                String(
+                  rawObject.level ||
+                  rawObject.element
+                    ?.tag ||
+                  ""
+                ).toLowerCase(),
+              after_level:
+                String(
+                  renderedObject.level ||
+                  renderedObject.element
+                    ?.tag ||
+                  ""
+                ).toLowerCase()
+            };
+
+            fingerprint.heading
+              .level_changed =
+                fingerprint.heading
+                  .before_level !==
+                fingerprint.heading
+                  .after_level;
+          }
+
+          if (
+            kind ===
+            "link"
+          ) {
+            fingerprint.url =
+              urlTransformation(
+                rawObject.href ||
+                  "",
+                renderedObject.href ||
+                  ""
+              );
+          }
+
+          return fingerprint;
+        };
+
         const pairCandidate = (
           removed,
           added
@@ -8131,6 +8796,90 @@ async function buildDomDiff() {
               .id
           );
 
+          const alternatives =
+            candidates
+              .filter(
+                other =>
+                  other !==
+                    candidate &&
+                  (
+                    other.removed.id ===
+                      candidate.removed.id ||
+                    other.added.id ===
+                      candidate.added.id
+                  )
+              );
+
+          const strongestAlternative =
+            alternatives.length
+              ? Math.max(
+                  ...alternatives.map(
+                    other =>
+                      other.score
+                  )
+                )
+              : 0;
+
+          const nearCompetitors =
+            alternatives.filter(
+              other =>
+                other.score >=
+                candidate.score -
+                  0.03
+            ).length;
+
+          const pairingConfidence =
+            candidate.score >=
+              0.95 &&
+            nearCompetitors ===
+              0
+              ? "high"
+              : candidate.score >=
+                    0.92 &&
+                  nearCompetitors <=
+                    1
+                ? "medium"
+                : "low";
+
+          const sameSelector =
+            !!(
+              comparableSelector(
+                candidate.removed.raw
+              ) &&
+              comparableSelector(
+                candidate.removed.raw
+              ) ===
+                comparableSelector(
+                  candidate.added.rendered
+                )
+            );
+
+          const sameText =
+            !!(
+              comparableText(
+                candidate.removed.raw
+              ) &&
+              comparableText(
+                candidate.removed.raw
+              ) ===
+                comparableText(
+                  candidate.added.rendered
+                )
+            );
+
+          const sameDestination =
+            !!(
+              comparableHref(
+                candidate.removed.raw
+              ) &&
+              comparableHref(
+                candidate.removed.raw
+              ) ===
+                comparableHref(
+                  candidate.added.rendered
+                )
+            );
+
           reconciledItems.push({
             id:
               Math.min(
@@ -8171,6 +8920,23 @@ async function buildDomDiff() {
               reason:
                 candidate
                   .reason,
+              confidence:
+                pairingConfidence,
+              near_competitors:
+                nearCompetitors,
+              strongest_alternative_score:
+                Number(
+                  strongestAlternative
+                    .toFixed(
+                      3
+                    )
+                ),
+              same_selector:
+                sameSelector,
+              same_text:
+                sameText,
+              same_destination:
+                sameDestination,
               source_ids: [
                 candidate
                   .removed
@@ -8179,7 +8945,13 @@ async function buildDomDiff() {
                   .added
                   .id
               ]
-            }
+            },
+            transformation:
+              transformationFingerprint(
+                candidate.removed.kind,
+                candidate.removed.raw,
+                candidate.added.rendered
+              )
           });
         }
 
@@ -8434,6 +9206,30 @@ async function buildDomDiff() {
             "Heading structure changed without a clear net topic change.";
 
           if (
+            item.change_type ===
+            "changed_in_rendered"
+          ) {
+            if (
+              h1LevelChange ||
+              (
+                textChanged &&
+                textSimilarity <
+                  0.9
+              )
+            ) {
+              significance =
+                "medium";
+
+              reason =
+                "The same logical heading was reconciled across server and rendered versions. Its text and/or level changed; use the transformation fingerprint and page context to judge the consequence.";
+            } else {
+              significance =
+                "low";
+
+              reason =
+                "The same logical heading was reconciled and only a small text/level transformation was observed.";
+            }
+          } else if (
             !textChanged &&
             levelChanged
           ) {
@@ -8675,6 +9471,30 @@ async function buildDomDiff() {
             "Link change does not materially alter destination discovery or anchor semantics.";
 
           if (
+            item.change_type ===
+            "changed_in_rendered"
+          ) {
+            if (
+              destinationChanged
+            ) {
+              significance =
+                "medium";
+
+              reason =
+                "The same logical link was reconciled across server and rendered versions and its destination URL changed. The href change itself is not an impact judgement; use the URL transformation fingerprint and page context.";
+            } else if (
+              anchorTextChanged
+            ) {
+              significance =
+                anchorSimilarity >=
+                  0.9
+                  ? "low"
+                  : "medium";
+
+              reason =
+                "The same logical link was reconciled and its anchor text changed while the destination stayed the same. Use the text transformation fingerprint to judge whether link context materially changed.";
+            }
+          } else if (
             destinationAdded ||
             destinationRemoved
           ) {
