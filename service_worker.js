@@ -5519,6 +5519,7 @@ async function checkIndexabilitySignals(payload) {
     allowed: null,
     matchedRule: null,
     userAgent: "googlebot",
+    crawlers: [],
     error: null
   };
 
@@ -5535,13 +5536,20 @@ async function checkIndexabilitySignals(payload) {
       error: robotsResponse.error,
       allowed: null,
       matchedRule: null,
-      userAgent: "googlebot"
+      userAgent: "googlebot",
+      crawlers: []
     };
 
     if (!robotsResponse.error && Number(robotsResponse.status) >= 200 && Number(robotsResponse.status) < 300) {
       robotsTxt = {
         ...robotsTxt,
-        ...evaluateRobotsTxt(robotsResponse.text, current.finalUrl || url, "googlebot")
+        ...evaluateRobotsTxt(robotsResponse.text, current.finalUrl || url, "googlebot"),
+        crawlers:
+          evaluateCrawlerRobots(
+            robotsResponse.text,
+            current.finalUrl ||
+              url
+          )
       };
     } else if (
       !robotsResponse.error &&
@@ -5550,10 +5558,59 @@ async function checkIndexabilitySignals(payload) {
       Number(robotsResponse.status) !== 429
     ) {
       robotsTxt.allowed = true;
+      robotsTxt.crawlers =
+        AI_ROBOTS_PROFILES.map(
+          profile => ({
+            ...profile,
+            path:
+              (() => {
+                try {
+                  const u =
+                    new URL(
+                      current.finalUrl ||
+                      url
+                    );
+
+                  return (
+                    u.pathname +
+                    u.search
+                  );
+                } catch {
+                  return "/";
+                }
+              })(),
+            allowed:
+              true,
+            matchedRule:
+              null
+          })
+        );
     }
   } catch (error) {
     robotsTxt.error = String(error?.message || error);
   }
+
+  const headIntegrity =
+    current.error
+      ? {
+          present:
+            null,
+          explicitClose:
+            null,
+          likelyBreak:
+            null,
+          lost:
+            [],
+          declarations:
+            [],
+          message:
+            "Server HTML could not be inspected."
+        }
+      : scanSourceHeadIntegrity(
+          current.text,
+          current.finalUrl ||
+            url
+        );
 
   const preferredCanonical =
     rendered.canonicals?.[0] ||
@@ -5573,11 +5630,96 @@ async function checkIndexabilitySignals(payload) {
     canonicalTarget
   });
 
+  if (
+    headIntegrity.present ===
+    false
+  ) {
+    findings.push({
+      code:
+        "source_head_missing",
+      severity:
+        "high",
+      message:
+        "No explicit <head> start tag was found in the server HTML.",
+      evidence:
+        headIntegrity
+    });
+  } else if (
+    headIntegrity.likelyBreak
+  ) {
+    findings.push({
+      code:
+        "source_head_likely_break",
+      severity:
+        headIntegrity.lost.length
+          ? "high"
+          : "medium",
+      message:
+        headIntegrity.lost.length
+          ? "Source <head> is likely broken by <" +
+            headIntegrity.likelyBreak.tag +
+            "> and " +
+            headIntegrity.lost.length +
+            " later metadata declaration(s) may be displaced."
+          : "Source <head> contains a likely head-breaking <" +
+            headIntegrity.likelyBreak.tag +
+            "> element.",
+      evidence: {
+        break:
+          headIntegrity.likelyBreak,
+        affected:
+          headIntegrity.lost
+      }
+    });
+  } else if (
+    headIntegrity.present &&
+    !headIntegrity.explicitClose
+  ) {
+    findings.push({
+      code:
+        "source_head_missing_close",
+      severity:
+        "review",
+      message:
+        "No explicit </head> tag was found in the server HTML; browser parser recovery determines where head mode ends.",
+      evidence:
+        headIntegrity
+    });
+  }
+
+  const blockedAiCrawlers =
+    (
+      robotsTxt.crawlers ||
+      []
+    )
+      .filter(
+        crawler =>
+          crawler.allowed ===
+          false
+      );
+
+  if (
+    blockedAiCrawlers.length
+  ) {
+    findings.push({
+      code:
+        "ai_crawlers_blocked",
+      severity:
+        "review",
+      message:
+        blockedAiCrawlers.length +
+        " AI/search crawler control(s) are blocked for this URL by robots.txt.",
+      evidence:
+        blockedAiCrawlers
+    });
+  }
+
   const output = {
     checkedAt: new Date().toISOString(),
     rendered,
     current,
     robotsTxt,
+    headIntegrity,
     canonicalTarget,
     findings,
     summary: {
