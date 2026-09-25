@@ -5094,6 +5094,137 @@ function scanSourceHeadIntegrity(html, baseUrl) {
           };
         }
 
+        const swallowed =
+          fragment.slice(
+            cursor
+          );
+
+        const swallowedPattern =
+          /<(meta|link|base|title|script)\b[^>]*>/gi;
+
+        let swallowedMatch;
+
+        while (
+          (
+            swallowedMatch =
+              swallowedPattern.exec(
+                swallowed
+              )
+          )
+        ) {
+          const swallowedTag =
+            swallowedMatch[1]
+              .toLowerCase();
+
+          const swallowedToken =
+            swallowedMatch[0];
+
+          const attrs =
+            parseTagAttributes(
+              swallowedToken
+            );
+
+          let kind =
+            swallowedTag;
+
+          let value = "";
+
+          if (
+            swallowedTag ===
+            "meta"
+          ) {
+            const name =
+              String(
+                attrs.name ||
+                attrs.property ||
+                attrs["http-equiv"] ||
+                ""
+              ).toLowerCase();
+
+            kind =
+              name
+                ? `meta:${name}`
+                : "meta";
+
+            value =
+              attrs.content ||
+              "";
+          } else if (
+            swallowedTag ===
+            "link"
+          ) {
+            const rel =
+              String(
+                attrs.rel ||
+                ""
+              ).toLowerCase();
+
+            kind =
+              rel
+                ? `link:${rel}`
+                : "link";
+
+            value =
+              attrs.href ||
+              "";
+          } else if (
+            swallowedTag ===
+            "base"
+          ) {
+            value =
+              attrs.href ||
+              "";
+          } else if (
+            swallowedTag ===
+            "script"
+          ) {
+            kind =
+              String(
+                attrs.type ||
+                ""
+              ).toLowerCase() ===
+              "application/ld+json"
+                ? "jsonld"
+                : "script";
+
+            value =
+              attrs.src ||
+              "";
+          }
+
+          declarations.push({
+            kind,
+            tag:
+              swallowedTag,
+            offset:
+              headStart +
+              cursor +
+              swallowedMatch.index,
+            afterLikelyBreak:
+              true,
+            swallowedAsText:
+              true,
+            value:
+              String(
+                value ||
+                ""
+              ).slice(
+                0,
+                300
+              ),
+            excerpt:
+              swallowedToken
+                .replace(
+                  /\s+/g,
+                  " "
+                )
+                .slice(
+                  0,
+                  260
+                )
+          });
+        }
+
         break;
       }
     }
