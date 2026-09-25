@@ -320,6 +320,30 @@ function render() {
     </section>
 
     <section>
+      <div class="section-kicker">Audit profiles</div><h2>Site check exclusions</h2>
+
+      <p class="muted">
+        Suppress known or non-actionable deterministic findings for specific hostnames before they are sent to a model.
+        One profile per line: <code>hostname | check_code, check_code | optional note</code>
+      </p>
+
+      <textarea
+        id="siteCheckExclusions"
+        placeholder="www.example.com | title_length, meta_description_length | CMS constraint&#10;*.example.co.uk | canonical_relative_href | known platform behaviour"
+      >${(current.siteCheckExclusions || []).map(profile => [profile.hostname, (profile.checks || []).join(", "), profile.note || ""].join(" | ").replace(/ \| $/, "")).join("\n")}</textarea>
+
+      <p class="muted small">
+        Exact hostnames and <code>*.example.com</code> wildcards are supported. Excluded checks remain visible for traceability but are not treated as findings, triaged by a model, or added to prioritised actions.
+      </p>
+
+      <details class="control-panel">
+        <summary>Available check IDs</summary>
+        <div class="control-panel-body">
+          <pre>${[...new Set([...Object.keys(current.falsePositiveGuidance || {}), ...["raw_rendered_canonical_conflict","http_rendered_canonical_conflict","http_raw_canonical_conflict","raw_rendered_robots_conflict","http_html_robots_conflict","current_response_non_2xx","http_x_robots_noindex","robots_blocks_noindex_discovery","robots_txt_blocked","current_response_redirect","redirect_canonical_conflict","canonical_target_request_error","canonical_target_non_2xx","canonical_target_redirect","canonical_target_noindex","canonical_target_canonicalises_elsewhere","source_head_missing","source_head_likely_break","source_head_missing_close","ai_crawlers_blocked"]])].sort().join("\n")}</pre>
+        </div>
+      </details>
+    </section>
+    <section>
       <div class="section-kicker">Locales</div><h2>Agreed hreflang values</h2>
 
       <p class="muted">
@@ -502,6 +526,56 @@ function collect() {
       .split(/\r?\n|,/)
       .map(x => x.trim())
       .filter(Boolean);
+
+  current.siteCheckExclusions =
+    document.querySelector(
+      "#siteCheckExclusions"
+    )
+      .value
+      .split(/\r?\n/)
+      .map(
+        line => {
+          const parts =
+            line
+              .split("|")
+              .map(
+                part =>
+                  part.trim()
+              );
+
+          const hostname =
+            parts.shift() ||
+            "";
+
+          const checks =
+            (
+              parts.shift() ||
+              ""
+            )
+              .split(",")
+              .map(
+                code =>
+                  code.trim()
+              )
+              .filter(Boolean);
+
+          const note =
+            parts
+              .join(" | ")
+              .trim();
+
+          return {
+            hostname,
+            checks,
+            note
+          };
+        }
+      )
+      .filter(
+        profile =>
+          profile.hostname &&
+          profile.checks.length
+      );
 
   document
     .querySelectorAll(

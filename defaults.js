@@ -101,6 +101,8 @@ A heading is not important merely because it is an H1/H2/H3. Its importance depe
 
   hreflangAgreedValues: [],
 
+  siteCheckExclusions: [],
+
   analyseAll: {
     linkContext: true,
     pageType: true,
@@ -803,6 +805,51 @@ function mergeSettings(saved = {}) {
         ? []
         : savedHreflangs;
   }
+  if (
+    Array.isArray(
+      saved.siteCheckExclusions
+    )
+  ) {
+    d.siteCheckExclusions =
+      saved.siteCheckExclusions
+        .map(
+          profile => ({
+            hostname:
+              String(
+                profile?.hostname ||
+                ""
+              ).trim(),
+            checks:
+              [
+                ...new Set(
+                  (
+                    profile?.checks ||
+                    []
+                  )
+                    .map(
+                      code =>
+                        String(
+                          code ||
+                          ""
+                        ).trim()
+                    )
+                    .filter(Boolean)
+                )
+              ],
+            note:
+              String(
+                profile?.note ||
+                ""
+              ).trim()
+          })
+        )
+        .filter(
+          profile =>
+            profile.hostname &&
+            profile.checks.length
+        );
+  }
+
 
   if (saved.analyseAll) {
     d.analyseAll = {

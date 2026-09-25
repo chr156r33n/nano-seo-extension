@@ -1544,7 +1544,10 @@ function makeSnapshotSummary(snapshot) {
         status:
           check.status,
         message:
-          check.message
+          check.message,
+        excludedBy:
+          check.excludedBy ||
+          null
       }));
 
   const domDiff =
@@ -1661,6 +1664,10 @@ async function createAnalysisRun(snapshot) {
       findings:
         snapshot.auditChecks
           ?.filter(x => x.status === "finding")
+          .length || 0,
+      excluded:
+        snapshot.auditChecks
+          ?.filter(x => x.status === "excluded")
           .length || 0
     },
     tasks: {}
@@ -2107,7 +2114,8 @@ async function captureActiveTab() {
         agreedHreflangs,
         maxSchemaUrlRefs,
         hreflangLanguageCodes,
-        hreflangRegionCodes
+        hreflangRegionCodes,
+        siteCheckExclusions
       ) => {
         const txt = (el) =>
           (el?.textContent || "")
@@ -3148,9 +3156,19 @@ async function captureActiveTab() {
           );
 
         const titleElementCount =
-          document.querySelectorAll(
-            "title"
-          ).length;
+          document.head
+            ? [
+                ...document.head.children
+              ]
+                .filter(
+                  el =>
+                    el.namespaceURI ===
+                      "http://www.w3.org/1999/xhtml" &&
+                    el.localName ===
+                      "title"
+                )
+                .length
+            : 0;
 
         const metaDescriptionCount =
           document.querySelectorAll(
@@ -4062,17 +4080,115 @@ async function captureActiveTab() {
 
         const auditChecks = [];
 
+        const hostnameMatches =
+          (
+            pattern,
+            hostname
+          ) => {
+            const p =
+              String(
+                pattern ||
+                ""
+              )
+                .trim()
+                .toLowerCase();
+
+            const h =
+              String(
+                hostname ||
+                ""
+              )
+                .trim()
+                .toLowerCase();
+
+            if (
+              !p ||
+              !h
+            ) {
+              return false;
+            }
+
+            if (
+              p.startsWith(
+                "*."
+              )
+            ) {
+              const suffix =
+                p.slice(
+                  2
+                );
+
+              return (
+                h === suffix ||
+                h.endsWith(
+                  "." +
+                  suffix
+                )
+              );
+            }
+
+            return h === p;
+          };
+
+        const matchingExclusionProfiles =
+          (
+            siteCheckExclusions ||
+            []
+          )
+            .filter(
+              profile =>
+                hostnameMatches(
+                  profile?.hostname,
+                  location.hostname
+                )
+            );
+
+        const exclusionForCheck =
+          code =>
+            matchingExclusionProfiles
+              .find(
+                profile =>
+                  (
+                    profile.checks ||
+                    []
+                  ).includes(
+                    code
+                  )
+              ) ||
+            null;
+
         const addCheck = (
           code,
           status,
           message,
           deterministicValue
         ) => {
+          const exclusion =
+            status ===
+              "finding"
+              ? exclusionForCheck(
+                  code
+                )
+              : null;
+
           auditChecks.push({
             code,
-            status,
+            status:
+              exclusion
+                ? "excluded"
+                : status,
             message,
-            deterministicValue
+            deterministicValue,
+            excludedBy:
+              exclusion
+                ? {
+                    hostname:
+                      exclusion.hostname,
+                    note:
+                      exclusion.note ||
+                      ""
+                  }
+                : null
           });
         };
 
@@ -4723,6 +4839,9 @@ async function captureActiveTab() {
 
           auditChecks,
 
+          siteCheckExclusionProfiles:
+            matchingExclusionProfiles,
+
           issues:
             findings,
 
@@ -4744,7 +4863,10 @@ async function captureActiveTab() {
           .limits
           .maxSchemaUrlRefs,
         HREFLANG_LANGUAGE_CODES,
-        HREFLANG_REGION_CODES
+        HREFLANG_REGION_CODES,
+        settings
+          .siteCheckExclusions ||
+          []
       ]
     });
   } catch (e) {
@@ -6253,6 +6375,101 @@ async function checkIndexabilitySignals(payload) {
     });
   }
 
+  const indexabilitySettings =
+    await getSettings();
+
+  let checkedHostname = "";
+
+  try {
+    checkedHostname =
+      new URL(
+        current.finalUrl ||
+        url
+      ).hostname;
+  } catch {}
+
+  const hostnameMatchesProfile =
+    (
+      pattern,
+      hostname
+    ) => {
+      const p =
+        String(
+          pattern ||
+          ""
+        )
+          .trim()
+          .toLowerCase();
+
+      const h =
+        String(
+          hostname ||
+          ""
+        )
+          .trim()
+          .toLowerCase();
+
+      if (!p || !h) {
+        return false;
+      }
+
+      if (
+        p.startsWith(
+          "*."
+        )
+      ) {
+        const suffix =
+          p.slice(
+            2
+          );
+
+        return (
+          h === suffix ||
+          h.endsWith(
+            "." +
+            suffix
+          )
+        );
+      }
+
+      return h === p;
+    };
+
+  for (
+    const finding
+    of findings
+  ) {
+    const exclusion =
+      (
+        indexabilitySettings
+          .siteCheckExclusions ||
+        []
+      )
+        .find(
+          profile =>
+            hostnameMatchesProfile(
+              profile?.hostname,
+              checkedHostname
+            ) &&
+            (
+              profile?.checks ||
+              []
+            ).includes(
+              finding.code
+            )
+        );
+
+    if (exclusion) {
+      finding.excludedBy = {
+        hostname:
+          exclusion.hostname,
+        note:
+          exclusion.note ||
+          ""
+      };
+    }
+  }
+
   const output = {
     checkedAt: new Date().toISOString(),
     rendered,
@@ -6262,9 +6479,30 @@ async function checkIndexabilitySignals(payload) {
     canonicalTarget,
     findings,
     summary: {
-      findings: findings.length,
-      high: findings.filter(item => item.severity === "high").length,
-      review: findings.filter(item => item.severity === "review").length,
+      findings:
+        findings.filter(
+          item =>
+            !item.excludedBy
+        ).length,
+      excluded:
+        findings.filter(
+          item =>
+            !!item.excludedBy
+        ).length,
+      high:
+        findings.filter(
+          item =>
+            !item.excludedBy &&
+            item.severity ===
+              "high"
+        ).length,
+      review:
+        findings.filter(
+          item =>
+            !item.excludedBy &&
+            item.severity ===
+              "review"
+        ).length,
       robotsAllowed: robotsTxt.allowed,
       effectiveNoindex:
         hasDirective(current?.xRobotsTag ? [current.xRobotsTag] : [], "noindex") ||
