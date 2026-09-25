@@ -3016,6 +3016,51 @@ async function captureActiveTab() {
               )
           );
 
+        const validHeadTags =
+          new Set([
+            "title",
+            "meta",
+            "link",
+            "script",
+            "style",
+            "base",
+            "noscript",
+            "template"
+          ]);
+
+        const renderedHeadInvalidElements =
+          [
+            ...(
+              document.head
+                ?.children ||
+              []
+            )
+          ]
+            .filter(
+              el =>
+                !validHeadTags.has(
+                  el.tagName
+                    .toLowerCase()
+                )
+            )
+            .map(
+              el => ({
+                tag:
+                  el.tagName
+                    .toLowerCase(),
+                html:
+                  el.outerHTML
+                    .replace(
+                      /\s+/g,
+                      " "
+                    )
+                    .slice(
+                      0,
+                      240
+                    )
+              })
+            );
+
         const robotsMetaValues =
           [
             ...document.querySelectorAll(
@@ -4033,6 +4078,17 @@ async function captureActiveTab() {
         );
 
         addCheck(
+          "rendered_head_invalid_element",
+          renderedHeadInvalidElements.length
+            ? "finding"
+            : "pass",
+          renderedHeadInvalidElements.length
+            ? `${renderedHeadInvalidElements.length} invalid element(s) are present in the rendered head`
+            : "Rendered head contains only valid metadata elements",
+          renderedHeadInvalidElements
+        );
+
+        addCheck(
           "robots_noindex",
           /noindex/i.test(
             robots
@@ -4466,6 +4522,8 @@ async function captureActiveTab() {
           canonicals,
 
           canonicalRawHrefs,
+
+          renderedHeadInvalidElements,
 
           robots,
 
