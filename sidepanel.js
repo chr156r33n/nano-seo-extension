@@ -62,6 +62,107 @@ function enabledProviders() {
     .map(x => x.dataset.provider);
 }
 
+
+function setMainTab(
+  tabId
+) {
+  document
+    .querySelectorAll(
+      "[data-main-tab]"
+    )
+    .forEach(
+      button => {
+        const active =
+          button.dataset
+            .mainTab ===
+          tabId;
+
+        button.classList
+          .toggle(
+            "active",
+            active
+          );
+
+        button.setAttribute(
+          "aria-selected",
+          active
+            ? "true"
+            : "false"
+        );
+      }
+    );
+
+  document
+    .querySelectorAll(
+      "[data-main-panel]"
+    )
+    .forEach(
+      panel => {
+        const active =
+          panel.dataset
+            .mainPanel ===
+          tabId;
+
+        panel.classList
+          .toggle(
+            "active",
+            active
+          );
+
+        panel.hidden =
+          !active;
+      }
+    );
+
+  try {
+    sessionStorage.setItem(
+      "nanoSeoMainTab",
+      tabId
+    );
+  } catch {}
+}
+
+function bindMainTabs() {
+  document
+    .querySelectorAll(
+      "[data-main-tab]"
+    )
+    .forEach(
+      button => {
+        button.onclick =
+          () =>
+            setMainTab(
+              button.dataset
+                .mainTab
+            );
+      }
+    );
+
+  let initial =
+    "overview";
+
+  try {
+    const saved =
+      sessionStorage.getItem(
+        "nanoSeoMainTab"
+      );
+
+    if (
+      saved &&
+      document.querySelector(
+        `[data-main-panel="${saved}"]`
+      )
+    ) {
+      initial =
+        saved;
+    }
+  } catch {}
+
+  setMainTab(
+    initial
+  );
+}
+
 function renderProviders() {
   const box = $("#providers");
   box.innerHTML = "";
@@ -5108,6 +5209,7 @@ async function analyseAll() {
 async function load() {
   settings = await sw({type: "GET_SETTINGS"});
   renderProviders();
+bindMainTabs();
   initialiseBatchControls();
 
   const ctx = await sw({type: "GET_LAST_CONTEXT"});
