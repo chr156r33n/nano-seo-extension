@@ -233,10 +233,13 @@ For reconciled items:
 Do not treat a changed href, anchor text, heading, or content block as inherently harmful merely because it changed.
 
 For links:
+- use raw.local_context / rendered.local_context to identify the local card, property, product or surrounding content associated with the link
 - use transformation.url to understand same-origin/host/scheme relationships, path retention, query changes and path-prefix changes
 - structural URL similarity is evidence of relationship, not proof that two URLs resolve to the same content
 - use transformation.text for anchor-text changes
 - semantic weight describes page importance, not the severity of the implementation difference
+- never name a property, product, place or entity unless that name is explicitly present in the supplied before/after URL, anchor text or local context for that item
+- do not borrow identity/context from another diff item in the same batch
 
 For headings and content:
 - use transformation.text to distinguish minor wording changes from substantial replacement
