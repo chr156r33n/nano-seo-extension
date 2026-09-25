@@ -3813,6 +3813,55 @@ function domDiffItemCard(item) {
       ? '<div class="empty-state good-state" style="margin-top:8px">Resolved by the automated comparison · model review skipped</div>'
       : ""}
 
+    ${(() => {
+      const rawContext =
+        item.raw &&
+        typeof item.raw === "object"
+          ? item.raw.local_context
+          : null;
+
+      const renderedContext =
+        item.rendered &&
+        typeof item.rendered === "object"
+          ? item.rendered.local_context
+          : null;
+
+      const context =
+        renderedContext ||
+        rawContext;
+
+      if (!context) {
+        return "";
+      }
+
+      const identityBits = [
+        context.heading
+          ? `Heading: ${context.heading}`
+          : "",
+        context.aria_label
+          ? `Label: ${context.aria_label}`
+          : "",
+        context.image_alt
+          ? `Image: ${context.image_alt}`
+          : ""
+      ].filter(Boolean);
+
+      return `
+        <div class="result-subsection">
+          <div class="result-label">Local element context</div>
+          ${identityBits.length
+            ? `<div class="small">${identityBits.map(bit => escapeHtml(bit)).join(" · ")}</div>`
+            : ""}
+          ${context.text
+            ? `<div class="muted small" style="margin-top:4px">${escapeHtml(context.text)}</div>`
+            : ""}
+          ${context.container_selector
+            ? `<div class="muted small" style="margin-top:4px">Container: <code>${escapeHtml(context.container_selector)}</code></div>`
+            : ""}
+        </div>
+      `;
+    })()}
+
     <div class="result-subsection">
       <div class="result-label">Change evidence</div>
       ${evidenceHtml}
