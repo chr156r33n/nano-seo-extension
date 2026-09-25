@@ -3818,12 +3818,73 @@ function domDiffItemCard(item) {
       ${evidenceHtml}
     </div>
 
+    ${item.transformation
+      ? `
+        <div class="result-subsection">
+          <div class="result-label">Transformation fingerprint</div>
+          <div class="finding-list">
+            ${item.kind === "link" && item.transformation.url?.comparable
+              ? `<div class="finding-row compact"><div>
+                  <div class="finding-title">URL relationship</div>
+                  <div class="muted small">
+                    Same origin: ${item.transformation.url.same_origin ? "yes" : "no"}
+                    · Same host: ${item.transformation.url.same_host ? "yes" : "no"}
+                    · Scheme changed: ${item.transformation.url.scheme_changed ? "yes" : "no"}
+                    · Path changed: ${item.transformation.url.path_changed ? "yes" : "no"}
+                    · Query changed: ${item.transformation.url.query_changed ? "yes" : "no"}
+                    · Shared terminal path: ${escapeHtml(item.transformation.url.shared_terminal_path_segments ?? 0)} segment(s)
+                    · Retention: ${escapeHtml(Math.round((item.transformation.url.shorter_path_terminal_retention ?? 0) * 100))}%
+                    ${item.transformation.url.added_path_prefix?.length ? ` · Added prefix: /${escapeHtml(item.transformation.url.added_path_prefix.join("/"))}/` : ""}
+                    ${item.transformation.url.removed_path_prefix?.length ? ` · Removed prefix: /${escapeHtml(item.transformation.url.removed_path_prefix.join("/"))}/` : ""}
+                  </div>
+                </div></div>`
+              : ""}
+            ${item.transformation.text?.changed
+              ? `<div class="finding-row compact"><div>
+                  <div class="finding-title">Text change</div>
+                  <div class="muted small">
+                    Words: ${escapeHtml(item.transformation.text.before_words ?? 0)} → ${escapeHtml(item.transformation.text.after_words ?? 0)}
+                    · Original retained: ${escapeHtml(Math.round((item.transformation.text.original_word_retention ?? 0) * 100))}%
+                    · Token overlap: ${escapeHtml(Math.round((item.transformation.text.token_jaccard ?? 0) * 100))}%
+                    ${item.transformation.text.added_terms?.length ? ` · Added: ${escapeHtml(item.transformation.text.added_terms.join(", "))}` : ""}
+                    ${item.transformation.text.removed_terms?.length ? ` · Removed: ${escapeHtml(item.transformation.text.removed_terms.join(", "))}` : ""}
+                  </div>
+                </div></div>`
+              : ""}
+            ${item.kind === "heading" && item.transformation.heading
+              ? `<div class="finding-row compact"><div>
+                  <div class="finding-title">Heading structure</div>
+                  <div class="muted small">
+                    ${escapeHtml((item.transformation.heading.before_level || "(unknown)").toUpperCase())}
+                    →
+                    ${escapeHtml((item.transformation.heading.after_level || "(unknown)").toUpperCase())}
+                    · Level changed: ${item.transformation.heading.level_changed ? "yes" : "no"}
+                  </div>
+                </div></div>`
+              : ""}
+            ${(() => {
+              const facts = item.transformation.text?.factual_tokens || {};
+              const changed = Object.entries(facts).filter(([,v]) => (v?.added?.length || v?.removed?.length));
+              return changed.length
+                ? `<div class="finding-row compact"><div>
+                    <div class="finding-title">Factual token changes</div>
+                    <div class="muted small">${changed.map(([k,v]) => `${escapeHtml(humanLabel(k))}: ${v.removed?.length ? "removed " + escapeHtml(v.removed.join(", ")) : ""}${v.removed?.length && v.added?.length ? " · " : ""}${v.added?.length ? "added " + escapeHtml(v.added.join(", ")) : ""}`).join(" · ")}</div>
+                  </div></div>`
+                : "";
+            })()}
+          </div>
+        </div>
+      `
+      : ""}
+
     ${item.reconciliation
       ? `
         <div class="muted small" style="margin-top:8px">
           Matched as the same logical element across server/rendered versions
           · ${escapeHtml(item.reconciliation.reason || "matched")}
+          ${item.reconciliation.confidence ? ` · pairing confidence ${escapeHtml(humanLabel(item.reconciliation.confidence))}` : ""}
           ${item.reconciliation.score != null ? ` · match score ${escapeHtml(item.reconciliation.score)}` : ""}
+          ${item.reconciliation.near_competitors ? ` · ${escapeHtml(item.reconciliation.near_competitors)} near competing match(es)` : ""}
         </div>
       `
       : ""}
