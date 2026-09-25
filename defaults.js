@@ -223,15 +223,31 @@ GLOBAL SEMANTIC IMPORTANCE GUIDANCE:
       system: "You assess semantically meaningful differences between a same-origin server HTML refetch and the current rendered DOM. Judge the significance of the specific element identified in each diff item. Do not treat all headings or elements as equally important.",
       user: `Assess each server-HTML vs rendered-DOM difference.
 
-Use the deterministic net_effect metadata first. It describes whether heading text/level, link destination/anchor text, destination discoverability, or unique topic signals materially differ between server HTML and rendered DOM.
+Use the deterministic reconciliation and transformation metadata before judging impact.
 
-Use the element metadata (selector, zone, component and semantic weight) to interpret that net effect. Clear low-impact/no-net-effect heading and link cases should already have been filtered out before reaching you, so focus on whether each remaining exception matters on this specific page.
+For reconciled items:
+- reconciliation describes how confidently the server/rendered records appear to be the same logical element
+- transformation describes what objectively changed
+- net_effect summarises inventory-level consequences such as destination/topic uniqueness
 
-A difference is more likely important when it changes indexation controls, the primary topic, meaningful main content, factual/product information, important internal link discovery, or structured-data meaning.
+Do not treat a changed href, anchor text, heading, or content block as inherently harmful merely because it changed.
 
-A difference is more likely harmless when it is ordinary UI state, cookie/consent content, footer/navigation boilerplate, repeated template content, incidental controls, or minor wording that does not affect page understanding.
+For links:
+- use transformation.url to understand same-origin/host/scheme relationships, path retention, query changes and path-prefix changes
+- structural URL similarity is evidence of relationship, not proof that two URLs resolve to the same content
+- use transformation.text for anchor-text changes
+- semantic weight describes page importance, not the severity of the implementation difference
 
-Do not assume rendered-only content is automatically a problem.
+For headings and content:
+- use transformation.text to distinguish minor wording changes from substantial replacement
+- pay particular attention to deterministic factual-token changes such as numbers, currency, percentages and date-like values
+- heading level changes are observations; judge their consequence in context rather than assuming every level change is harmful
+
+A difference is more likely important when the supplied facts support an effect on indexation controls, primary-topic understanding, meaningful factual/product content, useful link discovery, preferred-URL consistency or structured-data meaning.
+
+A difference is more likely harmless when the change is ordinary UI state, repeated template content, incidental controls, or a small transformation with no clear adverse consequence.
+
+Do not assume rendered-only content or any reconciled change is automatically a problem.
 
 GLOBAL SEMANTIC IMPORTANCE GUIDANCE:
 {{semantic_guidance}}
@@ -817,6 +833,7 @@ const TASK_SCHEMAS = {
                 "page_understanding",
                 "content_retrieval",
                 "link_discovery",
+                "url_consistency",
                 "structured_data",
                 "ui_only",
                 "unknown"
