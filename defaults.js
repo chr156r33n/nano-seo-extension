@@ -247,12 +247,15 @@ Important:
 - fragment @id values based on the canonical/current URL are normal
 - do not flag absence of a rel=alternate mobile annotation by itself
 - do not check hreflang reciprocity, HTTP status, target canonicals or target content
-- deterministic hreflang agreed-value suggestions supplied below should be preferred over inventing another locale value
+- deterministic hreflang allow-list suggestions supplied below should be preferred over inventing another locale value
+- the permitted hreflang values are an allow-list, not a required locale set
+- never report a locale as missing merely because it appears in the permitted list
+- only report a missing hreflang locale when the supplied evidence explicitly provides a required/expected locale set and shows that locale is absent
 
 GLOBAL SEMANTIC IMPORTANCE GUIDANCE:
 {{semantic_guidance}}
 
-AGREED HREFLANG VALUES:
+PERMITTED HREFLANG VALUES (PROJECT ALLOW-LIST; NOT A REQUIRED SET):
 {{agreed_hreflangs_json}}
 
 DECLARED URL/LOCALE SIGNALS:
@@ -772,7 +775,33 @@ function mergeSettings(saved = {}) {
   }
 
   if (Array.isArray(saved.hreflangAgreedValues)) {
-    d.hreflangAgreedValues = [...saved.hreflangAgreedValues];
+    const savedHreflangs =
+      saved.hreflangAgreedValues
+        .map(value => String(value).trim())
+        .filter(Boolean);
+
+    const legacyGenerated =
+      [
+        ...HREFLANG_LANGUAGE_CODES,
+        "x-default"
+      ];
+
+    const isLegacyGeneratedPreset =
+      savedHreflangs.length ===
+        legacyGenerated.length &&
+      legacyGenerated.every(
+        value =>
+          savedHreflangs.some(
+            savedValue =>
+              savedValue.toLowerCase() ===
+              value.toLowerCase()
+          )
+      );
+
+    d.hreflangAgreedValues =
+      isLegacyGeneratedPreset
+        ? []
+        : savedHreflangs;
   }
 
   if (saved.analyseAll) {

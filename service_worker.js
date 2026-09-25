@@ -2101,7 +2101,14 @@ async function captureActiveTab() {
         tabId: tab.id
       },
 
-      func: (contextChars, semanticWeights, agreedHreflangs, maxSchemaUrlRefs) => {
+      func: (
+        contextChars,
+        semanticWeights,
+        agreedHreflangs,
+        maxSchemaUrlRefs,
+        hreflangLanguageCodes,
+        hreflangRegionCodes
+      ) => {
         const txt = (el) =>
           (el?.textContent || "")
             .replace(/\s+/g, " ")
@@ -3371,11 +3378,140 @@ async function captureActiveTab() {
               const lower =
                 item.value.toLowerCase();
 
-              const formatLooksValid =
-                lower === "x-default" ||
-                /^[a-z]{2,3}(?:-[a-z]{4})?(?:-(?:[a-z]{2}|\d{3}))?$/i.test(
-                  item.value
+              const languageCodes =
+                new Set(
+                  (
+                    hreflangLanguageCodes ||
+                    []
+                  )
+                    .map(
+                      value =>
+                        String(value)
+                          .toLowerCase()
+                    )
                 );
+
+              const regionCodes =
+                new Set(
+                  (
+                    hreflangRegionCodes ||
+                    []
+                  )
+                    .map(
+                      value =>
+                        String(value)
+                          .toUpperCase()
+                    )
+                );
+
+              const parts =
+                String(
+                  item.value ||
+                  ""
+                )
+                  .split("-")
+                  .filter(Boolean);
+
+              let language = "";
+              let script = "";
+              let region = "";
+
+              if (
+                lower !==
+                "x-default"
+              ) {
+                language =
+                  parts[0] ||
+                  "";
+
+                if (
+                  parts[1] &&
+                  /^[a-z]{4}$/i.test(
+                    parts[1]
+                  )
+                ) {
+                  script =
+                    parts[1];
+
+                  region =
+                    parts[2] ||
+                    "";
+                } else {
+                  region =
+                    parts[1] ||
+                    "";
+                }
+              }
+
+              const languageValid =
+                !!language &&
+                languageCodes.has(
+                  language.toLowerCase()
+                );
+
+              const scriptValid =
+                !script ||
+                /^[a-z]{4}$/i.test(
+                  script
+                );
+
+              const regionValid =
+                !region ||
+                (
+                  /^[a-z]{2}$/i.test(
+                    region
+                  ) &&
+                  regionCodes.has(
+                    region.toUpperCase()
+                  )
+                );
+
+              const noExtraParts =
+                lower ===
+                  "x-default" ||
+                parts.length ===
+                  (
+                    script
+                      ? region
+                        ? 3
+                        : 2
+                      : region
+                        ? 2
+                        : 1
+                  );
+
+              const formatLooksValid =
+                lower ===
+                  "x-default" ||
+                (
+                  languageValid &&
+                  scriptValid &&
+                  regionValid &&
+                  noExtraParts
+                );
+
+              const normalisedValue =
+                lower ===
+                  "x-default"
+                  ? "x-default"
+                  : [
+                      language
+                        .toLowerCase(),
+                      script
+                        ? script
+                            .charAt(0)
+                            .toUpperCase() +
+                          script
+                            .slice(1)
+                            .toLowerCase()
+                        : "",
+                      region
+                        ? region
+                            .toUpperCase()
+                        : ""
+                    ]
+                      .filter(Boolean)
+                      .join("-");
 
               const agreedValue =
                 agreedMap.get(lower) || "";
@@ -3388,6 +3524,10 @@ async function captureActiveTab() {
                     : null,
                 format_looks_valid:
                   formatLooksValid,
+                normalised_value:
+                  formatLooksValid
+                    ? normalisedValue
+                    : "",
                 suggested_value:
                   agreed.length &&
                   !agreedValue
@@ -4250,10 +4390,10 @@ async function captureActiveTab() {
             ? "finding"
             : "pass",
           unapprovedHreflangs.length
-            ? `${unapprovedHreflangs.length} hreflang value(s) are outside the configured agreed list`
+            ? `${unapprovedHreflangs.length} hreflang value(s) are outside the project allow-list`
             : agreed.length
-              ? "All hreflang values are in the configured agreed list"
-              : "No agreed hreflang list configured",
+              ? "All declared hreflang values are permitted by the project allow-list"
+              : "No project hreflang allow-list configured",
           unapprovedHreflangs
         );
 
@@ -4263,8 +4403,8 @@ async function captureActiveTab() {
             ? "finding"
             : "pass",
           invalidHreflangs.length
-            ? `${invalidHreflangs.length} hreflang value(s) have an implausible format`
-            : "Hreflang value formats look plausible",
+            ? `${invalidHreflangs.length} hreflang value(s) use an unsupported language/region structure`
+            : "Hreflang language/region values are valid",
           invalidHreflangs
         );
 
@@ -4602,7 +4742,9 @@ async function captureActiveTab() {
           .hreflangAgreedValues,
         settings
           .limits
-          .maxSchemaUrlRefs
+          .maxSchemaUrlRefs,
+        HREFLANG_LANGUAGE_CODES,
+        HREFLANG_REGION_CODES
       ]
     });
   } catch (e) {

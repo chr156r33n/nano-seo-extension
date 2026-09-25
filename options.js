@@ -39,27 +39,6 @@ async function load() {
 }
 
 function bindHreflangReferenceActions() {
-  const loadAll =
-    document.querySelector(
-      "#loadAllLanguageHreflangs"
-    );
-
-  if (loadAll) {
-    loadAll.onclick =
-      () => {
-        const textarea =
-          document.querySelector(
-            "#hreflangAgreedValues"
-          );
-
-        textarea.value =
-          [
-            ...HREFLANG_LANGUAGE_CODES,
-            "x-default"
-          ].join("\n");
-      };
-  }
-
   const addXDefault =
     document.querySelector(
       "#appendXDefaultHreflang"
@@ -352,14 +331,11 @@ function render() {
       <div class="card" style="margin-top:14px">
         <h3>Hreflang reference</h3>
         <p class="muted small">
-          Complete ISO 639-1 language-only reference (${HREFLANG_LANGUAGE_CODES.length} codes), plus x-default and some common region/script examples.
-          Region and script variants are combinations rather than a finite global list, so they are shown as examples rather than auto-approved values.
+          The list above is a project-specific allow-list, not a list of locales that must be present.
+          Valid language/region combinations such as en-GB are checked independently against the language and region standards.
         </p>
 
         <div class="row" style="margin:10px 0">
-          <button id="loadAllLanguageHreflangs" class="secondary" type="button">
-            Load all language-only values
-          </button>
           <button id="appendXDefaultHreflang" class="secondary" type="button">
             Add x-default
           </button>
