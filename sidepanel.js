@@ -89,6 +89,11 @@ function setMainTab(
             ? "true"
             : "false"
         );
+
+        button.tabIndex =
+          active
+            ? 0
+            : -1;
       }
     );
 
@@ -135,6 +140,86 @@ function bindMainTabs() {
               button.dataset
                 .mainTab
             );
+
+        button.onkeydown =
+          event => {
+            if (
+              ![
+                "ArrowLeft",
+                "ArrowRight",
+                "Home",
+                "End"
+              ].includes(
+                event.key
+              )
+            ) {
+              return;
+            }
+
+            event.preventDefault();
+
+            const tabs =
+              [
+                ...document.querySelectorAll(
+                  "[data-main-tab]"
+                )
+              ];
+
+            const currentIndex =
+              tabs.indexOf(
+                button
+              );
+
+            let nextIndex =
+              currentIndex;
+
+            if (
+              event.key ===
+              "ArrowRight"
+            ) {
+              nextIndex =
+                (
+                  currentIndex +
+                  1
+                ) %
+                tabs.length;
+            } else if (
+              event.key ===
+              "ArrowLeft"
+            ) {
+              nextIndex =
+                (
+                  currentIndex -
+                  1 +
+                  tabs.length
+                ) %
+                tabs.length;
+            } else if (
+              event.key ===
+              "Home"
+            ) {
+              nextIndex = 0;
+            } else if (
+              event.key ===
+              "End"
+            ) {
+              nextIndex =
+                tabs.length -
+                1;
+            }
+
+            const next =
+              tabs[
+                nextIndex
+              ];
+
+            setMainTab(
+              next.dataset
+                .mainTab
+            );
+
+            next.focus();
+          };
       }
     );
 
