@@ -48,15 +48,15 @@
   </section>
 
   <nav class="main-tabs" role="tablist" aria-label="Nano SEO Lab sections">
-    <button class="main-tab active" type="button" role="tab" aria-selected="true" data-main-tab="overview">Overview</button>
-    <button class="main-tab" type="button" role="tab" aria-selected="false" data-main-tab="page-intent">Page &amp; intent</button>
-    <button class="main-tab" type="button" role="tab" aria-selected="false" data-main-tab="links">Links</button>
-    <button class="main-tab" type="button" role="tab" aria-selected="false" data-main-tab="technical">Technical</button>
-    <button class="main-tab" type="button" role="tab" aria-selected="false" data-main-tab="history">History</button>
+    <button id="tab-overview" class="main-tab active" type="button" role="tab" aria-selected="true" aria-controls="panel-overview" tabindex="0" data-main-tab="overview">Overview</button>
+    <button id="tab-page-intent" class="main-tab" type="button" role="tab" aria-selected="false" aria-controls="panel-page-intent" tabindex="-1" data-main-tab="page-intent">Page &amp; intent</button>
+    <button id="tab-links" class="main-tab" type="button" role="tab" aria-selected="false" aria-controls="panel-links" tabindex="-1" data-main-tab="links">Links</button>
+    <button id="tab-technical" class="main-tab" type="button" role="tab" aria-selected="false" aria-controls="panel-technical" tabindex="-1" data-main-tab="technical">Technical</button>
+    <button id="tab-history" class="main-tab" type="button" role="tab" aria-selected="false" aria-controls="panel-history" tabindex="-1" data-main-tab="history">History</button>
   </nav>
 
   <main class="tab-panels">
-    <div class="main-tab-panel active" role="tabpanel" data-main-panel="overview">
+    <div id="panel-overview" class="main-tab-panel active" role="tabpanel" aria-labelledby="tab-overview" data-main-panel="overview">
       <section class="analyse-all-shell">
         <div class="analyse-all-head">
           <div>
@@ -104,7 +104,7 @@
       </section>
     </div>
 
-    <div class="main-tab-panel" role="tabpanel" data-main-panel="page-intent" hidden>
+    <div id="panel-page-intent" class="main-tab-panel" role="tabpanel" aria-labelledby="tab-page-intent" data-main-panel="page-intent" hidden>
       <section class="tool-section tool-section-first">
         <h2>Compare page type and intent</h2>
         <div class="section-copy">Identify page type and user intent, then compare them.</div>
@@ -154,7 +154,7 @@
       </section>
     </div>
 
-    <div class="main-tab-panel" role="tabpanel" data-main-panel="links" hidden>
+    <div id="panel-links" class="main-tab-panel" role="tabpanel" aria-labelledby="tab-links" data-main-panel="links" hidden>
       <section class="tool-section tool-section-first">
         <h2>Understand link roles</h2>
         <div class="section-copy">Classify links by what they do on the page: navigation, editorial, product/category, CTA, utility and more.</div>
@@ -178,7 +178,7 @@
       </section>
     </div>
 
-    <div class="main-tab-panel" role="tabpanel" data-main-panel="technical" hidden>
+    <div id="panel-technical" class="main-tab-panel" role="tabpanel" aria-labelledby="tab-technical" data-main-panel="technical" hidden>
       <section class="tool-section tool-section-first">
         <h2>Compare server HTML with the rendered page</h2>
         <div class="section-copy">
@@ -231,7 +231,7 @@
       </section>
     </div>
 
-    <div class="main-tab-panel" role="tabpanel" data-main-panel="history" hidden>
+    <div id="panel-history" class="main-tab-panel" role="tabpanel" aria-labelledby="tab-history" data-main-panel="history" hidden>
       <section class="tool-section tool-section-first research-section">
         <h2>History and raw outputs</h2>
         <div class="section-copy">Inspect previous analysis runs or export the underlying model-call data.</div>
