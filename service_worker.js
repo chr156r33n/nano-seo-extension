@@ -5068,6 +5068,163 @@ function scanSourceHeadIntegrity(html, baseUrl) {
       if (
         rawClose
       ) {
+        const rawContent =
+          fragment.slice(
+            cursor,
+            rawClose.index
+          );
+
+        const swallowedPattern =
+          /<(meta|link|base|title|script)\b[^>]*>/gi;
+
+        let swallowedMatch;
+
+        while (
+          (
+            swallowedMatch =
+              swallowedPattern.exec(
+                rawContent
+              )
+          )
+        ) {
+          const swallowedTag =
+            swallowedMatch[1]
+              .toLowerCase();
+
+          const swallowedToken =
+            swallowedMatch[0];
+
+          const attrs =
+            parseTagAttributes(
+              swallowedToken
+            );
+
+          let kind =
+            swallowedTag;
+
+          let value = "";
+
+          if (
+            swallowedTag ===
+            "meta"
+          ) {
+            const name =
+              String(
+                attrs.name ||
+                attrs.property ||
+                attrs["http-equiv"] ||
+                ""
+              ).toLowerCase();
+
+            kind =
+              name
+                ? `meta:${name}`
+                : "meta";
+
+            value =
+              attrs.content ||
+              "";
+          } else if (
+            swallowedTag ===
+            "link"
+          ) {
+            const rel =
+              String(
+                attrs.rel ||
+                ""
+              ).toLowerCase();
+
+            kind =
+              rel
+                ? `link:${rel}`
+                : "link";
+
+            value =
+              attrs.href ||
+              "";
+          } else if (
+            swallowedTag ===
+            "base"
+          ) {
+            value =
+              attrs.href ||
+              "";
+          } else if (
+            swallowedTag ===
+            "script"
+          ) {
+            kind =
+              String(
+                attrs.type ||
+                ""
+              ).toLowerCase() ===
+              "application/ld+json"
+                ? "jsonld"
+                : "script";
+
+            value =
+              attrs.src ||
+              "";
+          }
+
+          const swallowedOffset =
+            headStart +
+            cursor +
+            swallowedMatch.index;
+
+          if (
+            !likelyBreak
+          ) {
+            likelyBreak = {
+              tag,
+              offset:
+                absoluteOffset,
+              excerpt:
+                token
+                  .replace(
+                    /\s+/g,
+                    " "
+                  )
+                  .slice(
+                    0,
+                    240
+                  ),
+              reason:
+                "metadata_swallowed_in_raw_text"
+            };
+          }
+
+          declarations.push({
+            kind,
+            tag:
+              swallowedTag,
+            offset:
+              swallowedOffset,
+            afterLikelyBreak:
+              true,
+            swallowedAsText:
+              true,
+            value:
+              String(
+                value ||
+                ""
+              ).slice(
+                0,
+                300
+              ),
+            excerpt:
+              swallowedToken
+                .replace(
+                  /\s+/g,
+                  " "
+                )
+                .slice(
+                  0,
+                  260
+                )
+          });
+        }
+
         cursor =
           rawClose.index +
           rawClose[0].length;
@@ -5303,7 +5460,10 @@ function scanSourceHeadIntegrity(html, baseUrl) {
         ? likelyBreak.reason ===
             "unclosed_raw_text_element"
           ? `An unclosed <${likelyBreak.tag}> element appears in source <head>; later markup may be consumed as text rather than parsed as metadata.`
-          : `A <${likelyBreak.tag}> element appears inside source <head>; later metadata may be parsed outside the head.`
+          : likelyBreak.reason ===
+              "metadata_swallowed_in_raw_text"
+            ? `Metadata-looking markup appears inside a <${likelyBreak.tag}> raw-text region in source <head>; those declarations are parsed as text rather than head metadata.`
+            : `A <${likelyBreak.tag}> element appears inside source <head>; later metadata may be parsed outside the head.`
         : explicitClose
           ? "No likely head-breaking element was detected before </head>."
           : "No explicit </head> tag was found; browser parser recovery determines where head mode ends."
