@@ -574,9 +574,10 @@ function initialiseBatchControls() {
 
 function toneForValue(value) {
   const v = String(value ?? "").toLowerCase();
-  if (["strong","likely_consistent","likely_correct","likely_false_positive","pass","probably_harmless"].includes(v)) return "good";
-  if (["weak","likely_incorrect","likely_valid","finding","likely_important","error"].includes(v)) return "bad";
+  if (["strong","likely_consistent","likely_correct","likely_false_positive","no_material_impact","pass","probably_harmless"].includes(v)) return "good";
+  if (["weak","likely_incorrect","meaningful_issue","finding","likely_important","error"].includes(v)) return "bad";
   if (["partial","mostly_consistent","needs_review","context_dependent","manual_review","mixed","unclear"].includes(v)) return "warn";
+  if (["low_impact"].includes(v)) return "neutral";
   return "neutral";
 }
 
@@ -3901,7 +3902,7 @@ function renderAnalyseAllResults(report) {
   );
 
   const fp = analyseTaskDetails(
-    "False-positive triage",
+    "Finding impact triage",
     report.falsePositives,
     "false_positive",
     report.falsePositives.length > 0
@@ -3925,7 +3926,7 @@ function renderAnalyseAllResults(report) {
 
     jiraBox.innerHTML =
       "<h3>Finding follow-up</h3>" +
-      '<div class="muted small">All deterministic findings are retained here for reference. The triage status indicates whether action is warranted.</div>';
+      '<div class="muted small">All deterministic findings are retained here for reference. Model review distinguishes detector false positives from real conditions with low, contextual or meaningful impact.</div>';
 
     const triageMap =
       deterministicTriageByCode(
