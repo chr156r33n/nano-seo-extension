@@ -1905,6 +1905,7 @@ function indexabilityResultsHtml(data) {
                     <th>Agent / token</th>
                     <th>Purpose</th>
                     <th>Current URL</th>
+                    <th>Matched as</th>
                     <th>Matched rule</th>
                   </tr>
                 </thead>
@@ -1915,6 +1916,7 @@ function indexabilityResultsHtml(data) {
                         <td><strong>${escapeHtml(crawler.userAgent || "")}</strong><div class="muted small">${escapeHtml(crawler.label || "")}</div></td>
                         <td>${escapeHtml(humanLabel(crawler.category || ""))}</td>
                         <td>${badgeHtml(crawler.allowed ? "allowed" : "blocked", crawler.allowed ? "good" : "bad")}</td>
+                        <td><code>${escapeHtml(crawler.matchedUserAgentToken || "*")}</code></td>
                         <td><code>${escapeHtml(crawler.matchedRule ? `${crawler.matchedRule.type}: ${crawler.matchedRule.pattern}` : "No matching rule")}</code></td>
                       </tr>`
                   ).join("")}
