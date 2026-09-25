@@ -39,188 +39,210 @@
     </div>
   </section>
 
-  <section class="analyse-all-shell">
-    <div class="analyse-all-head">
-      <div>
-        <h2>Run selected checks</h2>
-        <div class="section-copy">Run the configured checks and combine the results.</div>
-      </div>
-      <button id="analyseAllBtn">Run analysis</button>
+  <section class="global-model-bar">
+    <div>
+      <div class="section-kicker">Models</div>
+      <div class="section-copy">Used by every model-powered action.</div>
     </div>
-
-    <div class="batch-controls batch-controls-dark">
-      <label>
-        <span>Links batch</span>
-        <input id="analyseLinkBatchSize" type="number" min="1" max="100" step="1">
-      </label>
-      <label>
-        <span>DOM batch</span>
-        <input id="analyseDomBatchSize" type="number" min="1" max="100" step="1">
-      </label>
-      <div class="batch-help">
-        Nano: 6 recommended max · Gemini/OpenAI: 25 recommended
-      </div>
-    </div>
-
-    <div id="analyseAllProgressWrap" class="analyse-progress" hidden>
-      <div class="progress-track" aria-hidden="true">
-        <div id="analyseAllProgressBar" class="progress-bar"></div>
-      </div>
-      <div id="analyseAllProgressText" class="muted small">Ready.</div>
-    </div>
-
-    <div id="analyseAllResults" class="results"></div>
-  </section>
-
-  <section class="tool-section">
-    <h2>Choose who reviews the page</h2>
     <div id="providers" class="checks model-picker"></div>
-    <div class="section-copy">Selected models are used for all model-powered actions, including Jira drafting. Where several are selected, each runs the same task so results stay comparable.</div>
   </section>
 
-  <section class="tool-section">
-    <h2>Understand link roles</h2>
-    <div class="section-copy">Classify links by what they do on the page: navigation, editorial, product/category, CTA, utility and more.</div>
-    <div class="run-control-row">
-      <button id="classifyLinksBtn">Classify next links</button>
-      <label class="batch-inline">
-        <span>Batch</span>
-        <input id="linkBatchSize" type="number" min="1" max="100" step="1">
-      </label>
-      <button id="checkLinkResponsesBtn" class="secondary">Check link responses</button>
-    </div>
-    <div class="section-copy batch-guidance">
-      Recommended: Nano ≤ 6 · Gemini/OpenAI ≈ 25 per batch.
-    </div>
-    <div class="section-copy" style="margin-top:8px">
-      Link response checking is manual only. It checks every unique HTTP(S) destination on the page in manageable batches, follows redirects to the final response, and may request temporary access to external origins.
-    </div>
-    <div id="linkProgress" class="muted small"></div>
-    <div id="linkResults" class="results"></div>
-    <div id="linkResponseResults" class="results"></div>
-  </section>
+  <nav class="main-tabs" role="tablist" aria-label="Nano SEO Lab sections">
+    <button class="main-tab active" type="button" role="tab" aria-selected="true" data-main-tab="overview">Overview</button>
+    <button class="main-tab" type="button" role="tab" aria-selected="false" data-main-tab="page-intent">Page &amp; intent</button>
+    <button class="main-tab" type="button" role="tab" aria-selected="false" data-main-tab="links">Links</button>
+    <button class="main-tab" type="button" role="tab" aria-selected="false" data-main-tab="technical">Technical</button>
+    <button class="main-tab" type="button" role="tab" aria-selected="false" data-main-tab="history">History</button>
+  </nav>
 
-  <section class="tool-section">
-    <h2>Compare page type and intent</h2>
-    <div class="section-copy">Identify page type and user intent, then compare them.</div>
+  <main class="tab-panels">
+    <div class="main-tab-panel active" role="tabpanel" data-main-panel="overview">
+      <section class="analyse-all-shell">
+        <div class="analyse-all-head">
+          <div>
+            <h2>Run selected checks</h2>
+            <div class="section-copy">Run the configured checks and combine the results.</div>
+          </div>
+          <button id="analyseAllBtn">Run analysis</button>
+        </div>
 
-    <details class="control-panel">
-      <summary>Evidence sent to the model</summary>
-      <div class="control-panel-body">
-        <label class="radio-option">
-          <input type="radio" name="inputMode" value="digest" checked>
-          <span><strong>Structured digest</strong><small>Recommended. Compact, preprocessed page evidence.</small></span>
-        </label>
+        <div class="batch-controls batch-controls-dark">
+          <label>
+            <span>Links batch</span>
+            <input id="analyseLinkBatchSize" type="number" min="1" max="100" step="1">
+          </label>
+          <label>
+            <span>DOM batch</span>
+            <input id="analyseDomBatchSize" type="number" min="1" max="100" step="1">
+          </label>
+          <div class="batch-help">
+            Nano: 6 recommended max · Gemini/OpenAI: 25 recommended
+          </div>
+        </div>
 
-        <label class="radio-option">
-          <input type="radio" name="inputMode" value="clean_html">
-          <span><strong>Clean HTML</strong><small>Rendered HTML with implementation noise reduced.</small></span>
-        </label>
+        <div id="analyseAllProgressWrap" class="analyse-progress" hidden>
+          <div class="progress-track" aria-hidden="true">
+            <div id="analyseAllProgressBar" class="progress-bar"></div>
+          </div>
+          <div id="analyseAllProgressText" class="muted small">Ready.</div>
+        </div>
 
-        <label class="radio-option">
-          <input type="radio" name="inputMode" value="markdown">
-          <span><strong>Clean Markdown</strong><small>Content-focused representation of the rendered page.</small></span>
-        </label>
+        <div id="analyseAllResults" class="results"></div>
+      </section>
 
-        <label class="radio-option">
-          <input type="radio" name="inputMode" value="raw">
-          <span><strong>Visible page text</strong><small>Raw body text without markup.</small></span>
-        </label>
+      <section class="tool-section">
+        <h2>Review flagged checks</h2>
+        <div class="section-copy">Deterministic findings first; use model review where context changes the practical impact.</div>
+        <div id="auditSummary" class="muted small"></div>
+        <div id="issues"></div>
+      </section>
 
-        <label class="radio-option">
-          <input type="radio" name="inputMode" value="raw_html">
-          <span><strong>Rendered HTML</strong><small>The larger, noisier version. Useful for comparison work.</small></span>
-        </label>
-
-        <label class="radio-option">
-          <input type="radio" name="inputMode" value="all">
-          <span><strong>Compare all five</strong><small>Runs the task once for every representation.</small></span>
-        </label>
-      </div>
-    </details>
-
-    <div class="row section-actions">
-      <button id="pageTypeBtn">Identify page type</button>
-      <button id="intentBtn">Identify intent</button>
-      <button id="alignmentBtn" class="secondary">Check alignment</button>
+      <section class="tool-section">
+        <h2>What this page got right</h2>
+        <div class="section-copy">Passed deterministic checks from the current page.</div>
+        <div id="passedChecks" class="results"></div>
+      </section>
     </div>
 
-    <div id="intentResults" class="results"></div>
-  </section>
+    <div class="main-tab-panel" role="tabpanel" data-main-panel="page-intent" hidden>
+      <section class="tool-section tool-section-first">
+        <h2>Compare page type and intent</h2>
+        <div class="section-copy">Identify page type and user intent, then compare them.</div>
 
-  <section class="tool-section">
-    <h2>Review flagged checks</h2>
-    <div class="section-copy">Automated checks first; use model review where context matters.</div>
-    <div id="auditSummary" class="muted small"></div>
-    <div id="issues"></div>
-  </section>
+        <details class="control-panel">
+          <summary>Evidence sent to the model</summary>
+          <div class="control-panel-body">
+            <label class="radio-option">
+              <input type="radio" name="inputMode" value="digest" checked>
+              <span><strong>Structured digest</strong><small>Recommended. Compact, preprocessed page evidence.</small></span>
+            </label>
 
-  <section class="tool-section">
-    <h2>Compare server HTML with the rendered page</h2>
-    <div class="section-copy">
-      Compare server HTML with the live DOM and review meaningful differences.
+            <label class="radio-option">
+              <input type="radio" name="inputMode" value="clean_html">
+              <span><strong>Clean HTML</strong><small>Rendered HTML with implementation noise reduced.</small></span>
+            </label>
+
+            <label class="radio-option">
+              <input type="radio" name="inputMode" value="markdown">
+              <span><strong>Clean Markdown</strong><small>Content-focused representation of the rendered page.</small></span>
+            </label>
+
+            <label class="radio-option">
+              <input type="radio" name="inputMode" value="raw">
+              <span><strong>Visible page text</strong><small>Raw body text without markup.</small></span>
+            </label>
+
+            <label class="radio-option">
+              <input type="radio" name="inputMode" value="raw_html">
+              <span><strong>Rendered HTML</strong><small>The larger, noisier version. Useful for comparison work.</small></span>
+            </label>
+
+            <label class="radio-option">
+              <input type="radio" name="inputMode" value="all">
+              <span><strong>Compare all five</strong><small>Runs the task once for every representation.</small></span>
+            </label>
+          </div>
+        </details>
+
+        <div class="row section-actions">
+          <button id="pageTypeBtn">Identify page type</button>
+          <button id="intentBtn">Identify intent</button>
+          <button id="alignmentBtn" class="secondary">Check alignment</button>
+        </div>
+
+        <div id="intentResults" class="results"></div>
+      </section>
     </div>
 
-    <div class="run-control-row">
-      <button id="buildDomDiffBtn">Compare server vs rendered</button>
-      <button id="assessDomDiffBtn" class="secondary">Review next exceptions</button>
-      <label class="batch-inline">
-        <span>Batch</span>
-        <input id="domDiffBatchSize" type="number" min="1" max="100" step="1">
-      </label>
-    </div>
-    <div class="section-copy batch-guidance">
-      Recommended: Nano ≤ 6 · Gemini/OpenAI ≈ 25 per batch.
-    </div>
-
-    <div id="domDiffSummary" class="muted small"></div>
-    <div id="domDiffResults" class="results"></div>
-  </section>
-
-  <section class="tool-section">
-    <h2>Check indexability signals</h2>
-    <div class="section-copy">
-      Manually fetch the current page, its robots.txt and canonical target to compare HTTP headers, server HTML and rendered directives, AI crawler access and source head integrity.
-    </div>
-    <div class="row section-actions">
-      <button id="checkIndexabilityBtn" class="secondary">Check HTTP &amp; robots signals</button>
-    </div>
-    <div class="section-copy" style="margin-top:8px">
-      This is an explicit network check only. It does not run when you read a page or run the normal analysis.
-    </div>
-    <div id="indexabilityResults" class="results"></div>
-  </section>
-
-  <section class="tool-section">
-    <h2>Review URL and locale signals</h2>
-    <div class="section-copy">
-      Review canonical, hreflang and other page-identity signals for contradictions.
+    <div class="main-tab-panel" role="tabpanel" data-main-panel="links" hidden>
+      <section class="tool-section tool-section-first">
+        <h2>Understand link roles</h2>
+        <div class="section-copy">Classify links by what they do on the page: navigation, editorial, product/category, CTA, utility and more.</div>
+        <div class="run-control-row">
+          <button id="classifyLinksBtn">Classify next links</button>
+          <label class="batch-inline">
+            <span>Batch</span>
+            <input id="linkBatchSize" type="number" min="1" max="100" step="1">
+          </label>
+          <button id="checkLinkResponsesBtn" class="secondary">Check link responses</button>
+        </div>
+        <div class="section-copy batch-guidance">
+          Recommended: Nano ≤ 6 · Gemini/OpenAI ≈ 25 per batch.
+        </div>
+        <div class="section-copy" style="margin-top:8px">
+          Link response checking is manual only. It checks every unique HTTP(S) destination on the page in manageable batches, follows redirects to the final response, and may request temporary access to external origins.
+        </div>
+        <div id="linkProgress" class="muted small"></div>
+        <div id="linkResults" class="results"></div>
+        <div id="linkResponseResults" class="results"></div>
+      </section>
     </div>
 
-    <div id="urlSignalSummary" class="results"></div>
+    <div class="main-tab-panel" role="tabpanel" data-main-panel="technical" hidden>
+      <section class="tool-section tool-section-first">
+        <h2>Compare server HTML with the rendered page</h2>
+        <div class="section-copy">
+          Compare server HTML with the live DOM and review meaningful differences.
+        </div>
 
-    <div class="row section-actions">
-      <button id="reviewUrlSignalsBtn">Review signals</button>
+        <div class="run-control-row">
+          <button id="buildDomDiffBtn">Compare server vs rendered</button>
+          <button id="assessDomDiffBtn" class="secondary">Review next exceptions</button>
+          <label class="batch-inline">
+            <span>Batch</span>
+            <input id="domDiffBatchSize" type="number" min="1" max="100" step="1">
+          </label>
+        </div>
+        <div class="section-copy batch-guidance">
+          Recommended: Nano ≤ 6 · Gemini/OpenAI ≈ 25 per batch.
+        </div>
+
+        <div id="domDiffSummary" class="muted small"></div>
+        <div id="domDiffResults" class="results"></div>
+      </section>
+
+      <section class="tool-section">
+        <h2>Check indexability signals</h2>
+        <div class="section-copy">
+          Manually fetch the current page, its robots.txt and canonical target to compare HTTP headers, server HTML and rendered directives, AI crawler access and source head integrity.
+        </div>
+        <div class="row section-actions">
+          <button id="checkIndexabilityBtn" class="secondary">Check HTTP &amp; robots signals</button>
+        </div>
+        <div class="section-copy" style="margin-top:8px">
+          This is an explicit network check only. It does not run when you read a page or run the normal analysis.
+        </div>
+        <div id="indexabilityResults" class="results"></div>
+      </section>
+
+      <section class="tool-section">
+        <h2>Review URL and locale signals</h2>
+        <div class="section-copy">
+          Review canonical, hreflang and other page-identity signals for contradictions. Hreflang validation itself is deterministic.
+        </div>
+
+        <div id="urlSignalSummary" class="results"></div>
+
+        <div class="row section-actions">
+          <button id="reviewUrlSignalsBtn">Review signals</button>
+        </div>
+
+        <div id="urlConsistencyResults" class="results"></div>
+      </section>
     </div>
 
-    <div id="urlConsistencyResults" class="results"></div>
-  </section>
-
-  <section class="tool-section">
-    <h2>What this page got right</h2>
-    <div class="section-copy">Passed deterministic checks from the current page.</div>
-    <div id="passedChecks" class="results"></div>
-  </section>
-
-  <section class="tool-section research-section">
-    <h2>History and raw outputs</h2>
-    <div class="section-copy">Inspect previous analysis runs or export the underlying model-call data.</div>
-    <div class="row section-actions">
-      <button id="historyBtn" class="secondary">Analysis history</button>
-      <button id="openLogsBtn" class="secondary">Model call log</button>
-      <button id="exportBtn" class="secondary">Export JSON</button>
+    <div class="main-tab-panel" role="tabpanel" data-main-panel="history" hidden>
+      <section class="tool-section tool-section-first research-section">
+        <h2>History and raw outputs</h2>
+        <div class="section-copy">Inspect previous analysis runs or export the underlying model-call data.</div>
+        <div class="row section-actions">
+          <button id="historyBtn" class="secondary">Analysis history</button>
+          <button id="openLogsBtn" class="secondary">Model call log</button>
+          <button id="exportBtn" class="secondary">Export JSON</button>
+        </div>
+      </section>
     </div>
-  </section>
+  </main>
 
   <div id="status" class="status" role="status" aria-live="polite"></div>
 
