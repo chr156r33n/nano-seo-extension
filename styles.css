@@ -2157,3 +2157,114 @@ h3 {
     justify-content: flex-start;
   }
 }
+
+/* Compact page identity */
+.page-title {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+}
+
+.page-meta-title {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.page-meta-separator {
+  flex: 0 0 auto;
+  color: var(--muted);
+}
+
+.page-meta-url {
+  flex: 1 1 180px;
+  min-width: 80px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+/* Dense ordered outputs */
+.data-table-wrap {
+  width: 100%;
+  margin-top: 8px;
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+}
+
+.data-table {
+  min-width: 720px;
+  margin: 0;
+  background: var(--paper);
+}
+
+.data-table th,
+.data-table td {
+  padding: 7px 8px;
+  vertical-align: top;
+  border-bottom: 1px solid var(--line);
+  font-size: 10px;
+  line-height: 1.4;
+  text-align: left;
+}
+
+.data-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--soft);
+  color: var(--muted);
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+
+.data-table tr:last-child td {
+  border-bottom: 0;
+}
+
+.data-table .table-url {
+  max-width: 280px;
+}
+
+.data-table .table-url code,
+.table-preview {
+  display: block;
+  max-width: 280px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.table-details {
+  margin-top: 5px;
+}
+
+.table-details > summary {
+  color: var(--brand-dark);
+  cursor: pointer;
+  font-size: 10px;
+}
+
+.table-details .card {
+  margin-top: 7px;
+  min-width: 360px;
+}
+
+.dom-diff-table {
+  min-width: 800px;
+}
+
+.dom-diff-table td:nth-child(4) {
+  min-width: 260px;
+}
+
+.dom-diff-table td:nth-child(5) {
+  min-width: 220px;
+}
