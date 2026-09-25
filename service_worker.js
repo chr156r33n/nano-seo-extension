@@ -1467,6 +1467,10 @@ async function callNano({task, system, prompt, schema, settings}) {
       resp?.meta ||
       null;
 
+    error.rawNanoOutput =
+      resp?.raw ||
+      null;
+
     throw error;
   }
 
@@ -2048,10 +2052,19 @@ ${promptDef.system}`;
         parsed:
           null,
         raw:
+          e?.rawNanoOutput ||
           null,
         meta:
           e.nanoMeta
       };
+
+      if (
+        e?.code ===
+        "NANO_INVALID_JSON"
+      ) {
+        error =
+          "Nano returned malformed or truncated JSON. The raw response has been retained in the model call log.";
+      }
     }
   }
 
