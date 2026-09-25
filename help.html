@@ -55,7 +55,7 @@
     <p><strong>Model review</strong> is used where the answer is more contextual: what role a link appears to play, what type of page this is, the likely user intent, whether page type and intent align, whether a flagged issue may be a false positive, and whether server/rendered differences look meaningful.</p>
     <p><strong>Server vs rendered comparison</strong> helps surface content or links that change after JavaScript runs. This is useful when considering what different crawling or retrieval pipelines may encounter.</p>
     <p><strong>URL and locale review</strong> brings canonical, hreflang and related identity signals together so contradictions are easier to spot.</p>
-    <p><strong>Indexability signal checking</strong> is deliberately manual because it makes extra network requests. When requested, it compares the current HTTP response, server HTML, rendered DOM, robots.txt and canonical target for conflicting canonical or robots signals.</p>
+    <p><strong>Indexability signal checking</strong> is deliberately manual because it makes extra network requests. When requested, it compares the current HTTP response, server HTML, rendered DOM, robots.txt and canonical target for conflicting canonical or robots signals. It also evaluates the current URL against known AI/search crawler controls and checks the source &lt;head&gt; for markup that may force the parser out of head mode, showing which later metadata may be displaced.</p>
     <p><strong>Link response checking</strong> is also manual. When requested, it follows HTTP(S) destinations and records their final responses. These network checks may ask for temporary permission to access the required origins.</p>
   </section>
 

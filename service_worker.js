@@ -3016,6 +3016,51 @@ async function captureActiveTab() {
               )
           );
 
+        const validHeadTags =
+          new Set([
+            "title",
+            "meta",
+            "link",
+            "script",
+            "style",
+            "base",
+            "noscript",
+            "template"
+          ]);
+
+        const renderedHeadInvalidElements =
+          [
+            ...(
+              document.head
+                ?.children ||
+              []
+            )
+          ]
+            .filter(
+              el =>
+                !validHeadTags.has(
+                  el.tagName
+                    .toLowerCase()
+                )
+            )
+            .map(
+              el => ({
+                tag:
+                  el.tagName
+                    .toLowerCase(),
+                html:
+                  el.outerHTML
+                    .replace(
+                      /\s+/g,
+                      " "
+                    )
+                    .slice(
+                      0,
+                      240
+                    )
+              })
+            );
+
         const robotsMetaValues =
           [
             ...document.querySelectorAll(
@@ -4033,6 +4078,17 @@ async function captureActiveTab() {
         );
 
         addCheck(
+          "rendered_head_invalid_element",
+          renderedHeadInvalidElements.length
+            ? "finding"
+            : "pass",
+          renderedHeadInvalidElements.length
+            ? `${renderedHeadInvalidElements.length} invalid element(s) are present in the rendered head`
+            : "Rendered head contains only valid metadata elements",
+          renderedHeadInvalidElements
+        );
+
+        addCheck(
           "robots_noindex",
           /noindex/i.test(
             robots
@@ -4467,6 +4523,8 @@ async function captureActiveTab() {
 
           canonicalRawHrefs,
 
+          renderedHeadInvalidElements,
+
           robots,
 
           robotsMetaValues,
@@ -4678,6 +4736,756 @@ function parseHtmlIndexabilitySignals(html, baseUrl) {
   return {canonicals, canonicalRawHrefs, robotsMetaValues, googlebotMetaValues, metaRefreshValues};
 }
 
+
+const AI_ROBOTS_PROFILES = [
+  {id: "oai-searchbot", label: "OpenAI search", userAgent: "OAI-SearchBot", category: "search"},
+  {id: "oai-adsbot", label: "OpenAI ads", userAgent: "OAI-AdsBot", category: "ads_validation"},
+  {id: "gptbot", label: "OpenAI training", userAgent: "GPTBot", category: "training"},
+  {id: "chatgpt-user", label: "ChatGPT user fetch", userAgent: "ChatGPT-User", category: "user_triggered"},
+  {id: "claudebot", label: "Anthropic crawl", userAgent: "ClaudeBot", category: "ai_crawl"},
+  {id: "claude-searchbot", label: "Claude search", userAgent: "Claude-SearchBot", category: "search"},
+  {id: "claude-user", label: "Claude user fetch", userAgent: "Claude-User", category: "user_triggered"},
+  {id: "perplexitybot", label: "Perplexity search", userAgent: "PerplexityBot", category: "search"},
+  {id: "perplexity-user", label: "Perplexity user fetch", userAgent: "Perplexity-User", category: "user_triggered"},
+  {id: "google-extended", label: "Google-Extended", userAgent: "Google-Extended", category: "ai_control_token"},
+  {id: "google-cloudvertexbot", label: "Google Cloud Vertex", userAgent: "Google-CloudVertexBot", category: "ai_crawl"},
+  {id: "applebot", label: "Applebot", userAgent: "Applebot", category: "search_ai"},
+  {id: "applebot-extended", label: "Applebot-Extended", userAgent: "Applebot-Extended", category: "ai_control_token"},
+  {id: "amzn-searchbot", label: "Amazon search", userAgent: "Amzn-SearchBot", category: "search"},
+  {id: "amzn-user", label: "Amazon user fetch", userAgent: "Amzn-User", category: "user_triggered"},
+  {id: "ccbot", label: "Common Crawl", userAgent: "CCBot", category: "dataset_crawl"}
+];
+
+function scanSourceHeadIntegrity(html, baseUrl) {
+  const source =
+    String(
+      html ||
+      ""
+    );
+
+  const headOpen =
+    /<head\b[^>]*>/i.exec(
+      source
+    );
+
+  if (!headOpen) {
+    return {
+      present: false,
+      explicitClose: false,
+      likelyBreak: null,
+      lost: [],
+      declarations: [],
+      message:
+        "No explicit <head> start tag was found in the server HTML."
+    };
+  }
+
+  const headStart =
+    headOpen.index +
+    headOpen[0].length;
+
+  const closeMatch =
+    /<\/head\s*>/i.exec(
+      source.slice(
+        headStart
+      )
+    );
+
+  const explicitClose =
+    !!closeMatch;
+
+  const headEnd =
+    closeMatch
+      ? headStart +
+        closeMatch.index
+      : Math.min(
+          source.length,
+          headStart +
+            500000
+        );
+
+  const fragment =
+    source.slice(
+      headStart,
+      headEnd
+    );
+
+  const allowed =
+    new Set([
+      "base",
+      "link",
+      "meta",
+      "title",
+      "noscript",
+      "script",
+      "style",
+      "template"
+    ]);
+
+  const rawTextTags =
+    new Set([
+      "script",
+      "style",
+      "title"
+    ]);
+
+  const declarations = [];
+  let likelyBreak = null;
+  let cursor = 0;
+
+  while (
+    cursor <
+    fragment.length
+  ) {
+    if (
+      fragment.startsWith(
+        "<!--",
+        cursor
+      )
+    ) {
+      const end =
+        fragment.indexOf(
+          "-->",
+          cursor + 4
+        );
+
+      cursor =
+        end >= 0
+          ? end + 3
+          : fragment.length;
+
+      continue;
+    }
+
+    const next =
+      fragment.indexOf(
+        "<",
+        cursor
+      );
+
+    if (
+      next < 0
+    ) {
+      break;
+    }
+
+    const tokenMatch =
+      /^<\s*(\/)?\s*([a-zA-Z][a-zA-Z0-9:-]*)\b[^>]*>/i.exec(
+        fragment.slice(
+          next
+        )
+      );
+
+    if (
+      !tokenMatch
+    ) {
+      cursor =
+        next + 1;
+      continue;
+    }
+
+    const token =
+      tokenMatch[0];
+
+    const closing =
+      !!tokenMatch[1];
+
+    const tag =
+      String(
+        tokenMatch[2] ||
+        ""
+      ).toLowerCase();
+
+    const absoluteOffset =
+      headStart +
+      next;
+
+    if (
+      !closing
+    ) {
+      if (
+        !likelyBreak &&
+        !allowed.has(
+          tag
+        )
+      ) {
+        likelyBreak = {
+          tag,
+          offset:
+            absoluteOffset,
+          excerpt:
+            token
+              .replace(
+                /\s+/g,
+                " "
+              )
+              .slice(
+                0,
+                240
+              )
+        };
+      }
+
+      if (
+        [
+          "title",
+          "meta",
+          "link",
+          "base",
+          "script"
+        ].includes(
+          tag
+        )
+      ) {
+        const attrs =
+          parseTagAttributes(
+            token
+          );
+
+        let kind =
+          tag;
+
+        let value = "";
+
+        if (
+          tag === "meta"
+        ) {
+          const name =
+            String(
+              attrs.name ||
+              attrs.property ||
+              attrs["http-equiv"] ||
+              ""
+            ).toLowerCase();
+
+          kind =
+            name
+              ? `meta:${name}`
+              : "meta";
+
+          value =
+            attrs.content ||
+            "";
+        } else if (
+          tag === "link"
+        ) {
+          const rel =
+            String(
+              attrs.rel ||
+              ""
+            ).toLowerCase();
+
+          kind =
+            rel
+              ? `link:${rel}`
+              : "link";
+
+          value =
+            attrs.href ||
+            "";
+        } else if (
+          tag === "base"
+        ) {
+          value =
+            attrs.href ||
+            "";
+        } else if (
+          tag === "script"
+        ) {
+          kind =
+            String(
+              attrs.type ||
+              ""
+            ).toLowerCase() ===
+            "application/ld+json"
+              ? "jsonld"
+              : "script";
+
+          value =
+            attrs.src ||
+            "";
+        }
+
+        declarations.push({
+          kind,
+          tag,
+          offset:
+            absoluteOffset,
+          afterLikelyBreak:
+            !!(
+              likelyBreak &&
+              absoluteOffset >
+                likelyBreak.offset
+            ),
+          value:
+            String(
+              value ||
+              ""
+            ).slice(
+              0,
+              300
+            ),
+          excerpt:
+            token
+              .replace(
+                /\s+/g,
+                " "
+              )
+              .slice(
+                0,
+                260
+              )
+        });
+      }
+    }
+
+    cursor =
+      next +
+      token.length;
+
+    if (
+      !closing &&
+      rawTextTags.has(
+        tag
+      )
+    ) {
+      const closePattern =
+        new RegExp(
+          "<\\/\\s*" +
+            tag +
+            "\\s*>",
+          "ig"
+        );
+
+      closePattern.lastIndex =
+        cursor;
+
+      const rawClose =
+        closePattern.exec(
+          fragment
+        );
+
+      if (
+        rawClose
+      ) {
+        const rawContent =
+          fragment.slice(
+            cursor,
+            rawClose.index
+          );
+
+        const swallowedPattern =
+          /<(meta|link|base|title|script)\b[^>]*>/gi;
+
+        let swallowedMatch;
+
+        while (
+          (
+            swallowedMatch =
+              swallowedPattern.exec(
+                rawContent
+              )
+          )
+        ) {
+          const swallowedTag =
+            swallowedMatch[1]
+              .toLowerCase();
+
+          const swallowedToken =
+            swallowedMatch[0];
+
+          const attrs =
+            parseTagAttributes(
+              swallowedToken
+            );
+
+          let kind =
+            swallowedTag;
+
+          let value = "";
+
+          if (
+            swallowedTag ===
+            "meta"
+          ) {
+            const name =
+              String(
+                attrs.name ||
+                attrs.property ||
+                attrs["http-equiv"] ||
+                ""
+              ).toLowerCase();
+
+            kind =
+              name
+                ? `meta:${name}`
+                : "meta";
+
+            value =
+              attrs.content ||
+              "";
+          } else if (
+            swallowedTag ===
+            "link"
+          ) {
+            const rel =
+              String(
+                attrs.rel ||
+                ""
+              ).toLowerCase();
+
+            kind =
+              rel
+                ? `link:${rel}`
+                : "link";
+
+            value =
+              attrs.href ||
+              "";
+          } else if (
+            swallowedTag ===
+            "base"
+          ) {
+            value =
+              attrs.href ||
+              "";
+          } else if (
+            swallowedTag ===
+            "script"
+          ) {
+            kind =
+              String(
+                attrs.type ||
+                ""
+              ).toLowerCase() ===
+              "application/ld+json"
+                ? "jsonld"
+                : "script";
+
+            value =
+              attrs.src ||
+              "";
+          }
+
+          const swallowedOffset =
+            headStart +
+            cursor +
+            swallowedMatch.index;
+
+          if (
+            !likelyBreak
+          ) {
+            likelyBreak = {
+              tag,
+              offset:
+                absoluteOffset,
+              excerpt:
+                token
+                  .replace(
+                    /\s+/g,
+                    " "
+                  )
+                  .slice(
+                    0,
+                    240
+                  ),
+              reason:
+                "metadata_swallowed_in_raw_text"
+            };
+          }
+
+          declarations.push({
+            kind,
+            tag:
+              swallowedTag,
+            offset:
+              swallowedOffset,
+            afterLikelyBreak:
+              true,
+            swallowedAsText:
+              true,
+            value:
+              String(
+                value ||
+                ""
+              ).slice(
+                0,
+                300
+              ),
+            excerpt:
+              swallowedToken
+                .replace(
+                  /\s+/g,
+                  " "
+                )
+                .slice(
+                  0,
+                  260
+                )
+          });
+        }
+
+        cursor =
+          rawClose.index +
+          rawClose[0].length;
+      } else {
+        if (
+          !likelyBreak
+        ) {
+          likelyBreak = {
+            tag,
+            offset:
+              absoluteOffset,
+            excerpt:
+              token
+                .replace(
+                  /\s+/g,
+                  " "
+                )
+                .slice(
+                  0,
+                  240
+                ),
+            reason:
+              "unclosed_raw_text_element"
+          };
+        }
+
+        const swallowed =
+          fragment.slice(
+            cursor
+          );
+
+        const swallowedPattern =
+          /<(meta|link|base|title|script)\b[^>]*>/gi;
+
+        let swallowedMatch;
+
+        while (
+          (
+            swallowedMatch =
+              swallowedPattern.exec(
+                swallowed
+              )
+          )
+        ) {
+          const swallowedTag =
+            swallowedMatch[1]
+              .toLowerCase();
+
+          const swallowedToken =
+            swallowedMatch[0];
+
+          const attrs =
+            parseTagAttributes(
+              swallowedToken
+            );
+
+          let kind =
+            swallowedTag;
+
+          let value = "";
+
+          if (
+            swallowedTag ===
+            "meta"
+          ) {
+            const name =
+              String(
+                attrs.name ||
+                attrs.property ||
+                attrs["http-equiv"] ||
+                ""
+              ).toLowerCase();
+
+            kind =
+              name
+                ? `meta:${name}`
+                : "meta";
+
+            value =
+              attrs.content ||
+              "";
+          } else if (
+            swallowedTag ===
+            "link"
+          ) {
+            const rel =
+              String(
+                attrs.rel ||
+                ""
+              ).toLowerCase();
+
+            kind =
+              rel
+                ? `link:${rel}`
+                : "link";
+
+            value =
+              attrs.href ||
+              "";
+          } else if (
+            swallowedTag ===
+            "base"
+          ) {
+            value =
+              attrs.href ||
+              "";
+          } else if (
+            swallowedTag ===
+            "script"
+          ) {
+            kind =
+              String(
+                attrs.type ||
+                ""
+              ).toLowerCase() ===
+              "application/ld+json"
+                ? "jsonld"
+                : "script";
+
+            value =
+              attrs.src ||
+              "";
+          }
+
+          declarations.push({
+            kind,
+            tag:
+              swallowedTag,
+            offset:
+              headStart +
+              cursor +
+              swallowedMatch.index,
+            afterLikelyBreak:
+              true,
+            swallowedAsText:
+              true,
+            value:
+              String(
+                value ||
+                ""
+              ).slice(
+                0,
+                300
+              ),
+            excerpt:
+              swallowedToken
+                .replace(
+                  /\s+/g,
+                  " "
+                )
+                .slice(
+                  0,
+                  260
+                )
+          });
+        }
+
+        break;
+      }
+    }
+  }
+
+  const seoKinds =
+    new Set([
+      "title",
+      "base",
+      "jsonld",
+      "meta:description",
+      "meta:robots",
+      "meta:googlebot",
+      "meta:viewport",
+      "meta:refresh",
+      "meta:og:title",
+      "meta:og:description",
+      "meta:og:url"
+    ]);
+
+  const lost =
+    declarations
+      .filter(
+        item =>
+          item.afterLikelyBreak &&
+          (
+            seoKinds.has(
+              item.kind
+            ) ||
+            item.kind.startsWith(
+              "link:"
+            )
+          )
+      )
+      .map(
+        item => {
+          let resolvedValue =
+            item.value;
+
+          if (
+            resolvedValue &&
+            (
+              item.kind.startsWith(
+                "link:"
+              ) ||
+              item.kind ===
+                "base"
+            )
+          ) {
+            try {
+              resolvedValue =
+                new URL(
+                  resolvedValue,
+                  baseUrl
+                ).href;
+            } catch {}
+          }
+
+          return {
+            ...item,
+            value:
+              resolvedValue
+          };
+        }
+      );
+
+  return {
+    present:
+      true,
+    explicitClose,
+    likelyBreak,
+    lost,
+    declarations,
+    message:
+      likelyBreak
+        ? likelyBreak.reason ===
+            "unclosed_raw_text_element"
+          ? `An unclosed <${likelyBreak.tag}> element appears in source <head>; later markup may be consumed as text rather than parsed as metadata.`
+          : likelyBreak.reason ===
+              "metadata_swallowed_in_raw_text"
+            ? `Metadata-looking markup appears inside a <${likelyBreak.tag}> raw-text region in source <head>; those declarations are parsed as text rather than head metadata.`
+            : `A <${likelyBreak.tag}> element appears inside source <head>; later metadata may be parsed outside the head.`
+        : explicitClose
+          ? "No likely head-breaking element was detected before </head>."
+          : "No explicit </head> tag was found; browser parser recovery determines where head mode ends."
+  };
+}
+
+function evaluateCrawlerRobots(
+  robotsText,
+  targetUrl
+) {
+  return AI_ROBOTS_PROFILES.map(
+    profile => ({
+      ...profile,
+      ...evaluateRobotsTxt(
+        robotsText,
+        targetUrl,
+        profile.userAgent
+      )
+    })
+  );
+}
+
 function parseLinkHeaderCanonicals(value, baseUrl) {
   const output = [];
   const pattern = /<([^>]+)>\s*;([^,]*)/g;
@@ -4744,12 +5552,86 @@ function evaluateRobotsTxt(text, targetUrl, userAgent = "googlebot") {
   flush();
 
   const ua = String(userAgent || "").toLowerCase();
-  const exactGroups = groups.filter(group =>
-    group.agents.some(agent => agent !== "*" && ua.includes(agent))
-  );
-  const selected = exactGroups.length
-    ? exactGroups
-    : groups.filter(group => group.agents.includes("*"));
+
+  const candidates =
+    groups
+      .map(
+        group => {
+          const matchingAgents =
+            group.agents
+              .filter(
+                agent =>
+                  agent !== "*" &&
+                  ua.includes(
+                    agent
+                  )
+              );
+
+          const bestAgent =
+            matchingAgents
+              .sort(
+                (a, b) =>
+                  b.length -
+                  a.length
+              )[0] ||
+            null;
+
+          return {
+            group,
+            bestAgent,
+            specificity:
+              bestAgent
+                ?.length ||
+              0
+          };
+        }
+      )
+      .filter(
+        item =>
+          item.bestAgent
+      );
+
+  const maxAgentSpecificity =
+    candidates.length
+      ? Math.max(
+          ...candidates.map(
+            item =>
+              item.specificity
+          )
+        )
+      : 0;
+
+  const exactGroups =
+    candidates
+      .filter(
+        item =>
+          item.specificity ===
+          maxAgentSpecificity
+      )
+      .map(
+        item =>
+          item.group
+      );
+
+  const matchedUserAgentToken =
+    candidates
+      .find(
+        item =>
+          item.specificity ===
+          maxAgentSpecificity
+      )
+      ?.bestAgent ||
+    null;
+
+  const selected =
+    exactGroups.length
+      ? exactGroups
+      : groups.filter(
+          group =>
+            group.agents.includes(
+              "*"
+            )
+        );
 
   let path = "/";
   try {
@@ -4776,7 +5658,11 @@ function evaluateRobotsTxt(text, targetUrl, userAgent = "googlebot") {
 
   const winner = matching[0] || null;
   return {
-    userAgent: exactGroups.length ? userAgent : "*",
+    userAgent,
+    matchedUserAgentToken:
+      exactGroups.length
+        ? matchedUserAgentToken
+        : "*",
     path,
     allowed: !winner || winner.type === "allow",
     matchedRule: winner
@@ -5030,6 +5916,7 @@ async function checkIndexabilitySignals(payload) {
     allowed: null,
     matchedRule: null,
     userAgent: "googlebot",
+    crawlers: [],
     error: null
   };
 
@@ -5046,13 +5933,20 @@ async function checkIndexabilitySignals(payload) {
       error: robotsResponse.error,
       allowed: null,
       matchedRule: null,
-      userAgent: "googlebot"
+      userAgent: "googlebot",
+      crawlers: []
     };
 
     if (!robotsResponse.error && Number(robotsResponse.status) >= 200 && Number(robotsResponse.status) < 300) {
       robotsTxt = {
         ...robotsTxt,
-        ...evaluateRobotsTxt(robotsResponse.text, current.finalUrl || url, "googlebot")
+        ...evaluateRobotsTxt(robotsResponse.text, current.finalUrl || url, "googlebot"),
+        crawlers:
+          evaluateCrawlerRobots(
+            robotsResponse.text,
+            current.finalUrl ||
+              url
+          )
       };
     } else if (
       !robotsResponse.error &&
@@ -5061,10 +5955,59 @@ async function checkIndexabilitySignals(payload) {
       Number(robotsResponse.status) !== 429
     ) {
       robotsTxt.allowed = true;
+      robotsTxt.crawlers =
+        AI_ROBOTS_PROFILES.map(
+          profile => ({
+            ...profile,
+            path:
+              (() => {
+                try {
+                  const u =
+                    new URL(
+                      current.finalUrl ||
+                      url
+                    );
+
+                  return (
+                    u.pathname +
+                    u.search
+                  );
+                } catch {
+                  return "/";
+                }
+              })(),
+            allowed:
+              true,
+            matchedRule:
+              null
+          })
+        );
     }
   } catch (error) {
     robotsTxt.error = String(error?.message || error);
   }
+
+  const headIntegrity =
+    current.error
+      ? {
+          present:
+            null,
+          explicitClose:
+            null,
+          likelyBreak:
+            null,
+          lost:
+            [],
+          declarations:
+            [],
+          message:
+            "Server HTML could not be inspected."
+        }
+      : scanSourceHeadIntegrity(
+          current.text,
+          current.finalUrl ||
+            url
+        );
 
   const preferredCanonical =
     rendered.canonicals?.[0] ||
@@ -5084,11 +6027,96 @@ async function checkIndexabilitySignals(payload) {
     canonicalTarget
   });
 
+  if (
+    headIntegrity.present ===
+    false
+  ) {
+    findings.push({
+      code:
+        "source_head_missing",
+      severity:
+        "high",
+      message:
+        "No explicit <head> start tag was found in the server HTML.",
+      evidence:
+        headIntegrity
+    });
+  } else if (
+    headIntegrity.likelyBreak
+  ) {
+    findings.push({
+      code:
+        "source_head_likely_break",
+      severity:
+        headIntegrity.lost.length
+          ? "high"
+          : "medium",
+      message:
+        headIntegrity.lost.length
+          ? "Source <head> is likely broken by <" +
+            headIntegrity.likelyBreak.tag +
+            "> and " +
+            headIntegrity.lost.length +
+            " later metadata declaration(s) may be displaced."
+          : "Source <head> contains a likely head-breaking <" +
+            headIntegrity.likelyBreak.tag +
+            "> element.",
+      evidence: {
+        break:
+          headIntegrity.likelyBreak,
+        affected:
+          headIntegrity.lost
+      }
+    });
+  } else if (
+    headIntegrity.present &&
+    !headIntegrity.explicitClose
+  ) {
+    findings.push({
+      code:
+        "source_head_missing_close",
+      severity:
+        "review",
+      message:
+        "No explicit </head> tag was found in the server HTML; browser parser recovery determines where head mode ends.",
+      evidence:
+        headIntegrity
+    });
+  }
+
+  const blockedAiCrawlers =
+    (
+      robotsTxt.crawlers ||
+      []
+    )
+      .filter(
+        crawler =>
+          crawler.allowed ===
+          false
+      );
+
+  if (
+    blockedAiCrawlers.length
+  ) {
+    findings.push({
+      code:
+        "ai_crawlers_blocked",
+      severity:
+        "review",
+      message:
+        blockedAiCrawlers.length +
+        " AI/search crawler control(s) are blocked for this URL by robots.txt.",
+      evidence:
+        blockedAiCrawlers
+    });
+  }
+
   const output = {
     checkedAt: new Date().toISOString(),
     rendered,
     current,
     robotsTxt,
+    headIntegrity,
     canonicalTarget,
     findings,
     summary: {
