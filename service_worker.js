@@ -1162,60 +1162,429 @@ function compactDomModelValue(
           : null
     },
     ...(value.local_context
-      ? {
-          local_context: {
-            container_selector:
-              String(
-                value.local_context
-                  .container_selector ||
-                ""
-              ).slice(
-                0,
-                320
-              ),
-            heading:
-              String(
-                value.local_context
-                  .heading ||
-                ""
-              ).slice(
-                0,
-                180
-              ),
-            aria_label:
-              String(
-                value.local_context
-                  .aria_label ||
-                ""
-              ).slice(
-                0,
-                180
-              ),
-            image_alt:
-              String(
-                value.local_context
-                  .image_alt ||
-                ""
-              ).slice(
-                0,
-                180
-              ),
-            text:
-              String(
-                value.local_context
-                  .text ||
-                ""
-              ).slice(
-                0,
-                360
-              ),
-            link_count:
-              Number(
-                value.local_context
-                  .link_count ||
-                0
+      ? (() => {
+          const local =
+            value.local_context;
+
+          const heading =
+            String(
+              local.heading ||
+              ""
+            ).slice(
+              0,
+              120
+            );
+
+          const ariaLabel =
+            String(
+              local.aria_label ||
+              ""
+            ).slice(
+              0,
+              120
+            );
+
+          const imageAlt =
+            String(
+              local.image_alt ||
+              ""
+            ).slice(
+              0,
+              120
+            );
+
+          let contextText =
+            String(
+              local.text ||
+              ""
+            );
+
+          const removeIdentity =
+            candidate => {
+              const text =
+                String(
+                  candidate ||
+                  ""
+                ).trim();
+
+              if (!text) {
+                return;
+              }
+
+              contextText =
+                contextText.replace(
+                  text,
+                  " "
+                );
+            };
+
+          removeIdentity(
+            heading
+          );
+
+          removeIdentity(
+            ariaLabel
+          );
+
+          removeIdentity(
+            imageAlt
+          );
+
+          removeIdentity(
+            value.text
+          );
+
+          contextText =
+            contextText
+              .replace(
+                /\s+/g,
+                " "
               )
+              .trim()
+              .slice(
+                0,
+                140
+              );
+
+          const localContext = {
+            ...(heading
+              ? {
+                  heading
+                }
+              : {}),
+            ...(ariaLabel
+              ? {
+                  aria_label:
+                    ariaLabel
+                }
+              : {}),
+            ...(imageAlt
+              ? {
+                  image_alt:
+                    imageAlt
+                }
+              : {}),
+            ...(contextText
+              ? {
+                  nearby_text:
+                    contextText
+                }
+              : {})
+          };
+
+          return Object.keys(
+            localContext
+          ).length
+            ? {
+                local_context:
+                  localContext
+              }
+            : {};
+        })()
+      : {})
+  };
+}
+
+function compactTextTransformationForModel(
+  text
+) {
+  if (!text) {
+    return null;
+  }
+
+  if (!text.changed) {
+    return {
+      changed:
+        false
+    };
+  }
+
+  const factual =
+    {};
+
+  for (
+    const [
+      key,
+      value
+    ]
+    of Object.entries(
+      text.factual_tokens ||
+      {}
+    )
+  ) {
+    const added =
+      value?.added ||
+      [];
+
+    const removed =
+      value?.removed ||
+      [];
+
+    if (
+      added.length ||
+      removed.length
+    ) {
+      factual[key] = {
+        ...(removed.length
+          ? {
+              removed
+            }
+          : {}),
+        ...(added.length
+          ? {
+              added
+            }
+          : {})
+      };
+    }
+  }
+
+  return {
+    changed:
+      true,
+    before_words:
+      text.before_words,
+    after_words:
+      text.after_words,
+    original_word_retention:
+      text.original_word_retention,
+    token_jaccard:
+      text.token_jaccard,
+    ...(text.added_terms
+      ?.length
+      ? {
+          added_terms:
+            text.added_terms
+        }
+      : {}),
+    ...(text.removed_terms
+      ?.length
+      ? {
+          removed_terms:
+            text.removed_terms
+        }
+      : {}),
+    ...(Object.keys(
+      factual
+    ).length
+      ? {
+          factual_tokens:
+            factual
+        }
+      : {})
+  };
+}
+
+function compactTransformationForModel(
+  item
+) {
+  const source =
+    item?.transformation;
+
+  if (!source) {
+    return null;
+  }
+
+  const compact = {};
+
+  const text =
+    compactTextTransformationForModel(
+      source.text
+    );
+
+  if (text) {
+    compact.text =
+      text;
+  }
+
+  if (
+    item?.kind ===
+      "heading" &&
+    source.heading
+  ) {
+    compact.heading = {
+      before_level:
+        source.heading
+          .before_level,
+      after_level:
+        source.heading
+          .after_level,
+      level_changed:
+        !!source.heading
+          .level_changed
+    };
+  }
+
+  if (
+    item?.kind ===
+      "link" &&
+    source.url
+      ?.comparable
+  ) {
+    const url =
+      source.url;
+
+    compact.url = {
+      same_origin:
+        !!url.same_origin,
+      same_host:
+        !!url.same_host,
+      scheme_changed:
+        !!url.scheme_changed,
+      path_changed:
+        !!url.path_changed,
+      query_changed:
+        !!url.query_changed,
+      fragment_changed:
+        !!url.fragment_changed,
+      shared_terminal_path_segments:
+        url.shared_terminal_path_segments ||
+        0,
+      shorter_path_terminal_retention:
+        url.shorter_path_terminal_retention ||
+        0,
+      ...(url.added_path_prefix
+        ?.length
+        ? {
+            added_path_prefix:
+              url.added_path_prefix
           }
+        : {}),
+      ...(url.removed_path_prefix
+        ?.length
+        ? {
+            removed_path_prefix:
+              url.removed_path_prefix
+          }
+        : {}),
+      ...(url.query_keys_added
+        ?.length
+        ? {
+            query_keys_added:
+              url.query_keys_added
+          }
+        : {}),
+      ...(url.query_keys_removed
+        ?.length
+        ? {
+            query_keys_removed:
+              url.query_keys_removed
+          }
+        : {})
+    };
+  }
+
+  return Object.keys(
+    compact
+  ).length
+    ? compact
+    : null;
+}
+
+function compactNetEffectForModel(
+  item
+) {
+  const effect =
+    item?.net_effect;
+
+  if (!effect) {
+    return null;
+  }
+
+  const signals =
+    effect.signals ||
+    {};
+
+  const compactSignals = {
+    ...(signals.semantic_weight !=
+      null
+      ? {
+          semantic_weight:
+            signals.semantic_weight
+        }
+      : {}),
+    ...(signals.destination_changed
+      ? {
+          destination_changed:
+            true
+        }
+      : {}),
+    ...(signals.destination_added
+      ? {
+          destination_added:
+            true
+        }
+      : {}),
+    ...(signals.destination_removed
+      ? {
+          destination_removed:
+            true
+        }
+      : {}),
+    ...(signals.anchor_text_changed
+      ? {
+          anchor_text_changed:
+            true,
+          anchor_similarity:
+            signals.anchor_similarity
+        }
+      : {}),
+    ...(signals.raw_destination_occurrences_in_rendered !=
+      null
+      ? {
+          raw_destination_occurrences_in_rendered:
+            signals.raw_destination_occurrences_in_rendered
+        }
+      : {}),
+    ...(signals.rendered_destination_occurrences_in_raw !=
+      null
+      ? {
+          rendered_destination_occurrences_in_raw:
+            signals.rendered_destination_occurrences_in_raw
+        }
+      : {}),
+    ...(signals.unique_topic_added
+      ? {
+          unique_topic_added:
+            true
+        }
+      : {}),
+    ...(signals.unique_topic_removed
+      ? {
+          unique_topic_removed:
+            true
+        }
+      : {}),
+    ...(signals.h1_level_change
+      ? {
+          h1_level_change:
+            true
+        }
+      : {})
+  };
+
+  return {
+    type:
+      effect.type ||
+      item?.kind ||
+      "",
+    significance:
+      effect.significance ||
+      "",
+    reason:
+      String(
+        effect.reason ||
+        ""
+      ).slice(
+        0,
+        260
+      ),
+    ...(Object.keys(
+      compactSignals
+    ).length
+      ? {
+          signals:
+            compactSignals
         }
       : {})
   };
@@ -1282,18 +1651,31 @@ function compactDomDiffItemForModel(
           reconciliation
         }
       : {}),
-    ...(item?.transformation
-      ? {
-          transformation:
-            item.transformation
-        }
-      : {}),
-    ...(item?.net_effect
-      ? {
-          net_effect:
-            item.net_effect
-        }
-      : {})
+    ...(() => {
+      const transformation =
+        compactTransformationForModel(
+          item
+        );
+
+      return transformation
+        ? {
+            transformation
+          }
+        : {};
+    })(),
+    ...(() => {
+      const netEffect =
+        compactNetEffectForModel(
+          item
+        );
+
+      return netEffect
+        ? {
+            net_effect:
+              netEffect
+          }
+        : {};
+    })()
   };
 }
 
@@ -7592,6 +7974,32 @@ async function buildDomDiff() {
           };
         };
 
+        const semanticContainerText = (
+          node
+        ) => {
+          if (!node) {
+            return "";
+          }
+
+          const clone =
+            node.cloneNode(
+              true
+            );
+
+          clone
+            .querySelectorAll?.(
+              "script,style,noscript,template,svg"
+            )
+            .forEach(
+              child =>
+                child.remove()
+            );
+
+          return normaliseText(
+            clone.textContent
+          );
+        };
+
         const localIdentityContextFor = (
           el
         ) => {
@@ -7604,7 +8012,9 @@ async function buildDomDiff() {
               el.tagName ===
                 "INPUT"
                 ? el.value
-                : el.textContent
+                : semanticContainerText(
+                    el
+                  )
             );
 
           let best =
@@ -7630,8 +8040,8 @@ async function buildDomDiff() {
             }
 
             const text =
-              normaliseText(
-                cur.textContent
+              semanticContainerText(
+                cur
               );
 
             const headingEl =
@@ -7641,10 +8051,10 @@ async function buildDomDiff() {
 
             const heading =
               clip(
-                headingEl
-                  ?.textContent ||
-                  "",
-                180
+                semanticContainerText(
+                  headingEl
+                ),
+                140
               );
 
             const imageAlt =
@@ -7764,7 +8174,7 @@ async function buildDomDiff() {
               text:
                 clip(
                   text,
-                  360
+                  220
                 ),
               link_count:
                 linkCount
