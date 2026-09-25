@@ -4739,6 +4739,7 @@ function parseHtmlIndexabilitySignals(html, baseUrl) {
 
 const AI_ROBOTS_PROFILES = [
   {id: "oai-searchbot", label: "OpenAI search", userAgent: "OAI-SearchBot", category: "search"},
+  {id: "oai-adsbot", label: "OpenAI ads", userAgent: "OAI-AdsBot", category: "ads_validation"},
   {id: "gptbot", label: "OpenAI training", userAgent: "GPTBot", category: "training"},
   {id: "chatgpt-user", label: "ChatGPT user fetch", userAgent: "ChatGPT-User", category: "user_triggered"},
   {id: "claudebot", label: "Anthropic crawl", userAgent: "ClaudeBot", category: "ai_crawl"},
@@ -4750,6 +4751,8 @@ const AI_ROBOTS_PROFILES = [
   {id: "google-cloudvertexbot", label: "Google Cloud Vertex", userAgent: "Google-CloudVertexBot", category: "ai_crawl"},
   {id: "applebot", label: "Applebot", userAgent: "Applebot", category: "search_ai"},
   {id: "applebot-extended", label: "Applebot-Extended", userAgent: "Applebot-Extended", category: "ai_control_token"},
+  {id: "amzn-searchbot", label: "Amazon search", userAgent: "Amzn-SearchBot", category: "search"},
+  {id: "amzn-user", label: "Amazon user fetch", userAgent: "Amzn-User", category: "user_triggered"},
   {id: "ccbot", label: "Common Crawl", userAgent: "CCBot", category: "dataset_crawl"}
 ];
 
@@ -5258,12 +5261,86 @@ function evaluateRobotsTxt(text, targetUrl, userAgent = "googlebot") {
   flush();
 
   const ua = String(userAgent || "").toLowerCase();
-  const exactGroups = groups.filter(group =>
-    group.agents.some(agent => agent !== "*" && ua.includes(agent))
-  );
-  const selected = exactGroups.length
-    ? exactGroups
-    : groups.filter(group => group.agents.includes("*"));
+
+  const candidates =
+    groups
+      .map(
+        group => {
+          const matchingAgents =
+            group.agents
+              .filter(
+                agent =>
+                  agent !== "*" &&
+                  ua.includes(
+                    agent
+                  )
+              );
+
+          const bestAgent =
+            matchingAgents
+              .sort(
+                (a, b) =>
+                  b.length -
+                  a.length
+              )[0] ||
+            null;
+
+          return {
+            group,
+            bestAgent,
+            specificity:
+              bestAgent
+                ?.length ||
+              0
+          };
+        }
+      )
+      .filter(
+        item =>
+          item.bestAgent
+      );
+
+  const maxAgentSpecificity =
+    candidates.length
+      ? Math.max(
+          ...candidates.map(
+            item =>
+              item.specificity
+          )
+        )
+      : 0;
+
+  const exactGroups =
+    candidates
+      .filter(
+        item =>
+          item.specificity ===
+          maxAgentSpecificity
+      )
+      .map(
+        item =>
+          item.group
+      );
+
+  const matchedUserAgentToken =
+    candidates
+      .find(
+        item =>
+          item.specificity ===
+          maxAgentSpecificity
+      )
+      ?.bestAgent ||
+    null;
+
+  const selected =
+    exactGroups.length
+      ? exactGroups
+      : groups.filter(
+          group =>
+            group.agents.includes(
+              "*"
+            )
+        );
 
   let path = "/";
   try {
@@ -5290,7 +5367,11 @@ function evaluateRobotsTxt(text, targetUrl, userAgent = "googlebot") {
 
   const winner = matching[0] || null;
   return {
-    userAgent: exactGroups.length ? userAgent : "*",
+    userAgent,
+    matchedUserAgentToken:
+      exactGroups.length
+        ? matchedUserAgentToken
+        : "*",
     path,
     allowed: !winner || winner.type === "allow",
     matchedRule: winner
