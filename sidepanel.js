@@ -574,9 +574,10 @@ function initialiseBatchControls() {
 
 function toneForValue(value) {
   const v = String(value ?? "").toLowerCase();
-  if (["strong","likely_consistent","likely_correct","likely_false_positive","pass","probably_harmless"].includes(v)) return "good";
-  if (["weak","likely_incorrect","likely_valid","finding","likely_important","error"].includes(v)) return "bad";
+  if (["strong","likely_consistent","likely_correct","likely_false_positive","no_material_impact","pass","probably_harmless"].includes(v)) return "good";
+  if (["weak","likely_incorrect","meaningful_issue","finding","likely_important","error"].includes(v)) return "bad";
   if (["partial","mostly_consistent","needs_review","context_dependent","manual_review","mixed","unclear"].includes(v)) return "warn";
+  if (["low_impact"].includes(v)) return "neutral";
   return "neutral";
 }
 
@@ -1052,6 +1053,25 @@ function deterministicTriageByCode(report) {
   return byCode;
 }
 
+function deterministicImpactProfile(
+  code
+) {
+  return (
+    settings
+      ?.deterministicImpactProfiles
+      ?.[code] ||
+    {
+      impacts: [],
+      baselinePriority:
+        DETERMINISTIC_PRIORITY[
+          code
+        ] ||
+        "medium",
+      consequence: ""
+    }
+  );
+}
+
 function deterministicFindingDisposition(
   finding,
   report,
@@ -1074,41 +1094,38 @@ function deterministicFindingDisposition(
       )
       .filter(Boolean);
 
-  const allFalsePositive =
-    judgements.length > 0 &&
-    judgements.every(
-      judgement =>
-        judgement ===
-        "likely_false_positive"
+  const profile =
+    deterministicImpactProfile(
+      finding.code
     );
 
-  const allValid =
-    judgements.length > 0 &&
-    judgements.every(
-      judgement =>
-        judgement ===
-        "likely_valid"
-    );
+  const baseline =
+    profile
+      .baselinePriority ||
+    DETERMINISTIC_PRIORITY[
+      finding.code
+    ] ||
+    "medium";
 
-  const mixedOrContextual =
-    judgements.some(
-      judgement =>
-        [
-          "manual_review",
-          "context_dependent"
-        ].includes(
-          judgement
-        )
-    ) ||
-    (
-      judgements.length > 1 &&
-      new Set(
-        judgements
-      ).size > 1
-    );
+  const unanimous =
+    value =>
+      judgements.length > 0 &&
+      judgements.every(
+        judgement =>
+          judgement ===
+          value
+      );
+
+  const mixed =
+    judgements.length > 1 &&
+    new Set(
+      judgements
+    ).size > 1;
 
   if (
-    allFalsePositive
+    unanimous(
+      "likely_false_positive"
+    )
   ) {
     return {
       key:
@@ -1122,36 +1139,92 @@ function deterministicFindingDisposition(
       priority:
         null,
       note:
-        "Model review suggests this deterministic condition is not an issue on this page. Kept here for traceability and reference.",
+        "Model review suggests the detector does not describe a real condition for the supplied evidence.",
+      profile,
       reviews
     };
   }
 
   if (
-    allValid
+    unanimous(
+      "no_material_impact"
+    )
   ) {
     return {
       key:
-        "actionable",
+        "no_material_impact",
       label:
-        "Actionable",
+        "No material impact",
+      tone:
+        "good",
+      actionRequired:
+        false,
+      priority:
+        null,
+      note:
+        "The condition appears real, but the model found no meaningful consequence on this page.",
+      profile,
+      reviews
+    };
+  }
+
+  if (
+    unanimous(
+      "low_impact"
+    )
+  ) {
+    return {
+      key:
+        "low_impact",
+      label:
+        "Low impact",
+      tone:
+        "neutral",
+      actionRequired:
+        true,
+      priority:
+        "low",
+      note:
+        "The condition appears real, but its practical consequence is limited.",
+      profile,
+      reviews
+    };
+  }
+
+  if (
+    unanimous(
+      "meaningful_issue"
+    )
+  ) {
+    return {
+      key:
+        "meaningful_issue",
+      label:
+        "Meaningful issue",
       tone:
         "bad",
       actionRequired:
         true,
       priority:
-        DETERMINISTIC_PRIORITY[
-          finding.code
-        ] ||
-        "medium",
+        baseline ===
+          "context-dependent"
+          ? "review"
+          : baseline,
       note:
-        "Model review supports the deterministic finding.",
+        "Model review supports the deterministic finding within its configured consequence profile.",
+      profile,
       reviews
     };
   }
 
   if (
-    mixedOrContextual ||
+    unanimous(
+      "context_dependent"
+    ) ||
+    unanimous(
+      "manual_review"
+    ) ||
+    mixed ||
     reviews.length
   ) {
     return {
@@ -1166,7 +1239,8 @@ function deterministicFindingDisposition(
       priority:
         "review",
       note:
-        "Model review is contextual or providers do not fully agree. Human review is appropriate before action.",
+        "Impact is context-dependent, evidence is insufficient, or selected providers do not fully agree.",
+      profile,
       reviews
     };
   }
@@ -1181,12 +1255,13 @@ function deterministicFindingDisposition(
     actionRequired:
       null,
     priority:
-      DETERMINISTIC_PRIORITY[
-        finding.code
-      ] ||
-      "medium",
+      baseline ===
+        "context-dependent"
+        ? "review"
+        : baseline,
     note:
       "This deterministic finding has not been reviewed by a model.",
+    profile,
     reviews
   };
 }
@@ -1230,8 +1305,12 @@ function buildActionRows(report) {
       );
 
     if (
-      disposition.key ===
-      "likely_false_positive"
+      [
+        "likely_false_positive",
+        "no_material_impact"
+      ].includes(
+        disposition.key
+      )
     ) {
       continue;
     }
@@ -3823,7 +3902,7 @@ function renderAnalyseAllResults(report) {
   );
 
   const fp = analyseTaskDetails(
-    "False-positive triage",
+    "Finding impact triage",
     report.falsePositives,
     "false_positive",
     report.falsePositives.length > 0
@@ -3847,7 +3926,7 @@ function renderAnalyseAllResults(report) {
 
     jiraBox.innerHTML =
       "<h3>Finding follow-up</h3>" +
-      '<div class="muted small">All deterministic findings are retained here for reference. The triage status indicates whether action is warranted.</div>';
+      '<div class="muted small">All deterministic findings are retained here for reference. Model review distinguishes detector false positives from real conditions with low, contextual or meaningful impact.</div>';
 
     const triageMap =
       deterministicTriageByCode(
@@ -3878,10 +3957,12 @@ function renderAnalyseAllResults(report) {
         .sort(
           (a, b) => {
             const rank = {
-              actionable: 0,
-              needs_review: 1,
-              unreviewed: 2,
-              likely_false_positive: 3
+              meaningful_issue: 0,
+              low_impact: 1,
+              needs_review: 2,
+              unreviewed: 3,
+              no_material_impact: 4,
+              likely_false_positive: 5
             };
 
             return (
@@ -3936,6 +4017,12 @@ function renderAnalyseAllResults(report) {
                 ${badgeHtml(disposition.label, disposition.tone)}
               </div>
               <div class="small">${escapeHtml(issue.message)}</div>
+              ${disposition.profile?.impacts?.length
+                ? `<div class="result-primary" style="margin-top:5px">${disposition.profile.impacts.map(impact => badgeHtml(impact, "neutral")).join("")}</div>`
+                : ""}
+              ${disposition.profile?.consequence
+                ? `<div class="muted small" style="margin-top:5px">${escapeHtml(disposition.profile.consequence)}</div>`
+                : ""}
               <div class="finding-disposition-note small">
                 ${escapeHtml(disposition.note)}
               </div>
@@ -3947,7 +4034,7 @@ function renderAnalyseAllResults(report) {
                 : ""}
             </div>
             <button class="secondary" data-all-jira>
-              ${disposition.key === "likely_false_positive" ? "Create ticket anyway" : "Create Jira ticket"}
+              ${["likely_false_positive","no_material_impact"].includes(disposition.key) ? "Create ticket anyway" : "Create Jira ticket"}
             </button>
           </div>
           <div data-all-jira-result></div>

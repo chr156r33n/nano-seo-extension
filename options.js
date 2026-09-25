@@ -413,21 +413,68 @@ function render() {
     </section>
 
     <section>
-      <div class="section-kicker">Advanced</div><h2>Finding-specific guidance</h2>
+      <div class="section-kicker">Advanced</div><h2>Deterministic issue profiles</h2>
 
       <p class="muted">
-        Only the guidance for the finding being reviewed is added to that model call.
+        Each profile supplies a small trusted consequence map to model triage. The model receives only the profile for the finding being reviewed.
       </p>
 
-      ${Object.entries(current.falsePositiveGuidance)
+      ${Object.keys({
+        ...(current.falsePositiveGuidance || {}),
+        ...(current.deterministicImpactProfiles || {})
+      })
+        .sort()
         .map(
-          ([code, guidance]) => `
-            <div class="card">
-              <h3>${code}</h3>
+          code => {
+            const profile =
+              current.deterministicImpactProfiles?.[code] ||
+              {
+                impacts: [],
+                baselinePriority: "context-dependent",
+                consequence: ""
+              };
 
-              <textarea data-guidance="${code}">${guidance}</textarea>
-            </div>
-          `
+            const guidance =
+              current.falsePositiveGuidance?.[code] ||
+              "";
+
+            return `
+              <div class="card">
+                <h3>${code}</h3>
+
+                <label class="block">
+                  Impact labels
+                  <input
+                    data-impact-labels="${code}"
+                    value="${(profile.impacts || []).join(", ")}"
+                    placeholder="Indexing, CTR, Accessibility"
+                  >
+                </label>
+
+                <label class="block">
+                  Baseline priority
+                  <select data-impact-priority="${code}">
+                    ${["low","medium","high","context-dependent"]
+                      .map(
+                        value =>
+                          `<option value="${value}" ${profile.baselinePriority === value ? "selected" : ""}>${value}</option>`
+                      )
+                      .join("")}
+                  </select>
+                </label>
+
+                <label class="block">
+                  Consequence summary
+                  <textarea data-impact-consequence="${code}">${profile.consequence || ""}</textarea>
+                </label>
+
+                <label class="block">
+                  Model edge-case guidance
+                  <textarea data-guidance="${code}">${guidance}</textarea>
+                </label>
+              </div>
+            `;
+          }
         )
         .join("")}
     </section>
@@ -576,6 +623,91 @@ function collect() {
           profile.hostname &&
           profile.checks.length
       );
+
+  current.deterministicImpactProfiles =
+    current.deterministicImpactProfiles ||
+    {};
+
+  document
+    .querySelectorAll(
+      "[data-impact-labels]"
+    )
+    .forEach(
+      input => {
+        const code =
+          input.dataset
+            .impactLabels;
+
+        current.deterministicImpactProfiles[
+          code
+        ] = {
+          ...(
+            current.deterministicImpactProfiles[
+              code
+            ] ||
+            {}
+          ),
+          impacts:
+            input.value
+              .split(",")
+              .map(
+                value =>
+                  value.trim()
+              )
+              .filter(Boolean)
+        };
+      }
+    );
+
+  document
+    .querySelectorAll(
+      "[data-impact-priority]"
+    )
+    .forEach(
+      input => {
+        const code =
+          input.dataset
+            .impactPriority;
+
+        current.deterministicImpactProfiles[
+          code
+        ] = {
+          ...(
+            current.deterministicImpactProfiles[
+              code
+            ] ||
+            {}
+          ),
+          baselinePriority:
+            input.value
+        };
+      }
+    );
+
+  document
+    .querySelectorAll(
+      "[data-impact-consequence]"
+    )
+    .forEach(
+      input => {
+        const code =
+          input.dataset
+            .impactConsequence;
+
+        current.deterministicImpactProfiles[
+          code
+        ] = {
+          ...(
+            current.deterministicImpactProfiles[
+              code
+            ] ||
+            {}
+          ),
+          consequence:
+            input.value.trim()
+        };
+      }
+    );
 
   document
     .querySelectorAll(

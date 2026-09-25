@@ -1144,6 +1144,15 @@ function taskVars(task, payload, settings, provider = null) {
       settings.falsePositiveGuidance?.[payload.issue?.code] ||
       "Judge the finding conservatively using the supplied page context. If the evidence is insufficient, choose manual_review.";
 
+    const impactProfile =
+      settings.deterministicImpactProfiles
+        ?.[payload.issue?.code] ||
+      {
+        impacts: [],
+        baselinePriority: "context-dependent",
+        consequence: "No configured consequence profile is available for this check."
+      };
+
     const rawEvidence =
       payload.issue?.deterministicValue ?? null;
 
@@ -1198,6 +1207,12 @@ function taskVars(task, payload, settings, provider = null) {
       semantic_guidance:
         settings.semanticImportanceGuidance,
       guidance,
+      impact_profile_json:
+        JSON.stringify(
+          impactProfile,
+          null,
+          2
+        ),
       evidence_json:
         untrustedEvidence(
           "affected_page_evidence",
