@@ -484,9 +484,94 @@ function bindCopyButton(
     };
 }
 
+function cleanClipboardCell(
+  value
+) {
+  return String(
+    value ||
+    ""
+  )
+    .replace(
+      /\s*\n\s*/g,
+      " "
+    )
+    .replace(
+      /\t/g,
+      " "
+    )
+    .replace(
+      /\s{2,}/g,
+      " "
+    )
+    .trim();
+}
+
+function tableToTsv(
+  table
+) {
+  if (!table) {
+    return "";
+  }
+
+  const rows =
+    [
+      ...table.querySelectorAll(
+        "tr"
+      )
+    ];
+
+  return rows
+    .map(
+      row =>
+        [
+          ...row.querySelectorAll(
+            ":scope > th, :scope > td"
+          )
+        ]
+          .map(
+            cell =>
+              cleanClipboardCell(
+                cell.innerText ||
+                cell.textContent ||
+                ""
+              )
+          )
+          .join(
+            "\t"
+          )
+    )
+    .filter(Boolean)
+    .join(
+      "\n"
+    );
+}
+
 function copyableTextFromElement(
   element
 ) {
+  const tables =
+    [
+      ...element.querySelectorAll(
+        "table"
+      )
+    ];
+
+  if (
+    tables.length
+  ) {
+    return tables
+      .map(
+        table =>
+          tableToTsv(
+            table
+          )
+      )
+      .filter(Boolean)
+      .join(
+        "\n\n"
+      );
+  }
+
   const clone =
     element.cloneNode(
       true
@@ -1192,29 +1277,40 @@ function providerCard(task, provider, result, mode = null, displayContext = null
   d.innerHTML =
     `<div class="result-card-head"><div><div class="result-provider">${escapeHtml(provider)}</div><div class="result-meta">${context}${meta.cacheHit ? '<span class="mini-chip">Cache</span>' : ""}${meta.durationMs ? `<span>${escapeHtml(meta.durationMs)} ms total</span>` : ""}${timingChips}</div></div>${copyIconHtml("Copy this result")}</div>${securityWarningHtml(security)}<div class="result-body">${taskResultHtml(task, clean, displayContext)}</div>${rawJsonDetails(clean)}`;
 
+  const table =
+    d.querySelector(
+      "table"
+    );
+
   bindCopyButton(
     d,
-    {
-      provider:
-        humanLabel(
-          provider
-        ),
-      task:
-        humanLabel(
-          task
-        ),
-      ...(mode
-        ? {
-            context:
-              humanLabel(
-                mode
-              )
-          }
-        : {}),
-      result:
-        clean
-    },
-    "Result copied."
+    table
+      ? tableToTsv(
+          table
+        )
+      : {
+          provider:
+            humanLabel(
+              provider
+            ),
+          task:
+            humanLabel(
+              task
+            ),
+          ...(mode
+            ? {
+                context:
+                  humanLabel(
+                    mode
+                  )
+              }
+            : {}),
+          result:
+            clean
+        },
+    table
+      ? "Table copied."
+      : "Result copied."
   );
 
   return d;
