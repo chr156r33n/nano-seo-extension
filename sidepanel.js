@@ -1984,9 +1984,117 @@ function indexabilityResultsHtml(data) {
 
 
 function deterministicResultDetails(data, open = true) {
-  const details = document.createElement("details"); details.className = "card analyse-result-group"; details.open = open;
-  const checks = data?.checks || []; const findings = checks.filter(x => x.status === "finding"); const passes = checks.filter(x => x.status === "pass"); const linkStats = data?.linkStats || {}; const imageStats = data?.imageStats || {};
-  details.innerHTML = `<summary><span>Deterministic checks</span><span class="summary-count">${checks.length}</span></summary><div class="analyse-group-body"><div class="metric-row">${metricHtml("Checks",checks.length)}${metricHtml("Passed",passes.length)}${metricHtml("Findings",findings.length)}${metricHtml("Links",linkStats.totalAnchors ?? 0)}${metricHtml("Images",imageStats.total ?? data?.imageCount ?? 0)}</div><div class="result-subsection"><div class="result-label">Findings</div><div class="finding-list">${findings.map((issue, index) => `<div class="finding-row"><div><div class="finding-title">${escapeHtml(humanLabel(issue.code))}</div><div class="muted small">${escapeHtml(issue.message || "")}</div></div><div class="row"><button class="copy-icon" type="button" data-copy-finding="${index}" title="Copy finding" aria-label="Copy finding">⧉</button>${badgeHtml("finding","bad")}</div></div>`).join("") || '<div class="empty-state good-state">No deterministic findings.</div>'}</div></div><details class="subdetails"><summary>Passed checks (${passes.length})</summary><div class="finding-list">${passes.map(check => `<div class="finding-row compact"><div><div class="finding-title">${escapeHtml(humanLabel(check.code))}</div><div class="muted small">${escapeHtml(check.message || "")}</div></div>${badgeHtml("pass","good")}</div>`).join("")}</div></details>${rawJsonDetails(data)}</div>`;
+  const details =
+    document.createElement(
+      "details"
+    );
+
+  details.className =
+    "card analyse-result-group";
+
+  details.open =
+    open;
+
+  const checks =
+    data?.checks ||
+    [];
+
+  const findings =
+    checks.filter(
+      x =>
+        x.status ===
+        "finding"
+    );
+
+  const passes =
+    checks.filter(
+      x =>
+        x.status ===
+        "pass"
+    );
+
+  const excluded =
+    checks.filter(
+      x =>
+        x.status ===
+        "excluded"
+    );
+
+  const linkStats =
+    data?.linkStats ||
+    {};
+
+  const imageStats =
+    data?.imageStats ||
+    {};
+
+  details.innerHTML = `
+    <summary>
+      <span>Deterministic checks</span>
+      <span class="summary-count">${checks.length}</span>
+    </summary>
+    <div class="analyse-group-body">
+      <div class="metric-row">
+        ${metricHtml("Checks", checks.length)}
+        ${metricHtml("Passed", passes.length)}
+        ${metricHtml("Findings", findings.length)}
+        ${metricHtml("Excluded", excluded.length)}
+        ${metricHtml("Links", linkStats.totalAnchors ?? 0)}
+        ${metricHtml("Images", imageStats.total ?? data?.imageCount ?? 0)}
+      </div>
+      <div class="result-subsection">
+        <div class="result-label">Findings</div>
+        <div class="finding-list">
+          ${findings.map(
+            (issue, index) =>
+              `<div class="finding-row">
+                <div>
+                  <div class="finding-title">${escapeHtml(humanLabel(issue.code))}</div>
+                  <div class="muted small">${escapeHtml(issue.message || "")}</div>
+                </div>
+                <div class="row">
+                  <button class="copy-icon" type="button" data-copy-finding="${index}" title="Copy finding" aria-label="Copy finding">⧉</button>
+                  ${badgeHtml("finding","bad")}
+                </div>
+              </div>`
+          ).join("") || '<div class="empty-state good-state">No deterministic findings.</div>'}
+        </div>
+      </div>
+      ${excluded.length
+        ? `<details class="subdetails">
+            <summary>Excluded by site profile (${excluded.length})</summary>
+            <div class="finding-list">
+              ${excluded.map(
+                check =>
+                  `<div class="finding-row compact">
+                    <div>
+                      <div class="finding-title">${escapeHtml(humanLabel(check.code))}</div>
+                      <div class="muted small">${escapeHtml(check.message || "")}${check.excludedBy?.note ? ` · ${escapeHtml(check.excludedBy.note)}` : ""}</div>
+                    </div>
+                    ${badgeHtml("excluded","neutral")}
+                  </div>`
+              ).join("")}
+            </div>
+          </details>`
+        : ""}
+      <details class="subdetails">
+        <summary>Passed checks (${passes.length})</summary>
+        <div class="finding-list">
+          ${passes.map(
+            check =>
+              `<div class="finding-row compact">
+                <div>
+                  <div class="finding-title">${escapeHtml(humanLabel(check.code))}</div>
+                  <div class="muted small">${escapeHtml(check.message || "")}</div>
+                </div>
+                ${badgeHtml("pass","good")}
+              </div>`
+          ).join("")}
+        </div>
+      </details>
+      ${rawJsonDetails(data)}
+    </div>
+  `;
 
   details
     .querySelectorAll(
@@ -2531,11 +2639,17 @@ function renderIssues() {
   const checks = snapshot.auditChecks || [];
   const findings = checks.filter(x => x.status === "finding");
   const passes = checks.filter(x => x.status === "pass");
+  const excluded = checks.filter(x => x.status === "excluded");
 
   summary.textContent =
     `${checks.length} automated checks run · ` +
     `${passes.length} passed · ` +
-    `${findings.length} finding(s) need context review`;
+    `${findings.length} finding(s) need context review` +
+    (
+      excluded.length
+        ? ` · ${excluded.length} excluded by site profile`
+        : ""
+    );
 
   if (!findings.length) {
     box.innerHTML =
