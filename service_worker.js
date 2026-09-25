@@ -8568,21 +8568,21 @@ async function buildDomDiff() {
               )
             ]
               .map(
-                el => ({
-                  level:
-                    el.tagName.toLowerCase(),
-                  text:
-                    clip(
-                      el.textContent,
-                      220
-                    ),
-                  element:
-                    elementContext(el),
-                  local_context:
-                    localIdentityContextFor(
-                      el
-                    )
-                })
+                el =>
+                  withSourceNode(
+                    {
+                      level:
+                        el.tagName.toLowerCase(),
+                      text:
+                        clip(
+                          el.textContent,
+                          220
+                        ),
+                      element:
+                        elementContext(el)
+                    },
+                    el
+                  )
               )
               .filter(
                 x =>
@@ -8596,26 +8596,26 @@ async function buildDomDiff() {
               )
             ]
               .map(
-                el => ({
-                  href:
-                    absUrl(
-                      el.getAttribute(
-                        "href"
-                      ),
-                      base
-                    ),
-                  text:
-                    clip(
-                      el.textContent,
-                      160
-                    ),
-                  element:
-                    elementContext(el),
-                  local_context:
-                    localIdentityContextFor(
-                      el
-                    )
-                })
+                el =>
+                  withSourceNode(
+                    {
+                      href:
+                        absUrl(
+                          el.getAttribute(
+                            "href"
+                          ),
+                          base
+                        ),
+                      text:
+                        clip(
+                          el.textContent,
+                          160
+                        ),
+                      element:
+                        elementContext(el)
+                    },
+                    el
+                  )
               )
               .filter(
                 x =>
@@ -8639,19 +8639,19 @@ async function buildDomDiff() {
                   )
                 ]
                   .map(
-                    el => ({
-                      text:
-                        clip(
-                          el.textContent,
-                          260
-                        ),
-                      element:
-                        elementContext(el),
-                      local_context:
-                        localIdentityContextFor(
-                          el
-                        )
-                    })
+                    el =>
+                      withSourceNode(
+                        {
+                          text:
+                            clip(
+                              el.textContent,
+                              260
+                            ),
+                          element:
+                            elementContext(el)
+                        },
+                        el
+                      )
                   )
                   .filter(
                     item =>
@@ -8667,21 +8667,21 @@ async function buildDomDiff() {
               )
             ]
               .map(
-                el => ({
-                  text:
-                    clip(
-                      el.tagName === "INPUT"
-                        ? el.value
-                        : el.textContent,
-                      160
-                    ),
-                  element:
-                    elementContext(el),
-                  local_context:
-                    localIdentityContextFor(
-                      el
-                    )
-                })
+                el =>
+                  withSourceNode(
+                    {
+                      text:
+                        clip(
+                          el.tagName === "INPUT"
+                            ? el.value
+                            : el.textContent,
+                          160
+                        ),
+                      element:
+                        elementContext(el)
+                    },
+                    el
+                  )
               )
               .filter(
                 item =>
@@ -8790,7 +8790,8 @@ async function buildDomDiff() {
           keyFn,
           priority,
           kind,
-          packFn = x => x
+          packFn =
+            packDomValue
         ) => {
           const rawMap =
             new Map();
@@ -8883,8 +8884,7 @@ async function buildDomDiff() {
           x =>
             `${x.level}|${x.text.toLowerCase()}`,
           3,
-          "heading",
-          x => x
+          "heading"
         );
 
         addSetDiff(
@@ -8893,8 +8893,7 @@ async function buildDomDiff() {
           x =>
             `${x.href}|${x.text.toLowerCase()}`,
           4,
-          "link",
-          x => x
+          "link"
         );
 
         addSetDiff(
@@ -8903,8 +8902,7 @@ async function buildDomDiff() {
           x =>
             x.text.toLowerCase(),
           5,
-          "content_block",
-          x => x
+          "content_block"
         );
 
         addSetDiff(
@@ -8913,8 +8911,7 @@ async function buildDomDiff() {
           x =>
             x.text.toLowerCase(),
           6,
-          "button",
-          x => x
+          "button"
         );
 
         const comparableText = (value) => {
