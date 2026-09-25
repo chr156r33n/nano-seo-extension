@@ -252,7 +252,10 @@ Do not assume rendered-only content or any reconciled change is automatically a 
 GLOBAL SEMANTIC IMPORTANCE GUIDANCE:
 {{semantic_guidance}}
 
-Return exactly one result per supplied id.
+EXPECTED IDS:
+{{expected_ids_json}}
+
+Return exactly one result for every expected id above. Do not omit an id and do not return any id that is not listed.
 
 DIFF ITEMS:
 {{diff_json}}`
