@@ -819,6 +819,18 @@ function validateSchemaValue(
 
     if (
       Number.isFinite(
+        schema.minItems
+      ) &&
+      value.length <
+        schema.minItems
+    ) {
+      fail(
+        `too few items (${value.length} < ${schema.minItems})`
+      );
+    }
+
+    if (
+      Number.isFinite(
         schema.maxItems
       ) &&
       value.length >
@@ -1064,6 +1076,170 @@ function validateTaskResult(
   };
 }
 
+function compactDomModelValue(
+  value
+) {
+  if (
+    value === null ||
+    value === undefined
+  ) {
+    return "";
+  }
+
+  if (
+    typeof value !==
+    "object"
+  ) {
+    return typeof value ===
+      "string"
+      ? value.slice(
+          0,
+          700
+        )
+      : value;
+  }
+
+  const element =
+    value.element ||
+    {};
+
+  return {
+    ...(value.text
+      ? {
+          text:
+            String(
+              value.text
+            ).slice(
+              0,
+              700
+            )
+        }
+      : {}),
+    ...(value.href
+      ? {
+          href:
+            String(
+              value.href
+            ).slice(
+              0,
+              900
+            )
+        }
+      : {}),
+    ...(value.level
+      ? {
+          level:
+            value.level
+        }
+      : {}),
+    element: {
+      tag:
+        element.tag ||
+        "",
+      selector:
+        String(
+          element.selector ||
+          ""
+        ).slice(
+          0,
+          320
+        ),
+      zone:
+        element.zone ||
+        "",
+      component:
+        element.component ||
+        "",
+      semantic_weight:
+        Number.isFinite(
+          Number(
+            element.semantic_weight
+          )
+        )
+          ? Number(
+              element.semantic_weight
+            )
+          : null
+    }
+  };
+}
+
+function compactDomDiffItemForModel(
+  item
+) {
+  const reconciliation =
+    item?.reconciliation
+      ? {
+          score:
+            item.reconciliation
+              .score,
+          reason:
+            item.reconciliation
+              .reason,
+          confidence:
+            item.reconciliation
+              .confidence,
+          near_competitors:
+            item.reconciliation
+              .near_competitors,
+          strongest_alternative_score:
+            item.reconciliation
+              .strongest_alternative_score,
+          same_selector:
+            item.reconciliation
+              .same_selector,
+          same_text:
+            item.reconciliation
+              .same_text,
+          same_destination:
+            item.reconciliation
+              .same_destination
+        }
+      : null;
+
+  return {
+    id:
+      item?.id,
+    kind:
+      item?.kind ||
+      "",
+    change_type:
+      item?.change_type ||
+      "",
+    ...(item?.field
+      ? {
+          field:
+            item.field
+        }
+      : {}),
+    raw:
+      compactDomModelValue(
+        item?.raw
+      ),
+    rendered:
+      compactDomModelValue(
+        item?.rendered
+      ),
+    ...(reconciliation
+      ? {
+          reconciliation
+        }
+      : {}),
+    ...(item?.transformation
+      ? {
+          transformation:
+            item.transformation
+        }
+      : {}),
+    ...(item?.net_effect
+      ? {
+          net_effect:
+            item.net_effect
+        }
+      : {})
+  };
+}
+
 function taskVars(task, payload, settings, provider = null) {
   if (task === "link_group") {
     return {
@@ -1237,12 +1413,26 @@ function taskVars(task, payload, settings, provider = null) {
   }
 
   if (task === "dom_diff_triage") {
+    const items =
+      payload.items ||
+      [];
+
     return {
-      semantic_guidance: settings.semanticImportanceGuidance,
+      semantic_guidance:
+        settings.semanticImportanceGuidance,
+      expected_ids_json:
+        JSON.stringify(
+          items.map(
+            item =>
+              item.id
+          )
+        ),
       diff_json:
         untrustedEvidence(
           "dom_diff_items",
-          payload.items || []
+          items.map(
+            compactDomDiffItemForModel
+          )
         )
     };
   }
@@ -1846,6 +2036,84 @@ async function updateAnalysisRun(
   );
 }
 
+function schemaForTaskPayload(
+  task,
+  payload
+) {
+  const base =
+    TASK_SCHEMAS[
+      task
+    ];
+
+  if (!base) {
+    return null;
+  }
+
+  const schema =
+    JSON.parse(
+      JSON.stringify(
+        base
+      )
+    );
+
+  if (
+    [
+      "link_group",
+      "dom_diff_triage"
+    ].includes(
+      task
+    )
+  ) {
+    const supplied =
+      task ===
+        "link_group"
+        ? payload?.links ||
+          []
+        : payload?.items ||
+          [];
+
+    const ids =
+      supplied
+        .map(
+          item =>
+            Number(
+              item?.id
+            )
+        )
+        .filter(
+          id =>
+            Number.isInteger(
+              id
+            )
+        );
+
+    const resultsSchema =
+      schema.properties
+        ?.results;
+
+    if (
+      resultsSchema &&
+      resultsSchema.items
+        ?.properties
+        ?.id
+    ) {
+      resultsSchema.minItems =
+        ids.length;
+
+      resultsSchema.maxItems =
+        ids.length;
+
+      resultsSchema.items
+        .properties
+        .id
+        .enum =
+          ids;
+    }
+  }
+
+  return schema;
+}
+
 async function runTask({
   task,
   provider,
@@ -1855,7 +2123,11 @@ async function runTask({
 }) {
   const settings = await getSettings();
   const promptDef = settings.prompts[task];
-  const schema = TASK_SCHEMAS[task];
+  const schema =
+    schemaForTaskPayload(
+      task,
+      payload
+    );
 
   if (!promptDef || !schema) {
     throw new Error(
