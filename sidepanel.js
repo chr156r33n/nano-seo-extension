@@ -1531,6 +1531,12 @@ function buildActionRows(report) {
       ?.findings ||
     []
   ) {
+    if (
+      finding.excludedBy
+    ) {
+      continue;
+    }
+
     actions.push({
       priority:
         finding.severity === "review"
@@ -1857,8 +1863,9 @@ function indexabilityResultsHtml(data) {
   return `
     <div class="card">
       <div class="metric-row">
-        ${metricHtml("Findings", findings.length)}
-        ${metricHtml("High", findings.filter(item => item.severity === "high").length)}
+        ${metricHtml("Findings", findings.filter(item => !item.excludedBy).length)}
+        ${metricHtml("Excluded", findings.filter(item => !!item.excludedBy).length)}
+        ${metricHtml("High", findings.filter(item => !item.excludedBy && item.severity === "high").length)}
         ${metricHtml("HTTP", current.status ?? "—")}
         ${metricHtml("Robots", robotsTxt.allowed === null ? "unknown" : robotsTxt.allowed ? "allowed" : "blocked")}
       </div>
@@ -1970,9 +1977,11 @@ function indexabilityResultsHtml(data) {
                   `<div class="finding-row compact">
                     <div>
                       <div class="finding-title">${escapeHtml(humanLabel(finding.code))}</div>
-                      <div class="muted small">${escapeHtml(finding.message || "")}</div>
+                      <div class="muted small">${escapeHtml(finding.message || "")}${finding.excludedBy?.note ? ` · ${escapeHtml(finding.excludedBy.note)}` : ""}</div>
                     </div>
-                    ${priorityBadgeHtml(finding.severity === "review" ? "review" : finding.severity || "medium")}
+                    ${finding.excludedBy
+                      ? badgeHtml("excluded", "neutral")
+                      : priorityBadgeHtml(finding.severity === "review" ? "review" : finding.severity || "medium")}
                   </div>`
               ).join("")
             : '<div class="empty-state good-state">No conflicts detected across the checked signals.</div>'}
