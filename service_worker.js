@@ -6375,6 +6375,101 @@ async function checkIndexabilitySignals(payload) {
     });
   }
 
+  const indexabilitySettings =
+    await getSettings();
+
+  let checkedHostname = "";
+
+  try {
+    checkedHostname =
+      new URL(
+        current.finalUrl ||
+        url
+      ).hostname;
+  } catch {}
+
+  const hostnameMatchesProfile =
+    (
+      pattern,
+      hostname
+    ) => {
+      const p =
+        String(
+          pattern ||
+          ""
+        )
+          .trim()
+          .toLowerCase();
+
+      const h =
+        String(
+          hostname ||
+          ""
+        )
+          .trim()
+          .toLowerCase();
+
+      if (!p || !h) {
+        return false;
+      }
+
+      if (
+        p.startsWith(
+          "*."
+        )
+      ) {
+        const suffix =
+          p.slice(
+            2
+          );
+
+        return (
+          h === suffix ||
+          h.endsWith(
+            "." +
+            suffix
+          )
+        );
+      }
+
+      return h === p;
+    };
+
+  for (
+    const finding
+    of findings
+  ) {
+    const exclusion =
+      (
+        indexabilitySettings
+          .siteCheckExclusions ||
+        []
+      )
+        .find(
+          profile =>
+            hostnameMatchesProfile(
+              profile?.hostname,
+              checkedHostname
+            ) &&
+            (
+              profile?.checks ||
+              []
+            ).includes(
+              finding.code
+            )
+        );
+
+    if (exclusion) {
+      finding.excludedBy = {
+        hostname:
+          exclusion.hostname,
+        note:
+          exclusion.note ||
+          ""
+      };
+    }
+  }
+
   const output = {
     checkedAt: new Date().toISOString(),
     rendered,
@@ -6384,9 +6479,30 @@ async function checkIndexabilitySignals(payload) {
     canonicalTarget,
     findings,
     summary: {
-      findings: findings.length,
-      high: findings.filter(item => item.severity === "high").length,
-      review: findings.filter(item => item.severity === "review").length,
+      findings:
+        findings.filter(
+          item =>
+            !item.excludedBy
+        ).length,
+      excluded:
+        findings.filter(
+          item =>
+            !!item.excludedBy
+        ).length,
+      high:
+        findings.filter(
+          item =>
+            !item.excludedBy &&
+            item.severity ===
+              "high"
+        ).length,
+      review:
+        findings.filter(
+          item =>
+            !item.excludedBy &&
+            item.severity ===
+              "review"
+        ).length,
       robotsAllowed: robotsTxt.allowed,
       effectiveNoindex:
         hasDirective(current?.xRobotsTag ? [current.xRobotsTag] : [], "noindex") ||
