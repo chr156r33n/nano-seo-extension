@@ -2596,7 +2596,17 @@ function analyseConfigDetails(config = {}, skipped = []) {
 function domDiffResultDetails(data) {
   const details = document.createElement("details"); details.className = "card analyse-result-group"; details.open = (data?.assessments?.length || 0) > 0;
   const summary = data?.summary || {};
-  details.innerHTML = `<summary><span>Server HTML ↔ rendered DOM</span>${data?.enabled ? badgeHtml("enabled","neutral") : badgeHtml("off","neutral")}</summary><div class="analyse-group-body">${!data?.enabled ? '<div class="empty-state">Skipped for this Analyse all run. Enable it in Config when you specifically want a rendering comparison.</div>' : `<div class="metric-row">${metricHtml("Differences",summary.totalDiffItems ?? 0)}${metricHtml("Retained",summary.returnedDiffItems ?? 0)}${metricHtml("Dropped",summary.droppedByCap ?? 0)}</div>`}<div data-dom-assessments></div>${rawJsonDetails(data)}</div>`;
+  const aggregate = summary.aggregateImpact || null;
+  const impactSummary = aggregate
+    ? `<div class="dom-impact-inline">
+        <strong>${escapeHtml(humanLabel(aggregate.divergence || "small"))} render change</strong>
+        · ${escapeHtml(humanLabel(aggregate.significance || "low"))} significance
+        · approx. ${escapeHtml(aggregate.estimated_inventory_change_percent ?? 0)}% of weighted comparable inventory
+        ${aggregate.reasons?.length ? `<div class="muted small">${aggregate.reasons.map(reason => escapeHtml(reason)).join(" · ")}</div>` : ""}
+      </div>`
+    : "";
+
+  details.innerHTML = `<summary><span>Server HTML ↔ rendered DOM</span>${data?.enabled ? badgeHtml("enabled","neutral") : badgeHtml("off","neutral")}</summary><div class="analyse-group-body">${!data?.enabled ? '<div class="empty-state">Skipped for this Analyse all run. Enable it in Config when you specifically want a rendering comparison.</div>' : `${impactSummary}<div class="metric-row">${metricHtml("Differences",summary.totalDiffItems ?? 0)}${metricHtml("Retained",summary.returnedDiffItems ?? 0)}${metricHtml("Dropped",summary.droppedByCap ?? 0)}</div>`}<div data-dom-assessments></div>${rawJsonDetails(data)}</div>`;
   const target = details.querySelector("[data-dom-assessments]");
   for (const assessment of data?.assessments || []) {
     if (assessment.error) { const error = document.createElement("div"); error.className = "card result-card error-card"; error.innerHTML = `<div class="result-copy">${escapeHtml(assessment.error)}</div>`; target.appendChild(error); }
@@ -3263,25 +3273,79 @@ function renderDomDiffSummary() {
   const summary =
     domDiff.summary || {};
 
+  const aggregate =
+    summary.aggregateImpact ||
+    null;
+
   const kinds =
     Object.entries(
       summary.byKind || {}
     )
       .map(
         ([k, v]) =>
-          `${k}: ${v}`
+          `${humanLabel(k)}: ${v}`
       )
       .join(" · ");
 
-  el.textContent =
-    `${summary.totalDiffItems ?? 0} net semantic difference(s)` +
-    `${summary.nanoReviewItems != null ? ` · ${summary.nanoReviewItems} Nano-review exception(s)` : ""}` +
-    `${summary.deterministicLowImpactItems != null ? ` · ${summary.deterministicLowImpactItems} deterministic low-impact` : ""}` +
-    `${summary.sourceDiffItems != null ? ` · ${summary.sourceDiffItems} source-level add/remove item(s)` : ""}` +
-    `${summary.reconciledPairs ? ` · ${summary.reconciledPairs} pair(s) reconciled` : ""}` +
-    ` · ${summary.returnedDiffItems ?? 0} retained` +
-    `${summary.droppedByCap ? ` · ${summary.droppedByCap} dropped by cap` : ""}` +
-    `${kinds ? ` · ${kinds}` : ""}`;
+  if (!aggregate) {
+    el.textContent =
+      `${summary.totalDiffItems ?? 0} net semantic difference(s)` +
+      `${summary.nanoReviewItems != null ? ` · ${summary.nanoReviewItems} model-review exception(s)` : ""}` +
+      `${summary.deterministicLowImpactItems != null ? ` · ${summary.deterministicLowImpactItems} deterministic low-impact` : ""}` +
+      `${summary.sourceDiffItems != null ? ` · ${summary.sourceDiffItems} source-level add/remove item(s)` : ""}` +
+      `${summary.reconciledPairs ? ` · ${summary.reconciledPairs} pair(s) reconciled` : ""}` +
+      ` · ${summary.returnedDiffItems ?? 0} retained` +
+      `${summary.droppedByCap ? ` · ${summary.droppedByCap} dropped by cap` : ""}` +
+      `${kinds ? ` · ${kinds}` : ""}`;
+
+    return;
+  }
+
+  const significanceTone =
+    aggregate.significance ===
+      "meaningful"
+      ? "bad"
+      : aggregate.significance ===
+          "review"
+        ? "warn"
+        : "good";
+
+  el.innerHTML = `
+    <div class="dom-impact-summary">
+      <div class="dom-impact-head">
+        <div>
+          <div class="section-kicker">Overall render divergence</div>
+          <div class="dom-impact-title">
+            ${escapeHtml(humanLabel(aggregate.divergence || "small"))} change
+            ·
+            ${escapeHtml(humanLabel(aggregate.significance || "low"))} significance
+          </div>
+        </div>
+        <div class="row">
+          ${badgeHtml(aggregate.divergence || "small", "neutral")}
+          ${badgeHtml(aggregate.significance || "low", significanceTone)}
+        </div>
+      </div>
+
+      <div class="metric-row">
+        ${metricHtml("Net changes", summary.totalDiffItems ?? 0)}
+        ${metricHtml("Est. inventory changed", `${aggregate.estimated_inventory_change_percent ?? 0}%`)}
+        ${metricHtml("Main content", aggregate.main_content_changes ?? 0)}
+        ${metricHtml("High-weight", aggregate.high_weight_changes ?? 0)}
+      </div>
+
+      ${aggregate.reasons?.length
+        ? `<div class="dom-impact-reasons">${aggregate.reasons.map(reason => `<span class="mini-chip">${escapeHtml(reason)}</span>`).join("")}</div>`
+        : ""}
+
+      <div class="muted small dom-impact-detail">
+        Weighted change score ${escapeHtml(aggregate.size_score ?? 0)}/100
+        · ${escapeHtml(summary.returnedDiffItems ?? 0)} retained
+        ${summary.droppedByCap ? ` · ${escapeHtml(summary.droppedByCap)} dropped by cap` : ""}
+        ${kinds ? ` · ${escapeHtml(kinds)}` : ""}
+      </div>
+    </div>
+  `;
 }
 
 
