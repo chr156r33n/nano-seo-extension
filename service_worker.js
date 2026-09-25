@@ -1233,13 +1233,106 @@ function taskVars(task, payload, settings, provider = null) {
   }
 
   if (task === "url_consistency") {
+    const source =
+      payload.urlSignals ||
+      {};
+
+    const compactEnvironment =
+      value => {
+        if (!value) return null;
+
+        try {
+          const url =
+            new URL(
+              value
+            );
+
+          return {
+            url:
+              url.href,
+            scheme:
+              url.protocol.replace(
+                ":",
+                ""
+              ),
+            host:
+              url.hostname,
+            suspicious_environment:
+              /(localhost|127\.0\.0\.1|(?:^|[.-])(dev|stage|staging|uat|qa|test|preview|sandbox)(?:[.-]|$))/i.test(
+                url.hostname
+              )
+          };
+        } catch {
+          return null;
+        }
+      };
+
+    const environmentUrls =
+      [
+        source.currentUrl,
+        ...(
+          source.canonicals ||
+          []
+        ),
+        ...(
+          source.mobileAnnotations ||
+          []
+        ).map(
+          item =>
+            item.href
+        ),
+        ...(
+          source.schemaUrlRefs ||
+          []
+        ).map(
+          item =>
+            item.value
+        )
+      ]
+        .filter(Boolean);
+
+    const environments =
+      [
+        ...new Map(
+          environmentUrls
+            .map(
+              value => [
+                value,
+                compactEnvironment(
+                  value
+                )
+              ]
+            )
+            .filter(
+              pair =>
+                !!pair[1]
+            )
+        ).values()
+      ];
+
+    const modelSignals = {
+      currentUrl:
+        source.currentUrl ||
+        "",
+      canonicals:
+        source.canonicals ||
+        [],
+      mobileAnnotations:
+        source.mobileAnnotations ||
+        [],
+      schemaUrlRefs:
+        source.schemaUrlRefs ||
+        [],
+      environments
+    };
+
     return {
-      semantic_guidance: settings.semanticImportanceGuidance,
-      agreed_hreflangs_json: JSON.stringify(settings.hreflangAgreedValues || [], null, 2),
+      semantic_guidance:
+        settings.semanticImportanceGuidance,
       url_signals_json:
         untrustedEvidence(
           "page_url_signals",
-          payload.urlSignals || {}
+          modelSignals
         )
     };
   }
