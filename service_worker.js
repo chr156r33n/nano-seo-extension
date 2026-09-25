@@ -4736,6 +4736,437 @@ function parseHtmlIndexabilitySignals(html, baseUrl) {
   return {canonicals, canonicalRawHrefs, robotsMetaValues, googlebotMetaValues, metaRefreshValues};
 }
 
+
+const AI_ROBOTS_PROFILES = [
+  {id: "oai-searchbot", label: "OpenAI search", userAgent: "OAI-SearchBot", category: "search"},
+  {id: "gptbot", label: "OpenAI training", userAgent: "GPTBot", category: "training"},
+  {id: "chatgpt-user", label: "ChatGPT user fetch", userAgent: "ChatGPT-User", category: "user_triggered"},
+  {id: "claudebot", label: "Anthropic crawl", userAgent: "ClaudeBot", category: "ai_crawl"},
+  {id: "claude-searchbot", label: "Claude search", userAgent: "Claude-SearchBot", category: "search"},
+  {id: "claude-user", label: "Claude user fetch", userAgent: "Claude-User", category: "user_triggered"},
+  {id: "perplexitybot", label: "Perplexity search", userAgent: "PerplexityBot", category: "search"},
+  {id: "perplexity-user", label: "Perplexity user fetch", userAgent: "Perplexity-User", category: "user_triggered"},
+  {id: "google-extended", label: "Google-Extended", userAgent: "Google-Extended", category: "ai_control_token"},
+  {id: "google-cloudvertexbot", label: "Google Cloud Vertex", userAgent: "Google-CloudVertexBot", category: "ai_crawl"},
+  {id: "applebot", label: "Applebot", userAgent: "Applebot", category: "search_ai"},
+  {id: "applebot-extended", label: "Applebot-Extended", userAgent: "Applebot-Extended", category: "ai_control_token"},
+  {id: "ccbot", label: "Common Crawl", userAgent: "CCBot", category: "dataset_crawl"}
+];
+
+function scanSourceHeadIntegrity(html, baseUrl) {
+  const source =
+    String(
+      html ||
+      ""
+    );
+
+  const headOpen =
+    /<head\b[^>]*>/i.exec(
+      source
+    );
+
+  if (!headOpen) {
+    return {
+      present: false,
+      explicitClose: false,
+      likelyBreak: null,
+      lost: [],
+      declarations: [],
+      message:
+        "No explicit <head> start tag was found in the server HTML."
+    };
+  }
+
+  const headStart =
+    headOpen.index +
+    headOpen[0].length;
+
+  const closeMatch =
+    /<\/head\s*>/i.exec(
+      source.slice(
+        headStart
+      )
+    );
+
+  const explicitClose =
+    !!closeMatch;
+
+  const headEnd =
+    closeMatch
+      ? headStart +
+        closeMatch.index
+      : Math.min(
+          source.length,
+          headStart +
+            500000
+        );
+
+  const fragment =
+    source.slice(
+      headStart,
+      headEnd
+    );
+
+  const allowed =
+    new Set([
+      "base",
+      "link",
+      "meta",
+      "title",
+      "noscript",
+      "script",
+      "style",
+      "template"
+    ]);
+
+  const rawTextTags =
+    new Set([
+      "script",
+      "style",
+      "title"
+    ]);
+
+  const declarations = [];
+  let likelyBreak = null;
+  let cursor = 0;
+
+  while (
+    cursor <
+    fragment.length
+  ) {
+    if (
+      fragment.startsWith(
+        "<!--",
+        cursor
+      )
+    ) {
+      const end =
+        fragment.indexOf(
+          "-->",
+          cursor + 4
+        );
+
+      cursor =
+        end >= 0
+          ? end + 3
+          : fragment.length;
+
+      continue;
+    }
+
+    const next =
+      fragment.indexOf(
+        "<",
+        cursor
+      );
+
+    if (
+      next < 0
+    ) {
+      break;
+    }
+
+    const tokenMatch =
+      /^<\s*(\/)?\s*([a-zA-Z][a-zA-Z0-9:-]*)\b[^>]*>/i.exec(
+        fragment.slice(
+          next
+        )
+      );
+
+    if (
+      !tokenMatch
+    ) {
+      cursor =
+        next + 1;
+      continue;
+    }
+
+    const token =
+      tokenMatch[0];
+
+    const closing =
+      !!tokenMatch[1];
+
+    const tag =
+      String(
+        tokenMatch[2] ||
+        ""
+      ).toLowerCase();
+
+    const absoluteOffset =
+      headStart +
+      next;
+
+    if (
+      !closing
+    ) {
+      if (
+        !likelyBreak &&
+        !allowed.has(
+          tag
+        )
+      ) {
+        likelyBreak = {
+          tag,
+          offset:
+            absoluteOffset,
+          excerpt:
+            token
+              .replace(
+                /\s+/g,
+                " "
+              )
+              .slice(
+                0,
+                240
+              )
+        };
+      }
+
+      if (
+        [
+          "title",
+          "meta",
+          "link",
+          "base",
+          "script"
+        ].includes(
+          tag
+        )
+      ) {
+        const attrs =
+          parseTagAttributes(
+            token
+          );
+
+        let kind =
+          tag;
+
+        let value = "";
+
+        if (
+          tag === "meta"
+        ) {
+          const name =
+            String(
+              attrs.name ||
+              attrs.property ||
+              attrs["http-equiv"] ||
+              ""
+            ).toLowerCase();
+
+          kind =
+            name
+              ? `meta:${name}`
+              : "meta";
+
+          value =
+            attrs.content ||
+            "";
+        } else if (
+          tag === "link"
+        ) {
+          const rel =
+            String(
+              attrs.rel ||
+              ""
+            ).toLowerCase();
+
+          kind =
+            rel
+              ? `link:${rel}`
+              : "link";
+
+          value =
+            attrs.href ||
+            "";
+        } else if (
+          tag === "base"
+        ) {
+          value =
+            attrs.href ||
+            "";
+        } else if (
+          tag === "script"
+        ) {
+          kind =
+            String(
+              attrs.type ||
+              ""
+            ).toLowerCase() ===
+            "application/ld+json"
+              ? "jsonld"
+              : "script";
+
+          value =
+            attrs.src ||
+            "";
+        }
+
+        declarations.push({
+          kind,
+          tag,
+          offset:
+            absoluteOffset,
+          afterLikelyBreak:
+            !!(
+              likelyBreak &&
+              absoluteOffset >
+                likelyBreak.offset
+            ),
+          value:
+            String(
+              value ||
+              ""
+            ).slice(
+              0,
+              300
+            ),
+          excerpt:
+            token
+              .replace(
+                /\s+/g,
+                " "
+              )
+              .slice(
+                0,
+                260
+              )
+        });
+      }
+    }
+
+    cursor =
+      next +
+      token.length;
+
+    if (
+      !closing &&
+      rawTextTags.has(
+        tag
+      )
+    ) {
+      const closePattern =
+        new RegExp(
+          "<\\/\\s*" +
+            tag +
+            "\\s*>",
+          "ig"
+        );
+
+      closePattern.lastIndex =
+        cursor;
+
+      const rawClose =
+        closePattern.exec(
+          fragment
+        );
+
+      if (
+        rawClose
+      ) {
+        cursor =
+          rawClose.index +
+          rawClose[0].length;
+      } else {
+        break;
+      }
+    }
+  }
+
+  const seoKinds =
+    new Set([
+      "title",
+      "base",
+      "jsonld",
+      "meta:description",
+      "meta:robots",
+      "meta:googlebot",
+      "meta:viewport",
+      "meta:refresh",
+      "meta:og:title",
+      "meta:og:description",
+      "meta:og:url"
+    ]);
+
+  const lost =
+    declarations
+      .filter(
+        item =>
+          item.afterLikelyBreak &&
+          (
+            seoKinds.has(
+              item.kind
+            ) ||
+            item.kind.startsWith(
+              "link:"
+            )
+          )
+      )
+      .map(
+        item => {
+          let resolvedValue =
+            item.value;
+
+          if (
+            resolvedValue &&
+            (
+              item.kind.startsWith(
+                "link:"
+              ) ||
+              item.kind ===
+                "base"
+            )
+          ) {
+            try {
+              resolvedValue =
+                new URL(
+                  resolvedValue,
+                  baseUrl
+                ).href;
+            } catch {}
+          }
+
+          return {
+            ...item,
+            value:
+              resolvedValue
+          };
+        }
+      );
+
+  return {
+    present:
+      true,
+    explicitClose,
+    likelyBreak,
+    lost,
+    declarations,
+    message:
+      likelyBreak
+        ? `A <${likelyBreak.tag}> element appears inside source <head>; later metadata may be parsed outside the head.`
+        : explicitClose
+          ? "No likely head-breaking element was detected before </head>."
+          : "No explicit </head> tag was found; browser parser recovery determines where head mode ends."
+  };
+}
+
+function evaluateCrawlerRobots(
+  robotsText,
+  targetUrl
+) {
+  return AI_ROBOTS_PROFILES.map(
+    profile => ({
+      ...profile,
+      ...evaluateRobotsTxt(
+        robotsText,
+        targetUrl,
+        profile.userAgent
+      )
+    })
+  );
+}
+
 function parseLinkHeaderCanonicals(value, baseUrl) {
   const output = [];
   const pattern = /<([^>]+)>\s*;([^,]*)/g;
