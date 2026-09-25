@@ -264,13 +264,21 @@ function renderProviders() {
 }
 
 function updatePageMeta() {
-  $("#pageMeta").textContent = snapshot
-    ? (
-        snapshot.url
-          ? `${snapshot.title || "(untitled)"} · ${snapshot.url}`
-          : "Previous page read available."
-      )
-    : "No page read yet.";
+  const pageMeta =
+    $("#pageMeta");
+
+  if (!snapshot) {
+    pageMeta.textContent =
+      "No page read yet.";
+  } else if (
+    !snapshot.url
+  ) {
+    pageMeta.textContent =
+      "Previous page read available.";
+  } else {
+    pageMeta.innerHTML =
+      `<span class="page-meta-title">${escapeHtml(snapshot.title || "(untitled)")}</span><span class="page-meta-separator">·</span><span class="page-meta-url" title="${escapeHtml(snapshot.url)}">${escapeHtml(snapshot.url)}</span>`;
+  }
 
   $("#runMeta").textContent = analysisRun
     ? `run ${analysisRun.id.slice(0, 8)} · started ${new Date(analysisRun.startedAt).toLocaleString()}`
@@ -291,29 +299,139 @@ function copyIconHtml(label = "Copy result") {
   return `<button class="copy-icon" type="button" data-copy-result title="${escapeHtml(label)}" aria-label="${escapeHtml(label)}">⧉</button>`;
 }
 
-function resultCopyText(value) {
+function resultCopyText(
+  value,
+  depth = 0
+) {
   if (
     value === null ||
-    value === undefined
+    value === undefined ||
+    value === ""
   ) {
     return "";
   }
 
   if (
-    typeof value === "string"
+    typeof value ===
+    "string"
   ) {
     return value;
   }
 
-  try {
-    return JSON.stringify(
-      value,
-      null,
-      2
+  if (
+    typeof value ===
+      "number" ||
+    typeof value ===
+      "boolean"
+  ) {
+    return String(
+      value
     );
-  } catch {
-    return String(value);
   }
+
+  if (
+    Array.isArray(
+      value
+    )
+  ) {
+    if (
+      !value.length
+    ) {
+      return "None";
+    }
+
+    const primitiveOnly =
+      value.every(
+        item =>
+          item === null ||
+          [
+            "string",
+            "number",
+            "boolean"
+          ].includes(
+            typeof item
+          )
+      );
+
+    if (
+      primitiveOnly
+    ) {
+      return value
+        .map(
+          item =>
+            `- ${resultCopyText(item, depth + 1)}`
+        )
+        .join("\n");
+    }
+
+    return value
+      .map(
+        (item, index) => {
+          const rendered =
+            resultCopyText(
+              item,
+              depth + 1
+            );
+
+          return `${index + 1}. ${rendered.replace(/\n/g, "\n   ")}`;
+        }
+      )
+      .join("\n\n");
+  }
+
+  if (
+    typeof value ===
+    "object"
+  ) {
+    return Object.entries(
+      value
+    )
+      .filter(
+        ([key, item]) =>
+          !key.startsWith(
+            "_"
+          ) &&
+          item !== null &&
+          item !== undefined &&
+          item !== "" &&
+          !(
+            Array.isArray(
+              item
+            ) &&
+            item.length ===
+              0
+          )
+      )
+      .map(
+        ([key, item]) => {
+          const label =
+            humanLabel(
+              key
+            );
+
+          const rendered =
+            resultCopyText(
+              item,
+              depth + 1
+            );
+
+          if (
+            typeof item ===
+              "object" &&
+            item !== null
+          ) {
+            return `${label}:\n${rendered.split("\n").map(line => `  ${line}`).join("\n")}`;
+          }
+
+          return `${label}: ${rendered}`;
+        }
+      )
+      .join("\n");
+  }
+
+  return String(
+    value
+  );
 }
 
 function bindCopyButton(
@@ -909,41 +1027,85 @@ function taskResultHtml(task, result, displayContext = null) {
             '<span class="muted small">No links returned.</span>'}
         </div>
       </div>
-      <div class="result-list">
-        ${rows
-          .map(
-            row => {
-              const label =
-                linkResultName(
-                  row,
-                  inputLinks
-                );
 
-              return `
-                <details class="result-row link-role-result">
-                  <summary>
-                    <span class="link-role-name">
-                      <strong>${escapeHtml(label.anchor)}</strong>
-                      <span class="muted"> · ${escapeHtml(label.location)} · ${escapeHtml(label.category)}</span>
-                    </span>
-                    ${confidenceHtml(row.confidence)}
-                  </summary>
-                  <div class="result-meta">
-                    <span>#${escapeHtml(label.id)}</span>
-                    ${label.href ? `<code>${escapeHtml(label.href)}</code>` : ""}
-                  </div>
-                  <div class="result-copy">${escapeHtml(row.rationale || "")}</div>
-                </details>
-              `;
-            }
-          )
-          .join("")}
+      <div class="data-table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Anchor</th>
+              <th>Destination</th>
+              <th>Location</th>
+              <th>Category</th>
+              <th>Confidence</th>
+              <th>Rationale</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows
+              .map(
+                row => {
+                  const label =
+                    linkResultName(
+                      row,
+                      inputLinks
+                    );
+
+                  return `
+                    <tr>
+                      <td><code>#${escapeHtml(label.id)}</code></td>
+                      <td>${escapeHtml(label.anchor || "(empty)")}</td>
+                      <td class="table-url"><code title="${escapeHtml(label.href || "")}">${escapeHtml(label.href || "(none)")}</code></td>
+                      <td>${escapeHtml(label.location || "")}</td>
+                      <td>${badgeHtml(label.category || row.category, "neutral")}</td>
+                      <td>${row.confidence != null ? escapeHtml(Math.round(Number(row.confidence) * 100) + "%") : "—"}</td>
+                      <td>${escapeHtml(row.rationale || "")}</td>
+                    </tr>
+                  `;
+                }
+              )
+              .join("") ||
+              '<tr><td colspan="7" class="muted">No links returned.</td></tr>'}
+          </tbody>
+        </table>
       </div>
     `;
   }
   if (task === "dom_diff_triage") {
-    const rows = r.results || [];
-    return `<div class="result-list">${rows.map(row => `<div class="result-row static"><div class="result-row-head"><strong>#${escapeHtml(row.id)}</strong>${badgeHtml(row.judgement)}${badgeHtml(row.impact,"neutral")}${confidenceHtml(row.confidence)}</div><div class="result-copy">${escapeHtml(row.rationale || "")}</div></div>`).join("") || '<div class="muted small">No DOM differences returned.</div>'}</div>`;
+    const rows =
+      r.results ||
+      [];
+
+    return `
+      <div class="data-table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Judgement</th>
+              <th>Impact</th>
+              <th>Confidence</th>
+              <th>Rationale</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows
+              .map(
+                row =>
+                  `<tr>
+                    <td><code>#${escapeHtml(row.id)}</code></td>
+                    <td>${badgeHtml(row.judgement)}</td>
+                    <td>${badgeHtml(row.impact, "neutral")}</td>
+                    <td>${row.confidence != null ? escapeHtml(Math.round(Number(row.confidence) * 100) + "%") : "—"}</td>
+                    <td>${escapeHtml(row.rationale || "")}</td>
+                  </tr>`
+              )
+              .join("") ||
+              '<tr><td colspan="5" class="muted">No DOM differences returned.</td></tr>'}
+          </tbody>
+        </table>
+      </div>
+    `;
   }
   if (task === "url_consistency") {
     const findings = r.findings || [];
@@ -1033,9 +1195,22 @@ function providerCard(task, provider, result, mode = null, displayContext = null
   bindCopyButton(
     d,
     {
-      provider,
-      task,
-      mode,
+      provider:
+        humanLabel(
+          provider
+        ),
+      task:
+        humanLabel(
+          task
+        ),
+      ...(mode
+        ? {
+            context:
+              humanLabel(
+                mode
+              )
+          }
+        : {}),
       result:
         clean
     },
@@ -3591,13 +3766,13 @@ function domDiffJoinedAccordion(
   item,
   judgements = []
 ) {
-  const details =
+  const row =
     document.createElement(
-      "details"
+      "tr"
     );
 
-  details.className =
-    "card dom-diff-joined";
+  row.className =
+    "dom-diff-table-row";
 
   const headlineText =
     item.rendered?.text ||
@@ -3606,41 +3781,36 @@ function domDiffJoinedAccordion(
     item.raw?.href ||
     "";
 
-  const summary =
-    document.createElement(
-      "summary"
-    );
+  const primary =
+    judgements[0] ||
+    null;
 
-  summary.className =
-    "dom-diff-joined-summary";
-
-  summary.innerHTML = `
-    <div class="dom-diff-summary-main">
-      <div class="finding-title">
-        <span class="muted">#${escapeHtml(item.id)}</span>
-        · ${escapeHtml(humanLabel(item.kind))}
-        · ${escapeHtml(humanLabel(item.change_type))}
-      </div>
+  row.innerHTML = `
+    <td><code>#${escapeHtml(item.id)}</code></td>
+    <td>${escapeHtml(humanLabel(item.kind))}</td>
+    <td>${escapeHtml(humanLabel(item.change_type))}</td>
+    <td>
       ${headlineText
-        ? `<div class="muted small dom-diff-preview">${escapeHtml(String(headlineText).slice(0, 180))}</div>`
-        : ""}
-    </div>
-    <div class="dom-diff-summary-verdict">
-      ${domJudgementSummaryHtml(judgements)}
-    </div>
+        ? `<div class="table-preview">${escapeHtml(String(headlineText).slice(0, 180))}</div>`
+        : '<span class="muted">—</span>'}
+      <details class="table-details">
+        <summary>Evidence</summary>
+        <div data-dom-evidence></div>
+      </details>
+    </td>
+    <td>
+      ${primary
+        ? `<div class="result-primary">${badgeHtml(primary.judgement)}${badgeHtml(primary.impact, "neutral")}${confidenceHtml(primary.confidence)}</div>
+           <div class="small">${escapeHtml(primary.rationale || "")}</div>
+           ${judgements.length > 1 ? `<div class="muted small">+${judgements.length - 1} more model result${judgements.length === 2 ? "" : "s"}</div>` : ""}`
+        : '<span class="muted small">Not reviewed</span>'}
+    </td>
   `;
 
-  details.appendChild(
-    summary
-  );
-
-  const body =
-    document.createElement(
-      "div"
+  const evidenceTarget =
+    row.querySelector(
+      "[data-dom-evidence]"
     );
-
-  body.className =
-    "dom-diff-joined-body";
 
   const evidence =
     domDiffItemCard(
@@ -3651,67 +3821,75 @@ function domDiffJoinedAccordion(
     "dom-diff-evidence-card"
   );
 
-  body.appendChild(
+  evidenceTarget.appendChild(
     evidence
   );
 
-  const modelSection =
+  return row;
+}
+
+function domDiffTable(
+  items,
+  judgementMap =
+    new Map()
+) {
+  const wrap =
     document.createElement(
       "div"
     );
 
-  modelSection.className =
-    "dom-diff-model-results";
+  wrap.className =
+    "data-table-wrap";
 
-  modelSection.innerHTML =
-    '<div class="result-label">Model review</div>';
-
-  if (!judgements.length) {
-    modelSection.insertAdjacentHTML(
-      "beforeend",
-      '<div class="empty-state">This difference has not been reviewed by a model yet.</div>'
+  const table =
+    document.createElement(
+      "table"
     );
-  } else {
-    for (
-      const judgement
-      of judgements
-    ) {
-      const row =
-        document.createElement(
-          "div"
-        );
 
-      row.className =
-        "result-row static dom-diff-model-result";
+  table.className =
+    "data-table dom-diff-table";
 
-      row.innerHTML = `
-        <div class="result-row-head">
-          <strong>${escapeHtml(humanLabel(judgement.provider || "model"))}</strong>
-          <div class="result-primary">
-            ${badgeHtml(judgement.judgement)}
-            ${badgeHtml(judgement.impact, "neutral")}
-            ${confidenceHtml(judgement.confidence)}
-          </div>
-        </div>
-        <div class="result-copy">${escapeHtml(judgement.rationale || "")}</div>
-      `;
+  table.innerHTML = `
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>Type</th>
+        <th>Change</th>
+        <th>Evidence</th>
+        <th>Model review</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  `;
 
-      modelSection.appendChild(
-        row
-      );
-    }
+  const body =
+    table.querySelector(
+      "tbody"
+    );
+
+  for (
+    const item
+    of items ||
+    []
+  ) {
+    body.appendChild(
+      domDiffJoinedAccordion(
+        item,
+        judgementMap.get(
+          item.id
+        ) ||
+        []
+      )
+    );
   }
 
-  body.appendChild(
-    modelSection
+  wrap.appendChild(
+    table
   );
 
-  details.appendChild(
-    body
-  );
-
-  return details;
+  return wrap;
 }
+
 
 
 function jiraTicketText(ticket) {
@@ -4310,20 +4488,11 @@ function renderAnalyseAllResults(report) {
       "<h3>DOM differences needing attention</h3>" +
       '<div class="muted small">Open a difference to review the evidence and model judgement together.</div>';
 
-    domIssues.forEach(
-      item => {
-        const judgements =
-          domJudgements.get(
-            item.id
-          ) || [];
-
-        box.appendChild(
-          domDiffJoinedAccordion(
-            item,
-            judgements
-          )
-        );
-      }
+    box.appendChild(
+      domDiffTable(
+        domIssues,
+        domJudgements
+      )
     );
 
     target.appendChild(
@@ -6137,19 +6306,12 @@ $("#assessDomDiffBtn").onclick =
         }
       }
 
-      for (
-        const item
-        of batch
-      ) {
-        target.appendChild(
-          domDiffJoinedAccordion(
-            item,
-            judgementMap.get(
-              item.id
-            ) || []
-          )
-        );
-      }
+      target.appendChild(
+        domDiffTable(
+          batch,
+          judgementMap
+        )
+      );
 
       setStatus("");
     } catch (e) {
