@@ -7974,6 +7974,21 @@ async function buildDomDiff() {
           };
         };
 
+        const semanticTextCache =
+          new WeakMap();
+
+        const localContextCandidateCache =
+          new WeakMap();
+
+        const ignoredSemanticTags =
+          new Set([
+            "SCRIPT",
+            "STYLE",
+            "NOSCRIPT",
+            "TEMPLATE",
+            "SVG"
+          ]);
+
         const semanticContainerText = (
           node
         ) => {
@@ -7981,23 +7996,190 @@ async function buildDomDiff() {
             return "";
           }
 
-          const clone =
-            node.cloneNode(
-              true
-            );
-
-          clone
-            .querySelectorAll?.(
-              "script,style,noscript,template,svg"
+          if (
+            typeof node ===
+              "object" &&
+            semanticTextCache.has(
+              node
             )
-            .forEach(
-              child =>
-                child.remove()
+          ) {
+            return semanticTextCache.get(
+              node
+            );
+          }
+
+          const parts = [];
+          let chars = 0;
+          let visited = 0;
+
+          const stack = [
+            node
+          ];
+
+          while (
+            stack.length &&
+            chars < 700 &&
+            visited < 450
+          ) {
+            const current =
+              stack.pop();
+
+            if (!current) {
+              continue;
+            }
+
+            visited += 1;
+
+            if (
+              current.nodeType ===
+              3
+            ) {
+              const text =
+                normaliseText(
+                  current.nodeValue
+                );
+
+              if (text) {
+                parts.push(
+                  text
+                );
+
+                chars +=
+                  text.length +
+                  1;
+              }
+
+              continue;
+            }
+
+            if (
+              current.nodeType ===
+                1 &&
+              ignoredSemanticTags.has(
+                current.tagName
+              )
+            ) {
+              continue;
+            }
+
+            let child =
+              current.lastChild;
+
+            while (child) {
+              stack.push(
+                child
+              );
+
+              child =
+                child.previousSibling;
+            }
+          }
+
+          const text =
+            clip(
+              parts.join(
+                " "
+              ),
+              700
             );
 
-          return normaliseText(
-            clone.textContent
+          if (
+            typeof node ===
+            "object"
+          ) {
+            semanticTextCache.set(
+              node,
+              text
+            );
+          }
+
+          return text;
+        };
+
+        const contextCandidateFor = (
+          cur
+        ) => {
+          if (!cur) {
+            return null;
+          }
+
+          if (
+            localContextCandidateCache.has(
+              cur
+            )
+          ) {
+            return localContextCandidateCache.get(
+              cur
+            );
+          }
+
+          const text =
+            semanticContainerText(
+              cur
+            );
+
+          const headingEl =
+            cur.querySelector?.(
+              "h1,h2,h3,h4,h5,h6"
+            );
+
+          const heading =
+            clip(
+              semanticContainerText(
+                headingEl
+              ),
+              140
+            );
+
+          const imageAlt =
+            clip(
+              cur.querySelector?.(
+                "img[alt]"
+              )
+                ?.getAttribute(
+                  "alt"
+                ) ||
+                "",
+              180
+            );
+
+          const ariaLabel =
+            clip(
+              cur.getAttribute?.(
+                "aria-label"
+              ) ||
+                cur.getAttribute?.(
+                  "title"
+                ) ||
+                "",
+              180
+            );
+
+          const linkCount =
+            cur.querySelectorAll?.(
+              "a[href]"
+            )
+              ?.length ||
+            0;
+
+          const candidate = {
+            text,
+            heading,
+            imageAlt,
+            ariaLabel,
+            linkCount,
+            containerSelector:
+              selectorFor(
+                cur
+              )
+          };
+
+          localContextCandidateCache.set(
+            cur,
+            candidate
           );
+
+          return candidate;
         };
 
         const localIdentityContextFor = (
@@ -8026,7 +8208,7 @@ async function buildDomDiff() {
           for (
             let depth = 0;
             cur &&
-              depth < 7;
+              depth < 6;
             depth += 1,
             cur =
               cur.parentElement
@@ -8039,54 +8221,24 @@ async function buildDomDiff() {
               break;
             }
 
-            const text =
-              semanticContainerText(
+            const cached =
+              contextCandidateFor(
                 cur
               );
 
-            const headingEl =
-              cur.querySelector?.(
-                "h1,h2,h3,h4,h5,h6"
-              );
+            if (!cached) {
+              continue;
+            }
 
-            const heading =
-              clip(
-                semanticContainerText(
-                  headingEl
-                ),
-                140
-              );
-
-            const imageAlt =
-              clip(
-                cur.querySelector?.(
-                  "img[alt]"
-                )
-                  ?.getAttribute(
-                    "alt"
-                  ) ||
-                  "",
-                180
-              );
-
-            const ariaLabel =
-              clip(
-                cur.getAttribute?.(
-                  "aria-label"
-                ) ||
-                  cur.getAttribute?.(
-                    "title"
-                  ) ||
-                  "",
-                180
-              );
-
-            const linkCount =
-              cur.querySelectorAll?.(
-                "a[href]"
-              )
-                ?.length ||
-              0;
+            const {
+              text,
+              heading,
+              imageAlt,
+              ariaLabel,
+              linkCount,
+              containerSelector
+            } =
+              cached;
 
             const textIsDistinct =
               !!text &&
@@ -8123,11 +8275,6 @@ async function buildDomDiff() {
               text.length <= 700
             ) {
               score += 1;
-            } else if (
-              text.length >
-              1400
-            ) {
-              score -= 3;
             }
 
             if (
@@ -8163,9 +8310,7 @@ async function buildDomDiff() {
             const candidate = {
               score,
               container_selector:
-                selectorFor(
-                  cur
-                ),
+                containerSelector,
               heading,
               aria_label:
                 ariaLabel,
@@ -8201,6 +8346,53 @@ async function buildDomDiff() {
             best;
 
           return context;
+        };
+
+        const withSourceNode = (
+          value,
+          el
+        ) => {
+          Object.defineProperty(
+            value,
+            "_sourceNode",
+            {
+              value:
+                el,
+              enumerable:
+                false
+            }
+          );
+
+          return value;
+        };
+
+        const packDomValue = (
+          value
+        ) => {
+          if (
+            !value ||
+            typeof value !==
+              "object"
+          ) {
+            return value;
+          }
+
+          const sourceNode =
+            value._sourceNode;
+
+          const plain = {
+            ...value
+          };
+
+          return sourceNode
+            ? {
+                ...plain,
+                local_context:
+                  localIdentityContextFor(
+                    sourceNode
+                  )
+              }
+            : plain;
         };
 
         const currentUrl =
@@ -8376,21 +8568,21 @@ async function buildDomDiff() {
               )
             ]
               .map(
-                el => ({
-                  level:
-                    el.tagName.toLowerCase(),
-                  text:
-                    clip(
-                      el.textContent,
-                      220
-                    ),
-                  element:
-                    elementContext(el),
-                  local_context:
-                    localIdentityContextFor(
-                      el
-                    )
-                })
+                el =>
+                  withSourceNode(
+                    {
+                      level:
+                        el.tagName.toLowerCase(),
+                      text:
+                        clip(
+                          el.textContent,
+                          220
+                        ),
+                      element:
+                        elementContext(el)
+                    },
+                    el
+                  )
               )
               .filter(
                 x =>
@@ -8404,26 +8596,26 @@ async function buildDomDiff() {
               )
             ]
               .map(
-                el => ({
-                  href:
-                    absUrl(
-                      el.getAttribute(
-                        "href"
-                      ),
-                      base
-                    ),
-                  text:
-                    clip(
-                      el.textContent,
-                      160
-                    ),
-                  element:
-                    elementContext(el),
-                  local_context:
-                    localIdentityContextFor(
-                      el
-                    )
-                })
+                el =>
+                  withSourceNode(
+                    {
+                      href:
+                        absUrl(
+                          el.getAttribute(
+                            "href"
+                          ),
+                          base
+                        ),
+                      text:
+                        clip(
+                          el.textContent,
+                          160
+                        ),
+                      element:
+                        elementContext(el)
+                    },
+                    el
+                  )
               )
               .filter(
                 x =>
@@ -8447,19 +8639,19 @@ async function buildDomDiff() {
                   )
                 ]
                   .map(
-                    el => ({
-                      text:
-                        clip(
-                          el.textContent,
-                          260
-                        ),
-                      element:
-                        elementContext(el),
-                      local_context:
-                        localIdentityContextFor(
-                          el
-                        )
-                    })
+                    el =>
+                      withSourceNode(
+                        {
+                          text:
+                            clip(
+                              el.textContent,
+                              260
+                            ),
+                          element:
+                            elementContext(el)
+                        },
+                        el
+                      )
                   )
                   .filter(
                     item =>
@@ -8475,21 +8667,21 @@ async function buildDomDiff() {
               )
             ]
               .map(
-                el => ({
-                  text:
-                    clip(
-                      el.tagName === "INPUT"
-                        ? el.value
-                        : el.textContent,
-                      160
-                    ),
-                  element:
-                    elementContext(el),
-                  local_context:
-                    localIdentityContextFor(
-                      el
-                    )
-                })
+                el =>
+                  withSourceNode(
+                    {
+                      text:
+                        clip(
+                          el.tagName === "INPUT"
+                            ? el.value
+                            : el.textContent,
+                          160
+                        ),
+                      element:
+                        elementContext(el)
+                    },
+                    el
+                  )
               )
               .filter(
                 item =>
@@ -8598,7 +8790,8 @@ async function buildDomDiff() {
           keyFn,
           priority,
           kind,
-          packFn = x => x
+          packFn =
+            packDomValue
         ) => {
           const rawMap =
             new Map();
@@ -8691,8 +8884,7 @@ async function buildDomDiff() {
           x =>
             `${x.level}|${x.text.toLowerCase()}`,
           3,
-          "heading",
-          x => x
+          "heading"
         );
 
         addSetDiff(
@@ -8701,8 +8893,7 @@ async function buildDomDiff() {
           x =>
             `${x.href}|${x.text.toLowerCase()}`,
           4,
-          "link",
-          x => x
+          "link"
         );
 
         addSetDiff(
@@ -8711,8 +8902,7 @@ async function buildDomDiff() {
           x =>
             x.text.toLowerCase(),
           5,
-          "content_block",
-          x => x
+          "content_block"
         );
 
         addSetDiff(
@@ -8721,8 +8911,7 @@ async function buildDomDiff() {
           x =>
             x.text.toLowerCase(),
           6,
-          "button",
-          x => x
+          "button"
         );
 
         const comparableText = (value) => {
