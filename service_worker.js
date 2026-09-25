@@ -8842,6 +8842,594 @@ async function buildDomDiff() {
         const total =
           items.length;
 
+        const semanticWeightOf =
+          value => {
+            if (
+              !value ||
+              typeof value !==
+                "object"
+            ) {
+              return 1;
+            }
+
+            const weight =
+              Number(
+                value.element
+                  ?.semantic_weight
+              );
+
+            return Number.isFinite(
+              weight
+            )
+              ? Math.max(
+                  0.1,
+                  weight
+                )
+              : 1;
+          };
+
+        const itemSemanticWeight =
+          item =>
+            Math.max(
+              semanticWeightOf(
+                item.raw
+              ),
+              semanticWeightOf(
+                item.rendered
+              )
+            );
+
+        const itemZone =
+          item => {
+            const values = [
+              item.rendered,
+              item.raw
+            ];
+
+            for (
+              const value
+              of values
+            ) {
+              const zone =
+                value &&
+                typeof value ===
+                  "object"
+                  ? value.element
+                      ?.zone
+                  : "";
+
+              if (zone) {
+                return zone;
+              }
+            }
+
+            return "";
+          };
+
+        const itemComponent =
+          item => {
+            const values = [
+              item.rendered,
+              item.raw
+            ];
+
+            for (
+              const value
+              of values
+            ) {
+              const component =
+                value &&
+                typeof value ===
+                  "object"
+                  ? value.element
+                      ?.component
+                  : "";
+
+              if (component) {
+                return component;
+              }
+            }
+
+            return "";
+          };
+
+        const significanceMultiplier =
+          item => {
+            const significance =
+              item.net_effect
+                ?.significance ||
+              "";
+
+            if (
+              significance ===
+              "high"
+            ) {
+              return 1.5;
+            }
+
+            if (
+              significance ===
+              "medium"
+            ) {
+              return 1;
+            }
+
+            if (
+              significance ===
+              "low"
+            ) {
+              return 0.5;
+            }
+
+            return 1;
+          };
+
+        const metadataWeight =
+          field => ({
+            canonical: 5,
+            robots: 5,
+            title: 4,
+            description: 2
+          })[
+            field
+          ] || 2;
+
+        const kindBaseWeight =
+          item => {
+            if (
+              item.kind ===
+              "metadata"
+            ) {
+              return metadataWeight(
+                item.field
+              );
+            }
+
+            if (
+              item.kind ===
+              "structured_data"
+            ) {
+              return 3;
+            }
+
+            if (
+              item.kind ===
+              "schema_type"
+            ) {
+              return 2.5;
+            }
+
+            if (
+              item.kind ===
+              "heading"
+            ) {
+              return 2;
+            }
+
+            if (
+              item.kind ===
+              "link"
+            ) {
+              return 1.5;
+            }
+
+            if (
+              item.kind ===
+              "content_block"
+            ) {
+              return 1;
+            }
+
+            if (
+              item.kind ===
+              "button"
+            ) {
+              return 0.5;
+            }
+
+            return 1;
+          };
+
+        const changePoints =
+          items.reduce(
+            (
+              totalPoints,
+              item
+            ) =>
+              totalPoints +
+              (
+                kindBaseWeight(
+                  item
+                ) *
+                itemSemanticWeight(
+                  item
+                ) *
+                significanceMultiplier(
+                  item
+                )
+              ),
+            0
+          );
+
+        const inventoryWeight =
+          inventory => {
+            const weightedElements =
+              values =>
+                (
+                  values ||
+                  []
+                )
+                  .reduce(
+                    (
+                      subtotal,
+                      value
+                    ) =>
+                      subtotal +
+                      semanticWeightOf(
+                        value
+                      ),
+                    0
+                  );
+
+            return (
+              16 +
+              weightedElements(
+                inventory.headings
+              ) *
+                2 +
+              weightedElements(
+                inventory.links
+              ) *
+                1.5 +
+              weightedElements(
+                inventory.textBlocks
+              ) +
+              weightedElements(
+                inventory.buttons
+              ) *
+                0.5 +
+              Math.max(
+                1,
+                (
+                  inventory.schemaTypes ||
+                  []
+                ).length
+              ) *
+                2.5 +
+              (
+                inventory.jsonLdCount
+                  ? 3
+                  : 0
+              )
+            );
+          };
+
+        const comparableInventoryWeight =
+          Math.max(
+            inventoryWeight(
+              raw
+            ),
+            inventoryWeight(
+              rendered
+            ),
+            1
+          );
+
+        const weightedChangeRatio =
+          Math.min(
+            1,
+            changePoints /
+              comparableInventoryWeight
+          );
+
+        const sizeScore =
+          Math.min(
+            100,
+            Math.round(
+              (
+                weightedChangeRatio *
+                75
+              ) +
+              (
+                Math.min(
+                  total,
+                  20
+                ) /
+                20 *
+                25
+              )
+            )
+          );
+
+        const divergence =
+          sizeScore >= 50
+            ? "large"
+            : sizeScore >= 20
+              ? "moderate"
+              : "small";
+
+        const criticalMetadataChanges =
+          items.filter(
+            item =>
+              item.kind ===
+                "metadata" &&
+              [
+                "canonical",
+                "robots"
+              ].includes(
+                item.field
+              )
+          );
+
+        const titleChanges =
+          items.filter(
+            item =>
+              item.kind ===
+                "metadata" &&
+              item.field ===
+                "title"
+          );
+
+        const highImpactItems =
+          items.filter(
+            item =>
+              item.net_effect
+                ?.significance ===
+              "high"
+          );
+
+        const mediumImpactItems =
+          items.filter(
+            item =>
+              item.net_effect
+                ?.significance ===
+              "medium"
+          );
+
+        const mainContentItems =
+          items.filter(
+            item => {
+              const zone =
+                itemZone(
+                  item
+                );
+
+              const component =
+                itemComponent(
+                  item
+                );
+
+              return (
+                [
+                  "main",
+                  "article"
+                ].includes(
+                  zone
+                ) ||
+                [
+                  "main_content",
+                  "product_details",
+                  "faq",
+                  "reviews"
+                ].includes(
+                  component
+                )
+              );
+            }
+          );
+
+        const highWeightItems =
+          items.filter(
+            item =>
+              itemSemanticWeight(
+                item
+              ) >= 1
+          );
+
+        const uniqueLinkChanges =
+          items.filter(
+            item =>
+              item.kind ===
+                "link" &&
+              (
+                item.net_effect
+                  ?.signals
+                  ?.destination_added ||
+                item.net_effect
+                  ?.signals
+                  ?.destination_removed
+              )
+          );
+
+        const headingTopicChanges =
+          items.filter(
+            item =>
+              item.kind ===
+                "heading" &&
+              (
+                item.net_effect
+                  ?.signals
+                  ?.unique_topic_added ||
+                item.net_effect
+                  ?.signals
+                  ?.unique_topic_removed ||
+                item.net_effect
+                  ?.signals
+                  ?.h1_level_change
+              )
+          );
+
+        let aggregateSignificance =
+          "low";
+
+        if (
+          criticalMetadataChanges.length ||
+          highImpactItems.length >=
+            2 ||
+          (
+            mainContentItems.length >=
+              5 &&
+            weightedChangeRatio >=
+              0.15
+          ) ||
+          (
+            headingTopicChanges.length >=
+              2 &&
+            mainContentItems.length >=
+              3
+          )
+        ) {
+          aggregateSignificance =
+            "meaningful";
+        } else if (
+          titleChanges.length ||
+          highImpactItems.length ||
+          mediumImpactItems.length >=
+            2 ||
+          uniqueLinkChanges.length >=
+            2 ||
+          headingTopicChanges.length ||
+          divergence ===
+            "large" ||
+          (
+            divergence ===
+              "moderate" &&
+            mainContentItems.length
+          )
+        ) {
+          aggregateSignificance =
+            "review";
+        }
+
+        const aggregateReasons =
+          [];
+
+        if (
+          criticalMetadataChanges.length
+        ) {
+          aggregateReasons.push(
+            criticalMetadataChanges
+              .map(
+                item =>
+                  item.field
+              )
+              .filter(Boolean)
+              .join(
+                " / "
+              ) +
+            " metadata changed"
+          );
+        }
+
+        if (
+          titleChanges.length
+        ) {
+          aggregateReasons.push(
+            "document title changed"
+          );
+        }
+
+        if (
+          mainContentItems.length
+        ) {
+          aggregateReasons.push(
+            mainContentItems.length +
+            " main-content change(s)"
+          );
+        }
+
+        if (
+          highWeightItems.length
+        ) {
+          aggregateReasons.push(
+            highWeightItems.length +
+            " high-weight element change(s)"
+          );
+        }
+
+        if (
+          uniqueLinkChanges.length
+        ) {
+          aggregateReasons.push(
+            uniqueLinkChanges.length +
+            " unique link destination change(s)"
+          );
+        }
+
+        if (
+          headingTopicChanges.length
+        ) {
+          aggregateReasons.push(
+            headingTopicChanges.length +
+            " heading topic/level change(s)"
+          );
+        }
+
+        if (
+          !aggregateReasons.length &&
+          total
+        ) {
+          aggregateReasons.push(
+            "changes are concentrated in lower-weight or repeated UI content"
+          );
+        }
+
+        const aggregateImpact = {
+          divergence,
+          significance:
+            aggregateSignificance,
+          size_score:
+            sizeScore,
+          weighted_change_ratio:
+            Number(
+              weightedChangeRatio
+                .toFixed(
+                  3
+                )
+            ),
+          estimated_inventory_change_percent:
+            Math.round(
+              weightedChangeRatio *
+              100
+            ),
+          change_points:
+            Number(
+              changePoints
+                .toFixed(
+                  2
+                )
+            ),
+          comparable_inventory_weight:
+            Number(
+              comparableInventoryWeight
+                .toFixed(
+                  2
+                )
+            ),
+          main_content_changes:
+            mainContentItems.length,
+          high_weight_changes:
+            highWeightItems.length,
+          high_impact_changes:
+            highImpactItems.length,
+          medium_impact_changes:
+            mediumImpactItems.length,
+          critical_metadata_changes:
+            criticalMetadataChanges.length,
+          title_changes:
+            titleChanges.length,
+          unique_link_destination_changes:
+            uniqueLinkChanges.length,
+          heading_topic_changes:
+            headingTopicChanges.length,
+          reasons:
+            aggregateReasons
+              .slice(
+                0,
+                5
+              )
+        };
+
         const reconciledPairs =
           reconciledItems.length;
 
@@ -8949,6 +9537,8 @@ async function buildDomDiff() {
 
             deterministicLowImpactItems:
               deterministicLowImpact.length,
+
+            aggregateImpact,
 
             returnedNanoReviewItems:
               kept.filter(
