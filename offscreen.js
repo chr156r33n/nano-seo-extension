@@ -80,6 +80,9 @@ function buildErrorResponse(
       ),
     meta:
       meta ||
+      null,
+    raw:
+      error?.rawNanoOutput ||
       null
   };
 }
@@ -324,8 +327,64 @@ async function runNano(msg) {
     const parseStarted =
       performance.now();
 
-    const parsed =
-      parseJson(raw);
+    let parsed;
+
+    try {
+      parsed =
+        parseJson(
+          raw
+        );
+    } catch (error) {
+      const parseMs =
+        Math.round(
+          performance.now() -
+          parseStarted
+        );
+
+      const meta =
+        baseMeta();
+
+      meta.timing.promptMs =
+        promptMs;
+
+      meta.timing.parseMs =
+        parseMs;
+
+      meta.timing.totalMs =
+        Math.round(
+          performance.now() -
+          totalStarted
+        );
+
+      meta.output = {
+        responseChars:
+          String(
+            raw ||
+            ""
+          ).length
+      };
+
+      meta.context.usageAfter =
+        Number.isFinite(
+          session.contextUsage
+        )
+          ? session.contextUsage
+          : null;
+
+      error.code =
+        "NANO_INVALID_JSON";
+
+      error.nanoMeta =
+        meta;
+
+      error.rawNanoOutput =
+        String(
+          raw ||
+          ""
+        );
+
+      throw error;
+    }
 
     const parseMs =
       Math.round(

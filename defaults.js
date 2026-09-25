@@ -231,7 +231,7 @@ DIFF ITEMS:
 
     url_consistency: {
       system: "You review URL, locale and page-identity signals declared by the current document. Do not crawl or assume anything about target URLs that was not supplied. Different locale subdomains/domains can be valid. Missing mobile annotations are not a problem on responsive sites.",
-      user: `Review these page identity and locale signals as a set and decide whether they look internally consistent and logically correct.
+      user: `Review these page identity signals as a set and decide whether they look internally consistent and logically correct.
 
 Pay particular attention to:
 - current URL vs canonical
@@ -239,28 +239,20 @@ Pay particular attention to:
 - development/staging/preview/test hosts leaking into production declarations
 - HTTP vs HTTPS inconsistencies
 - schema URL/@id/mainEntityOfPage references that appear to identify this page but disagree with its canonical/current URL
-- hreflang values outside the agreed list or mapped to implausible locale URLs
 - rel=alternate media/mobile annotations that point to an unexpected host, protocol or page
-- contradictions across signals
+- contradictions across these supplied identity signals
 
 Important:
-- hreflang may legitimately use different domains/subdomains
+- hreflang is validated deterministically elsewhere and is intentionally not part of this model task
 - schema Organization/WebSite identifiers can legitimately point to a root or entity URL rather than the exact current page
 - fragment @id values based on the canonical/current URL are normal
 - do not flag absence of a rel=alternate mobile annotation by itself
-- do not check hreflang reciprocity, HTTP status, target canonicals or target content
-- deterministic hreflang allow-list suggestions supplied below should be preferred over inventing another locale value
-- the permitted hreflang values are an allow-list, not a required locale set
-- never report a locale as missing merely because it appears in the permitted list
-- only report a missing hreflang locale when the supplied evidence explicitly provides a required/expected locale set and shows that locale is absent
+- do not check HTTP status, target canonicals or target content
 
 GLOBAL SEMANTIC IMPORTANCE GUIDANCE:
 {{semantic_guidance}}
 
-PERMITTED HREFLANG VALUES (PROJECT ALLOW-LIST; NOT A REQUIRED SET):
-{{agreed_hreflangs_json}}
-
-DECLARED URL/LOCALE SIGNALS:
+DECLARED URL/PAGE-IDENTITY SIGNALS:
 {{url_signals_json}}`
     },
 
