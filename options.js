@@ -320,6 +320,23 @@ function render() {
     </section>
 
     <section>
+      <div class="section-kicker">Audit profiles</div><h2>Site check exclusions</h2>
+
+      <p class="muted">
+        Suppress known or non-actionable deterministic findings for specific hostnames before they are sent to a model.
+        One profile per line: <code>hostname | check_code, check_code | optional note</code>
+      </p>
+
+      <textarea
+        id="siteCheckExclusions"
+        placeholder="www.example.com | title_length, meta_description_length | CMS constraint&#10;*.example.co.uk | canonical_relative_href | known platform behaviour"
+      >${(current.siteCheckExclusions || []).map(profile => [profile.hostname, (profile.checks || []).join(", "), profile.note || ""].join(" | ").replace(/ \| $/, "")).join("\n")}</textarea>
+
+      <p class="muted small">
+        Exact hostnames and <code>*.example.com</code> wildcards are supported. Excluded checks remain visible for traceability but are not treated as findings, triaged by a model, or added to prioritised actions.
+      </p>
+    </section>
+    <section>
       <div class="section-kicker">Locales</div><h2>Agreed hreflang values</h2>
 
       <p class="muted">
@@ -502,6 +519,56 @@ function collect() {
       .split(/\r?\n|,/)
       .map(x => x.trim())
       .filter(Boolean);
+
+  current.siteCheckExclusions =
+    document.querySelector(
+      "#siteCheckExclusions"
+    )
+      .value
+      .split(/\r?\n/)
+      .map(
+        line => {
+          const parts =
+            line
+              .split("|")
+              .map(
+                part =>
+                  part.trim()
+              );
+
+          const hostname =
+            parts.shift() ||
+            "";
+
+          const checks =
+            (
+              parts.shift() ||
+              ""
+            )
+              .split(",")
+              .map(
+                code =>
+                  code.trim()
+              )
+              .filter(Boolean);
+
+          const note =
+            parts
+              .join(" | ")
+              .trim();
+
+          return {
+            hostname,
+            checks,
+            note
+          };
+        }
+      )
+      .filter(
+        profile =>
+          profile.hostname &&
+          profile.checks.length
+      );
 
   document
     .querySelectorAll(
