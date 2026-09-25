@@ -173,22 +173,35 @@ PAGE SUMMARY:
     },
 
     false_positive: {
-      system: "You triage deterministic SEO audit findings. The SPECIFIC AFFECTED EVIDENCE is the primary evidence and must be inspected before using general page context. A detected rule condition is evidence, not proof of an SEO problem. Cite concrete supplied values, URLs, selectors, zones or element properties in evidence_used and the rationale. Do not infer characteristics that are not present in the evidence. Never say you could not inspect the affected items when specific examples were supplied. If the supplied evidence is genuinely insufficient to judge an item, mark that item manual_review and prefer an overall manual_review when appropriate.",
-      user: `Assess whether this deterministic audit finding is likely a real problem on this specific page.
+      system: "You assess the practical impact of deterministic SEO audit findings. The deterministic condition may be a genuine issue, a low-impact condition, context-dependent, or a detector false positive. The SPECIFIC AFFECTED EVIDENCE is the primary evidence and must be inspected before using general page context. Use the trusted consequence profile to understand the kinds of impact the check can have, but do not invent impacts that are not supported by the evidence. Cite concrete supplied values, URLs, selectors, zones or element properties in evidence_used and the rationale.",
+      user: `Assess this deterministic audit finding on this specific page.
 
 Classify the overall finding as exactly one of:
-likely_valid
 likely_false_positive
+no_material_impact
+low_impact
 context_dependent
+meaningful_issue
 manual_review
+
+Use these labels consistently:
+- likely_false_positive: the deterministic detector appears wrong for this evidence
+- no_material_impact: the condition is real, but it has no meaningful consequence on this page
+- low_impact: the condition is real and has a limited consequence
+- context_dependent: the consequence materially depends on page/site context
+- meaningful_issue: the condition is real and likely worth action within the supplied consequence profile
+- manual_review: the evidence is insufficient to make a reliable judgement
 
 IMPORTANT:
 - Inspect SPECIFIC AFFECTED EVIDENCE first.
 - Do not base the judgement mainly on aggregate page counts.
+- The consequence profile gives the permitted impact framing and baseline priority. Do not promote an issue above that baseline merely because it is real.
 - evidence_used must identify concrete supplied evidence, not generic SEO principles.
-- If the evidence contains an examples array, assess every supplied example individually in item_assessments.
-- For item_assessments use likely_problem, likely_harmless, or manual_review.
+- If the evidence contains an examples array, assess every supplied example individually in item_assessments using the same judgement labels.
 - If there are no individual examples, return an empty item_assessments array.
+
+TRUSTED CONSEQUENCE PROFILE:
+{{impact_profile_json}}
 
 SPECIFIC AFFECTED EVIDENCE:
 {{evidence_json}}
@@ -286,6 +299,194 @@ CONTEXT:
 
 EXAMPLE URL:
 {{example_url}}`
+    }
+  },
+
+  deterministicImpactProfiles: {
+    h1_presence: {
+      impacts: ["Page understanding", "Accessibility"],
+      baselinePriority: "low",
+      consequence: "A missing H1 can weaken document structure and accessibility, but is not itself an indexing requirement."
+    },
+    multiple_h1: {
+      impacts: ["Page understanding", "Accessibility"],
+      baselinePriority: "low",
+      consequence: "Multiple H1s can create ambiguous structure when several important headings compete, but multiple H1 elements are not inherently harmful."
+    },
+    title_presence: {
+      impacts: ["Ranking", "CTR", "Search appearance"],
+      baselinePriority: "high",
+      consequence: "A missing document title removes an important relevance and search-result presentation signal."
+    },
+    title_length: {
+      impacts: ["CTR", "Search appearance"],
+      baselinePriority: "low",
+      consequence: "Title length mainly affects clarity and search-result presentation; length alone does not determine ranking or indexability."
+    },
+    meta_description_presence: {
+      impacts: ["CTR", "Search appearance"],
+      baselinePriority: "low",
+      consequence: "A missing meta description can reduce control over search snippets but does not prevent crawling or indexing."
+    },
+    meta_description_length: {
+      impacts: ["CTR", "Search appearance"],
+      baselinePriority: "low",
+      consequence: "Meta-description length mainly affects snippet quality and messaging rather than crawling, indexing or ranking directly."
+    },
+    canonical_presence: {
+      impacts: ["Indexing", "Canonicalisation"],
+      baselinePriority: "medium",
+      consequence: "A missing canonical can leave duplicate or parameterised URLs without an explicit preferred-URL signal."
+    },
+    multiple_canonical: {
+      impacts: ["Indexing", "Canonicalisation"],
+      baselinePriority: "high",
+      consequence: "Multiple canonical declarations can create conflicting preferred-URL signals, especially when their targets differ."
+    },
+    canonical_cross_origin: {
+      impacts: ["Indexing", "Canonicalisation"],
+      baselinePriority: "medium",
+      consequence: "A cross-origin canonical can transfer preferred-page signals away from the current host when it is not intentional."
+    },
+    canonical_fragment: {
+      impacts: ["Indexing", "Canonicalisation"],
+      baselinePriority: "medium",
+      consequence: "Canonical fragments are generally unsuitable for document-level canonicalisation and may create an unclear preferred URL."
+    },
+    canonical_protocol_downgrade: {
+      impacts: ["Indexing", "Canonicalisation", "Crawl efficiency"],
+      baselinePriority: "high",
+      consequence: "Canonicalising an HTTPS page to HTTP can create conflicting preferred-URL and redirect signals."
+    },
+    canonical_relative_href: {
+      impacts: ["Canonicalisation", "Implementation quality"],
+      baselinePriority: "low",
+      consequence: "Relative canonicals usually resolve correctly in browsers, but absolute canonicals are safer and less ambiguous across processing pipelines."
+    },
+    robots_noindex: {
+      impacts: ["Indexing"],
+      baselinePriority: "high",
+      consequence: "Noindex directly prevents eligible pages from remaining indexed when the directive is discovered and honoured."
+    },
+    robots_conflict: {
+      impacts: ["Indexing", "Crawling"],
+      baselinePriority: "high",
+      consequence: "Conflicting robots directives can make intended index/follow behaviour unclear across crawlers."
+    },
+    robots_googlebot_conflict: {
+      impacts: ["Indexing", "Crawling"],
+      baselinePriority: "high",
+      consequence: "Conflicting generic robots and Googlebot-specific directives can produce crawler-specific index/follow behaviour."
+    },
+    heading_hierarchy: {
+      impacts: ["Page understanding", "Accessibility"],
+      baselinePriority: "low",
+      consequence: "Heading hierarchy can affect document structure and accessibility, but skipped levels are not inherently a crawling or indexing problem."
+    },
+    html_lang_presence: {
+      impacts: ["Accessibility", "Language understanding"],
+      baselinePriority: "low",
+      consequence: "A missing lang attribute can reduce accessibility and language identification but does not usually block indexing."
+    },
+    html_lang_format: {
+      impacts: ["Accessibility", "Language understanding"],
+      baselinePriority: "low",
+      consequence: "An invalid lang value can weaken language identification and assistive-technology behaviour."
+    },
+    jsonld_parse_error: {
+      impacts: ["Structured data", "Search appearance"],
+      baselinePriority: "medium",
+      consequence: "Invalid JSON-LD can prevent structured-data consumers from parsing the affected block and can remove eligibility for enhanced search features."
+    },
+    hreflang_duplicate_value: {
+      impacts: ["International targeting", "Indexing"],
+      baselinePriority: "medium",
+      consequence: "Duplicate locale declarations are problematic when the same hreflang value points to competing destination URLs."
+    },
+    hreflang_unapproved_value: {
+      impacts: ["International targeting", "Implementation consistency"],
+      baselinePriority: "low",
+      consequence: "A locale outside the configured project allow-list can indicate inconsistent international targeting or naming conventions."
+    },
+    hreflang_invalid_format: {
+      impacts: ["International targeting"],
+      baselinePriority: "medium",
+      consequence: "Invalid hreflang language or region syntax can prevent that declaration from being interpreted as intended."
+    },
+    hreflang_empty_href: {
+      impacts: ["International targeting"],
+      baselinePriority: "medium",
+      consequence: "A hreflang declaration without a usable target cannot provide a valid alternate-locale relationship."
+    },
+    open_graph_incomplete: {
+      impacts: ["Social sharing", "CTR", "Brand credibility"],
+      baselinePriority: "low",
+      consequence: "Incomplete Open Graph metadata can produce poor or inconsistent social previews but does not affect crawling or indexing directly."
+    },
+    og_url_mismatch: {
+      impacts: ["Social sharing", "Page identity"],
+      baselinePriority: "low",
+      consequence: "An unexpected og:url can make shared-page identity inconsistent even when core search canonicalisation is unaffected."
+    },
+    twitter_card_incomplete: {
+      impacts: ["Social sharing", "CTR", "Brand credibility"],
+      baselinePriority: "low",
+      consequence: "Incomplete Twitter/X card metadata can degrade shared-link previews but does not affect crawling or indexing directly."
+    },
+    favicon_presence: {
+      impacts: ["CTR", "Brand credibility", "UX"],
+      baselinePriority: "low",
+      consequence: "A missing favicon can reduce visual recognition and perceived polish in browser/search surfaces but does not affect crawling or indexing."
+    },
+    images_missing_alt: {
+      impacts: ["Accessibility", "Image understanding"],
+      baselinePriority: "medium",
+      consequence: "Missing alt text matters when an image conveys information or functions as a control; decorative images can legitimately omit meaningful alt text."
+    },
+    images_empty_alt: {
+      impacts: ["Accessibility", "Image understanding"],
+      baselinePriority: "low",
+      consequence: "Empty alt text is correct for decorative images but problematic when meaningful or functional image content becomes inaccessible."
+    },
+    images_missing_dimensions: {
+      impacts: ["UX", "Performance"],
+      baselinePriority: "low",
+      consequence: "Missing intrinsic dimensions can contribute to layout instability when space is not otherwise reserved."
+    },
+    links_empty_anchor: {
+      impacts: ["Accessibility", "Link understanding", "Crawl context"],
+      baselinePriority: "medium",
+      consequence: "A genuinely unnamed link can reduce accessibility and weaken contextual understanding of the destination."
+    },
+    internal_http_links: {
+      impacts: ["Crawl efficiency", "Page quality"],
+      baselinePriority: "low",
+      consequence: "HTTP links from an HTTPS page can introduce avoidable redirects and inconsistent secure URL references."
+    },
+    viewport_presence: {
+      impacts: ["UX", "Mobile usability"],
+      baselinePriority: "medium",
+      consequence: "A missing viewport declaration can make pages difficult to use on mobile devices, though it does not directly prevent crawling or indexing."
+    },
+    pagination_page1_parameter: {
+      impacts: ["Crawl efficiency", "Canonicalisation"],
+      baselinePriority: "low",
+      consequence: "Linking back to an explicit page=1 variant can create an unnecessary duplicate URL when the sequence root is the preferred first page."
+    },
+    duplicate_title_element: {
+      impacts: ["Search appearance", "Page understanding"],
+      baselinePriority: "medium",
+      consequence: "Multiple HTML document title elements create ambiguous title metadata; non-HTML titles such as SVG titles should not count."
+    },
+    duplicate_meta_description: {
+      impacts: ["Search appearance", "Implementation quality"],
+      baselinePriority: "low",
+      consequence: "Multiple meta-description elements create ambiguous snippet metadata even though search engines may simply choose or ignore one."
+    },
+    rendered_head_invalid_element: {
+      impacts: ["Indexing", "Metadata parsing", "Structured data"],
+      baselinePriority: "high",
+      consequence: "Invalid elements in the document head can change parser state and displace later canonical, robots, metadata or structured-data declarations."
     }
   },
 
@@ -517,9 +718,11 @@ const TASK_SCHEMAS = {
       judgement: {
         type: "string",
         enum: [
-          "likely_valid",
           "likely_false_positive",
+          "no_material_impact",
+          "low_impact",
           "context_dependent",
+          "meaningful_issue",
           "manual_review"
         ]
       },
@@ -549,8 +752,11 @@ const TASK_SCHEMAS = {
             judgement: {
               type: "string",
               enum: [
-                "likely_problem",
-                "likely_harmless",
+                "likely_false_positive",
+                "no_material_impact",
+                "low_impact",
+                "context_dependent",
+                "meaningful_issue",
                 "manual_review"
               ]
             },
@@ -755,6 +961,53 @@ function mergeSettings(saved = {}) {
       ...d.falsePositiveGuidance,
       ...saved.falsePositiveGuidance
     };
+  }
+
+  if (
+    saved.deterministicImpactProfiles &&
+    typeof saved.deterministicImpactProfiles ===
+      "object"
+  ) {
+    for (
+      const [
+        code,
+        profile
+      ]
+      of Object.entries(
+        saved.deterministicImpactProfiles
+      )
+    ) {
+      d.deterministicImpactProfiles[
+        code
+      ] = {
+        ...(
+          d.deterministicImpactProfiles[
+            code
+          ] ||
+          {}
+        ),
+        ...profile,
+        impacts:
+          Array.isArray(
+            profile?.impacts
+          )
+            ? profile.impacts
+                .map(
+                  value =>
+                    String(
+                      value ||
+                      ""
+                    ).trim()
+                )
+                .filter(Boolean)
+            : (
+                d.deterministicImpactProfiles[
+                  code
+                ]?.impacts ||
+                []
+              )
+      };
+    }
   }
 
   if (typeof saved.semanticImportanceGuidance === "string") {
