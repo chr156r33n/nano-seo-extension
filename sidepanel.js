@@ -1239,12 +1239,96 @@ function genericResultHtml(result) {
   return `<div class="result-kv">${rows || '<div class="muted">No result fields.</div>'}</div>`;
 }
 
+function falsePositiveBatchContextHtml(
+  context
+) {
+  const issueCode =
+    context?.issueCode ||
+    "";
+
+  const examples =
+    Array.isArray(
+      context?.examples
+    )
+      ? context.examples
+      : [];
+
+  if (
+    ![
+      "images_missing_alt",
+      "images_empty_alt",
+      "images_missing_dimensions"
+    ].includes(
+      issueCode
+    ) ||
+    !examples.length
+  ) {
+    return "";
+  }
+
+  const rows =
+    examples
+      .map(
+        (item, index) => {
+          const src =
+            item?.src ||
+            "";
+
+          if (!src) {
+            return "";
+          }
+
+          const linked =
+            item?.link_href ||
+            "";
+
+          return `
+            <div class="result-row static">
+              <div class="result-row-head">
+                <span class="mini-chip">Image ${index + 1}</span>
+                ${item?.visible_on_page === false ? '<span class="mini-chip">not visible</span>' : ""}
+              </div>
+              <div class="result-kv-row compact">
+                <div class="result-label">Image</div>
+                <a href="${escapeHtml(src)}" target="_blank" rel="noopener noreferrer">
+                  <code>${escapeHtml(src)}</code>
+                </a>
+              </div>
+              ${linked
+                ? `<div class="result-kv-row compact">
+                    <div class="result-label">Linked to</div>
+                    <a href="${escapeHtml(linked)}" target="_blank" rel="noopener noreferrer">
+                      <code>${escapeHtml(linked)}</code>
+                    </a>
+                  </div>`
+                : ""}
+              ${item?.selector
+                ? `<div class="result-kv-row compact">
+                    <div class="result-label">Selector</div>
+                    <code>${escapeHtml(item.selector)}</code>
+                  </div>`
+                : ""}
+            </div>
+          `;
+        }
+      )
+      .filter(Boolean)
+      .join("");
+
+  return rows
+    ? `<div class="result-subsection">
+        <div class="result-label">Images in this batch</div>
+        <div class="result-list">${rows}</div>
+      </div>`
+    : "";
+}
+
 function taskResultHtml(task, result, displayContext = null) {
   const r = withoutMeta(result) || {};
   if (task === "page_type") return `<div class="result-primary">${badgeHtml(r.page_type, "info")}${confidenceHtml(r.confidence)}</div>${evidenceHtml(r.evidence)}`;
   if (task === "intent") return `<div class="result-primary">${badgeHtml(r.primary_intent, "info")}${r.split_intent ? badgeHtml("split intent", "warn") : ""}${confidenceHtml(r.confidence)}</div><div class="result-grid two"><div><div class="result-label">Supporting intent</div>${chipsHtml(r.supporting_intents)}</div><div><div class="result-label">Independent secondary intent</div>${chipsHtml(r.secondary_intents)}</div></div>${evidenceHtml(r.evidence)}`;
   if (task === "alignment") return `<div class="result-primary">${badgeHtml(r.alignment)}${r.split_intent ? badgeHtml("split intent", "warn") : ""}${confidenceHtml(r.confidence)}</div>${r.mismatch_reason ? `<div class="result-subsection"><div class="result-label">Mismatch reason</div><div class="result-copy">${escapeHtml(r.mismatch_reason)}</div></div>` : ""}${evidenceHtml(r.notes, "Notes")}`;
-  if (task === "false_positive") return `<div class="result-primary">${badgeHtml(r.judgement)}${confidenceHtml(r.confidence)}</div>${r.rationale ? `<div class="result-copy">${escapeHtml(r.rationale)}</div>` : ""}${evidenceHtml(r.evidence_used, "Evidence reviewed")}${(r.item_assessments || []).length ? `<div class="result-subsection"><div class="result-label">Affected items</div><div class="result-list">${r.item_assessments.map(item => `<div class="result-row static"><div class="result-row-head"><code>${escapeHtml(item.item || "")}</code>${badgeHtml(item.judgement)}</div><div class="result-copy">${escapeHtml(item.rationale || "")}</div></div>`).join("")}</div></div>` : ""}${evidenceHtml(r.useful_context, "Useful context")}`;
+  if (task === "false_positive") return `<div class="result-primary">${badgeHtml(r.judgement)}${confidenceHtml(r.confidence)}</div>${r.rationale ? `<div class="result-copy">${escapeHtml(r.rationale)}</div>` : ""}${falsePositiveBatchContextHtml(displayContext)}${evidenceHtml(r.evidence_used, "Evidence reviewed")}${(r.item_assessments || []).length ? `<div class="result-subsection"><div class="result-label">Affected items</div><div class="result-list">${r.item_assessments.map(item => `<div class="result-row static"><div class="result-row-head"><code>${escapeHtml(item.item || "")}</code>${badgeHtml(item.judgement)}</div><div class="result-copy">${escapeHtml(item.rationale || "")}</div></div>`).join("")}</div></div>` : ""}${evidenceHtml(r.useful_context, "Useful context")}`;
   if (task === "link_group") {
     const rows =
       r.results ||
@@ -1515,7 +1599,18 @@ function analyseTaskDetails(title, entries, task, open = false) {
                 entry.inputLinks ||
                 []
             }
-          : null
+          : task ===
+              "false_positive"
+            ? {
+                issueCode:
+                  entry.issue
+                    ?.code ||
+                  "",
+                examples:
+                  entry.inputExamples ||
+                  []
+              }
+            : null
       )
     );
   }
@@ -2939,7 +3034,31 @@ async function runAcross(task, payload, target, mode = null) {
                   payload.links ||
                   []
               }
-            : null
+            : task ===
+                "false_positive"
+              ? {
+                  issueCode:
+                    payload.issue
+                      ?.code ||
+                    "",
+                  examples:
+                    Array.isArray(
+                      payload.issue
+                        ?.deterministicValue
+                        ?.examples
+                    )
+                      ? payload.issue
+                          .deterministicValue
+                          .examples
+                      : Array.isArray(
+                          payload.issue
+                            ?.deterministicValue
+                        )
+                        ? payload.issue
+                            .deterministicValue
+                        : []
+                }
+              : null
         )
       );
 
@@ -6183,6 +6302,22 @@ async function analyseAll() {
               batch.itemEnd,
             totalItems:
               batch.totalItems,
+            inputExamples:
+              Array.isArray(
+                batch.issue
+                  ?.deterministicValue
+                  ?.examples
+              )
+                ? batch.issue
+                    .deterministicValue
+                    .examples
+                : Array.isArray(
+                    batch.issue
+                      ?.deterministicValue
+                  )
+                  ? batch.issue
+                      .deterministicValue
+                  : [],
             provider,
             result:
               call.ok
