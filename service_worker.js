@@ -1635,10 +1635,23 @@ function compactDomEvidenceValueForModel(
   value
 ) {
   if (
-    !value ||
-    typeof value !== "object"
+    value === null ||
+    value === undefined
   ) {
-    return value || "";
+    return "";
+  }
+
+  if (
+    typeof value !==
+    "object"
+  ) {
+    return typeof value ===
+      "string"
+      ? value.slice(
+          0,
+          500
+        )
+      : value;
   }
 
   return {
@@ -1805,15 +1818,6 @@ function domDestinationHealthForModel(
   }
 
   if (
-    state ===
-      "access_restricted" ||
-    state ===
-      "rate_limited"
-  ) {
-    return "restricted_or_rate_limited";
-  }
-
-  if (
     Number.isFinite(
       status
     ) &&
@@ -1821,6 +1825,15 @@ function domDestinationHealthForModel(
     status < 500
   ) {
     return "broken";
+  }
+
+  if (
+    state ===
+      "access_restricted" ||
+    state ===
+      "rate_limited"
+  ) {
+    return "restricted_or_rate_limited";
   }
 
   if (
@@ -1833,110 +1846,28 @@ function domDestinationHealthForModel(
   return "unknown";
 }
 
-function compactDomDestinationForModel(
-  item
+function domSearchBotAccessForModel(
+  verification
 ) {
-  const verification =
-    item
-      ?.destination_verification;
-
   if (!verification) {
-    return null;
+    return "not_present";
   }
 
-  const side =
-    value => {
-      if (!value) {
-        return null;
-      }
+  if (
+    verification.robots_txt
+      ?.state !==
+    "ok"
+  ) {
+    return "unknown";
+  }
 
-      const blockedBots =
-        value.robots_txt
-          ?.blocked_search_bots ||
-        [];
-
-      return {
-        health:
-          domDestinationHealthForModel(
-            value
-          ),
-        fetch_state:
-          value.fetch
-            ?.state ||
-          "unknown",
-        status:
-          Number.isFinite(
-            Number(
-              value.fetch
-                ?.status
-            )
-          )
-            ? Number(
-                value.fetch
-                  .status
-              )
-            : null,
-        redirected:
-          !!value.fetch
-            ?.redirected,
-        search_bot_access:
-          value.robots_txt
-              ?.state ===
-            "ok"
-            ? blockedBots.length
-              ? "blocked"
-              : "allowed"
-            : "unknown"
-      };
-    };
-
-  const before =
-    side(
-      verification.raw
-    );
-
-  const after =
-    side(
-      verification.rendered
-    );
-
-  const beforeHealth =
-    before?.health ||
-    "not_present";
-
-  const afterHealth =
-    after?.health ||
-    "not_present";
-
-  return {
-    evidence_state:
-      verification
-        .evidence_state ||
-      "not_checked",
-    transition:
-      `${beforeHealth}_to_${afterHealth}`,
-    before,
-    after,
-    same_final_url:
-      verification
-        .relationship
-        ?.same_final_url ??
-      null,
-    declared_canonical_overlap:
-      verification
-        .relationship
-        ?.declared_canonical_overlap ??
-      null,
-    uncertainties:
-      (
-        verification
-          .uncertainties ||
-        []
-      ).slice(
-        0,
-        4
-      )
-  };
+  return (
+    verification.robots_txt
+      ?.blocked_search_bots ||
+    []
+  ).length
+    ? "blocked"
+    : "allowed";
 }
 
 function anchorContextDirectionForModel(
@@ -1988,264 +1919,279 @@ function anchorContextDirectionForModel(
   return "wording_changed_without_local_context_overlap";
 }
 
-function compileDomConsequenceForModel(
-  item,
-  destination
+function compactDomVerifiedFactsForModel(
+  item
 ) {
   const signals =
     item?.net_effect
       ?.signals ||
     {};
 
-  const consequence = {
-    established:
-      true,
-    affected_area:
-      "page_understanding",
-    code:
-      "contextual_change",
-    statement:
-      String(
-        item?.net_effect
-          ?.reason ||
-        "A rendered-DOM difference was detected."
-      ).slice(
-        0,
-        320
+  const verification =
+    item
+      ?.destination_verification ||
+    null;
+
+  const rawVerification =
+    verification?.raw ||
+    null;
+
+  const renderedVerification =
+    verification?.rendered ||
+    null;
+
+  const rawHealth =
+    domDestinationHealthForModel(
+      rawVerification
+    );
+
+  const renderedHealth =
+    domDestinationHealthForModel(
+      renderedVerification
+    );
+
+  const rawStatus =
+    Number(
+      rawVerification
+        ?.fetch?.status
+    );
+
+  const renderedStatus =
+    Number(
+      renderedVerification
+        ?.fetch?.status
+    );
+
+  const facts = {
+    same_logical_element:
+      item?.change_type ===
+        "changed_in_rendered"
+        ? (
+            item
+              ?.reconciliation
+              ?.confidence ===
+            "high"
+          )
+        : false,
+    local_identity_stable:
+      !!(
+        item
+          ?.reconciliation
+          ?.same_context_heading &&
+        item
+          ?.reconciliation
+          ?.same_context_container
       ),
-    model_question:
-      "Judge the contextual significance of this established change without re-deriving or contradicting the compiler facts."
+    semantic_weight:
+      signals
+        .semantic_weight ??
+      item?.rendered
+        ?.element
+        ?.semantic_weight ??
+      item?.raw
+        ?.element
+        ?.semantic_weight ??
+      null
   };
 
   if (
     item?.kind ===
     "link"
   ) {
-    const anchorDirection =
+    facts.anchor_text_changed =
+      !!signals
+        .anchor_text_changed;
+
+    facts.anchor_context_specificity =
       anchorContextDirectionForModel(
         item
       );
 
-    consequence.anchor_context_specificity =
-      anchorDirection;
+    facts.destination_changed =
+      !!signals
+        .destination_changed;
+
+    facts.destination_discovery_changed =
+      !!signals
+        .destination_discovery_changed;
+
+    facts.server_html_link_present =
+      !!(
+        item?.raw &&
+        typeof item.raw ===
+          "object" &&
+        item.raw.href
+      );
+
+    facts.rendered_dom_link_present =
+      !!(
+        item?.rendered &&
+        typeof item.rendered ===
+          "object" &&
+        item.rendered.href
+      );
+
+    facts.before_destination_health =
+      rawHealth;
+
+    facts.after_destination_health =
+      renderedHealth;
+
+    facts.before_destination_status =
+      Number.isFinite(
+        rawStatus
+      )
+        ? rawStatus
+        : null;
+
+    facts.after_destination_status =
+      Number.isFinite(
+        renderedStatus
+      )
+        ? renderedStatus
+        : null;
+
+    facts.working_link_available_in_server_html =
+      rawHealth ===
+      "working"
+        ? true
+        : rawHealth ===
+            "broken"
+          ? false
+          : null;
+
+    facts.working_link_available_after_rendering =
+      renderedHealth ===
+      "working"
+        ? true
+        : renderedHealth ===
+            "broken"
+          ? false
+          : null;
+
+    facts.server_search_bot_access =
+      domSearchBotAccessForModel(
+        rawVerification
+      );
+
+    facts.rendered_search_bot_access =
+      domSearchBotAccessForModel(
+        renderedVerification
+      );
 
     if (
-      signals
-        .anchor_only_same_destination
+      verification
+        ?.relationship
+        ?.same_final_url !=
+      null
     ) {
-      consequence.code =
-        "destination_discovery_unchanged";
-      consequence.affected_area =
-        "page_understanding";
-      consequence.statement =
-        anchorDirection ===
-          "more_context_specific"
-          ? "The destination is unchanged and remains discoverable in server HTML. Rendering makes the anchor more context-specific."
-          : anchorDirection ===
-              "less_context_specific"
-            ? "The destination is unchanged and remains discoverable in server HTML. Rendering makes the anchor less context-specific."
-            : "The destination is unchanged and remains discoverable in server HTML. Only the anchor wording changes.";
-      consequence.model_question =
-        "Judge whether the anchor wording change materially affects clarity, relevance or user understanding. It does not change link discovery.";
-      return consequence;
-    }
-
-    const transition =
-      destination
-        ?.transition ||
-      "";
-
-    if (
-      signals
-        .destination_changed &&
-      transition ===
-        "broken_to_working"
-    ) {
-      consequence.code =
-        "working_destination_not_exposed_in_server_html";
-      consequence.affected_area =
-        "link_discovery";
-      consequence.statement =
-        "Server HTML exposes a broken destination. Rendering replaces it with a working destination, so this element does not expose the working link until rendering occurs.";
-      consequence.model_question =
-        "Judge how consequential this rendering dependency is for this page and user journey. The dependency itself is already established.";
-      return consequence;
-    }
-
-    if (
-      signals
-        .destination_changed &&
-      transition ===
-        "working_to_broken"
-    ) {
-      consequence.code =
-        "rendering_replaces_working_destination_with_broken_destination";
-      consequence.affected_area =
-        "link_discovery";
-      consequence.statement =
-        "Server HTML exposes a working destination, but rendering replaces it with a broken destination.";
-      consequence.model_question =
-        "Judge how consequential the rendered breakage is in this page context.";
-      return consequence;
-    }
-
-    if (
-      signals
-        .destination_changed &&
-      transition ===
-        "working_to_working"
-    ) {
-      consequence.code =
-        "working_destination_replaced_after_rendering";
-      consequence.affected_area =
-        "link_discovery";
-      consequence.statement =
-        "Both destinations are reachable, but rendering replaces the server-visible destination with a different working destination.";
-      consequence.model_question =
-        "Judge whether the destination and anchor changes materially alter user intent, page understanding or useful link discovery. Do not infer page scope from URL path labels alone.";
-      return consequence;
-    }
-
-    if (
-      item?.change_type ===
-        "added_in_rendered"
-    ) {
-      consequence.code =
-        destination
-          ?.after
-          ?.health ===
-        "working"
-          ? "working_link_added_only_after_rendering"
-          : "link_added_only_after_rendering";
-      consequence.affected_area =
-        "link_discovery";
-      consequence.statement =
-        "This link is absent from server HTML and appears only after rendering.";
-      consequence.model_question =
-        "Judge the contextual importance of this rendered-only discovery path.";
-      return consequence;
+      facts.same_final_url =
+        !!verification
+          .relationship
+          .same_final_url;
     }
 
     if (
-      item?.change_type ===
-        "removed_in_rendered"
+      verification
+        ?.relationship
+        ?.declared_canonical_overlap !=
+      null
     ) {
-      consequence.code =
-        "server_link_removed_after_rendering";
-      consequence.affected_area =
-        "link_discovery";
-      consequence.statement =
-        "This link exists in server HTML but is removed from the rendered DOM.";
-      consequence.model_question =
-        "Judge whether removal from the rendered experience materially affects users or search interpretation.";
-      return consequence;
+      facts.declared_canonical_overlap =
+        !!verification
+          .relationship
+          .declared_canonical_overlap;
     }
 
-    consequence.affected_area =
-      signals
-        .destination_discovery_changed
-        ? "link_discovery"
-        : "page_understanding";
-
-    return consequence;
+    if (
+      verification
+        ?.uncertainties
+        ?.length
+    ) {
+      facts.uncertainties =
+        verification
+          .uncertainties
+          .slice(
+            0,
+            4
+          );
+    }
   }
 
   if (
     item?.kind ===
     "heading"
   ) {
-    if (
-      signals
-        .heading_level_only
-    ) {
-      consequence.code =
-        "heading_structure_only";
-      consequence.affected_area =
-        "page_understanding";
-      consequence.statement =
-        "Heading text is retained and only the heading level changes.";
-      consequence.model_question =
-        "Judge whether the structural level change is consequential in this page context.";
-      return consequence;
-    }
+    facts.heading_level_only =
+      !!signals
+        .heading_level_only;
 
-    if (
-      signals
-        .topic_signal_changed
-    ) {
-      consequence.code =
-        "heading_topic_signal_changed";
-      consequence.affected_area =
-        "page_understanding";
-      consequence.statement =
-        "The heading wording changes enough that the deterministic compiler identifies a changed topic signal.";
-      consequence.model_question =
-        "Judge how materially the changed heading affects page understanding or user expectations.";
-      return consequence;
-    }
+    facts.topic_signal_changed =
+      !!signals
+        .topic_signal_changed;
+
+    facts.h1_level_change =
+      !!signals
+        .h1_level_change;
   }
 
-  return consequence;
+  return facts;
+}
+
+function compactDomTransformationForModel(
+  item
+) {
+  const source =
+    item?.transformation;
+
+  if (!source) {
+    return null;
+  }
+
+  const compact = {};
+
+  const text =
+    compactTextTransformationForModel(
+      source.text
+    );
+
+  if (text) {
+    compact.text =
+      text;
+  }
+
+  if (
+    item?.kind ===
+      "heading" &&
+    source.heading
+      ?.level_changed
+  ) {
+    compact.heading = {
+      before_level:
+        source.heading
+          .before_level,
+      after_level:
+        source.heading
+          .after_level,
+      level_changed:
+        true
+    };
+  }
+
+  return Object.keys(
+    compact
+  ).length
+    ? compact
+    : null;
 }
 
 function compactDomDiffItemForModel(
   item
 ) {
-  const destination =
-    compactDomDestinationForModel(
+  const transformation =
+    compactDomTransformationForModel(
       item
     );
-
-  const reconciliation =
-    item?.reconciliation
-      ? {
-          same_logical_element:
-            item.change_type ===
-            "changed_in_rendered",
-          confidence:
-            item.reconciliation
-              .confidence ||
-            "unknown",
-          method:
-            item.reconciliation
-              .reason ||
-            "",
-          local_identity_stable:
-            !!(
-              item.reconciliation
-                .same_context_heading &&
-              item.reconciliation
-                .same_context_container
-            ),
-          near_competitors:
-            item.reconciliation
-              .near_competitors ||
-            0
-        }
-      : {
-          same_logical_element:
-            false
-        };
-
-  const compiler =
-    {
-      identity:
-        reconciliation,
-      transformation:
-        compactTransformationForModel(
-          item
-        ),
-      deterministic_consequence:
-        compileDomConsequenceForModel(
-          item,
-          destination
-        ),
-      ...(destination
-        ? {
-            destination
-          }
-        : {})
-    };
 
   return {
     id:
@@ -2274,7 +2220,66 @@ function compactDomDiffItemForModel(
       compactDomContextForModel(
         item
       ),
-    compiler
+    verified:
+      compactDomVerifiedFactsForModel(
+        item
+      ),
+    ...(transformation
+      ? {
+          transformation
+        }
+      : {})
+  };
+}
+
+function compactDomCmsContextForModel(
+  context
+) {
+  if (!context) {
+    return null;
+  }
+
+  const compactCandidate =
+    candidate => ({
+      platform:
+        candidate?.platform ||
+        candidate?.id ||
+        "",
+      ...(candidate?.label
+        ? {
+            label:
+              candidate.label
+          }
+        : {}),
+      ...(candidate?.confidence
+        ? {
+            confidence:
+              candidate.confidence
+          }
+        : {})
+    });
+
+  return {
+    ambiguous:
+      !!context.ambiguous,
+    primary:
+      context.primary
+        ? compactCandidate(
+            context.primary
+          )
+        : null,
+    candidates:
+      (
+        context.candidates ||
+        []
+      )
+        .slice(
+          0,
+          2
+        )
+        .map(
+          compactCandidate
+        )
   };
 }
 
@@ -2461,12 +2466,14 @@ function taskVars(task, payload, settings, provider = null) {
       cms_context_json:
         untrustedEvidence(
           "cms_context",
-          payload.cmsContext ||
-          {
-            primary: null,
-            candidates: [],
-            ambiguous: false
-          }
+          compactDomCmsContextForModel(
+            payload.cmsContext ||
+            {
+              primary: null,
+              candidates: [],
+              ambiguous: false
+            }
+          )
         ),
       expected_ids_json:
         JSON.stringify(
