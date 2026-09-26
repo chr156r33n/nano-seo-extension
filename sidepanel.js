@@ -866,7 +866,16 @@ function runtimeLinkBatchSize() {
 }
 
 function runtimeDomBatchSize() {
-  return 1;
+  const input =
+    $("#analyseDomBatchSize") ||
+    $("#domDiffBatchSize");
+
+  return clampBatchSize(
+    input?.value,
+    settings?.limits
+      ?.domDiffBatchSize ||
+      6
+  );
 }
 
 function initialiseBatchControls() {
@@ -878,7 +887,11 @@ function initialiseBatchControls() {
     );
 
   const domDefault =
-    1;
+    clampBatchSize(
+      settings?.limits
+        ?.domDiffBatchSize,
+      6
+    );
 
   setBatchInputs(
     [
@@ -4007,17 +4020,10 @@ function domJudgementSummaryHtml(judgements = []) {
           result.summary &&
           !result.judgement
         ) {
-          const facts =
-            result.key_facts
-              ?.length
-              ? `<div class="muted small">${escapeHtml(result.key_facts.join(" · "))}</div>`
-              : "";
-
           return (
             '<div class="model-dom-summary">' +
             '<div class="result-primary"><span class="badge neutral">Nano summary</span></div>' +
             `<div class="small">${escapeHtml(result.summary)}</div>` +
-            facts +
             '</div>'
           );
         }
