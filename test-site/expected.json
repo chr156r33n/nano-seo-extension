@@ -124,6 +124,30 @@
         "Repeated link text/selectors should use card-local heading/text to avoid cross-pairing.",
         "Colchester evidence must not borrow Chelmsford or Ipswich identity.",
         "Reconciled pairs should expose confidence and alternative-candidate evidence."
+      ],
+      "expected_destination_verification": {
+        "source_colchester": {
+          "url": "/locations/colchester",
+          "status": 404,
+          "purpose": "intentional broken server-side destination"
+        },
+        "rendered_colchester": {
+          "url": "/areas/essex/colchester",
+          "status": 200,
+          "purpose": "working rendered replacement destination"
+        },
+        "other_location_links": {
+          "expected_status": 200,
+          "urls": [
+            "/locations/chelmsford",
+            "/locations/ipswich"
+          ]
+        }
+      },
+      "notes": [
+        "The Colchester source URL is intentionally 404 and the rendered replacement is intentionally 200.",
+        "Replacing/removing a broken source destination can reduce the practical impact of the DOM change; model judgement should use the supplied destination evidence rather than treating every removed link as harmful.",
+        "The destination status difference does not remove the need to reconcile the before/after Colchester link using local identity."
       ]
     },
     "dom-transformations.html": {
