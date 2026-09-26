@@ -865,16 +865,7 @@ function runtimeLinkBatchSize() {
 }
 
 function runtimeDomBatchSize() {
-  const input =
-    $("#analyseDomBatchSize") ||
-    $("#domDiffBatchSize");
-
-  return clampBatchSize(
-    input?.value,
-    settings?.limits
-      ?.domDiffBatchSize ||
-      6
-  );
+  return 1;
 }
 
 function initialiseBatchControls() {
@@ -886,11 +877,7 @@ function initialiseBatchControls() {
     );
 
   const domDefault =
-    clampBatchSize(
-      settings?.limits
-        ?.domDiffBatchSize,
-      6
-    );
+    1;
 
   setBatchInputs(
     [
