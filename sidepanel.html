@@ -72,11 +72,15 @@
             <input id="analyseLinkBatchSize" type="number" min="1" max="100" step="1">
           </label>
           <label>
+            <span>Finding batch</span>
+            <input id="analyseFindingBatchSize" type="number" min="1" max="100" step="1">
+          </label>
+          <label>
             <span>DOM batch</span>
             <input id="analyseDomBatchSize" type="number" min="1" max="100" step="1">
           </label>
           <div class="batch-help">
-            Nano summaries and API judgements use the selected DOM batch size.
+            Finding batches control affected examples per triage call; DOM batches control render-review items per call.
           </div>
         </div>
 
@@ -93,6 +97,15 @@
       <section class="tool-section">
         <h2>Review flagged checks</h2>
         <div class="section-copy">Deterministic findings first; use model review where context changes the practical impact.</div>
+        <div class="run-control-row">
+          <label class="batch-inline">
+            <span>Affected items per call</span>
+            <input id="findingBatchSize" type="number" min="1" max="100" step="1">
+          </label>
+        </div>
+        <div class="section-copy batch-guidance">
+          Recommended: Nano ≈ 5 affected elements per finding call. Findings without item-level evidence still run once.
+        </div>
         <div id="auditSummary" class="muted small"></div>
         <div id="issues"></div>
       </section>
