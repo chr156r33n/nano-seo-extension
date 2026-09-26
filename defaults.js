@@ -415,6 +415,11 @@ EXAMPLE URL:
       baselinePriority: "medium",
       consequence: "A cross-origin canonical can transfer preferred-page signals away from the current host when it is not intentional."
     },
+    canonical_relationship: {
+      impacts: ["Indexing", "Canonicalisation"],
+      baselinePriority: "medium",
+      consequence: "A same-origin canonical that points to a different URL may intentionally consolidate duplicate or parameterised variants, but it can also suppress the current URL when the target is not the intended equivalent page."
+    },
     canonical_fragment: {
       impacts: ["Indexing", "Canonicalisation"],
       baselinePriority: "medium",
@@ -575,6 +580,8 @@ EXAMPLE URL:
     multiple_canonical: `Multiple canonical declarations are more concerning when they disagree or point to different targets. Repeated identical canonicals may be redundant but are less likely to create a meaningful indexing problem.`,
 
     canonical_cross_origin: `A cross-domain canonical can be intentional for syndicated, duplicated, migrated, regional, or otherwise equivalent content. Judge whether the target plausibly represents the preferred equivalent page. It is more concerning when the canonical appears unrelated, mismatched, insecure, on an unexpected environment, or inconsistent with the visible page.`,
+
+    canonical_relationship: `This finding means the canonical target is on the same origin but is not the current URL. Do not treat non-self canonicalisation as automatically wrong. Query removal can be appropriate for tracking/duplicate parameters; query addition or a path change needs more scrutiny. Use the supplied relation fields and page context to judge whether the target plausibly represents an equivalent preferred URL. Do not invent the reason the canonical was chosen.`,
 
     robots_noindex: `Noindex can be intentional for utility, search, filter, account, cart, duplicate, staging, temporary, or otherwise non-search-facing pages. It is more concerning when the page appears unique, useful, index-worthy, and clearly intended to attract organic search traffic.`,
 
