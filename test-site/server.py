@@ -60,6 +60,42 @@ class Handler(SimpleHTTPRequestHandler):
             self.wfile.write(body)
             return
 
+        if path == "/locations/colchester":
+            body = (
+                "<!doctype html><html><head><title>Legacy Colchester URL missing</title></head>"
+                "<body><main><h1>Not found</h1><p>Intentional 404 fixture for the server-side link.</p></main></body></html>"
+            ).encode("utf-8")
+            self.send_response(404)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
+
+        working_locations = {
+            "/locations/chelmsford": "Chelmsford drainage",
+            "/locations/ipswich": "Ipswich drainage",
+            "/areas/essex/colchester": "Colchester drainage",
+        }
+
+        if path in working_locations:
+            title = working_locations[path]
+            body = (
+                "<!doctype html><html><head>"
+                f"<title>{title}</title>"
+                f'<link rel="canonical" href="{path}">'
+                "</head><body><main>"
+                f"<h1>{title}</h1>"
+                "<p>Controlled working location destination.</p>"
+                "</main></body></html>"
+            ).encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
+
         super().do_GET()
 
 
