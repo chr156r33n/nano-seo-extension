@@ -255,6 +255,7 @@ For links:
 
 For headings and content:
 - use transformation.text to distinguish minor wording changes from substantial replacement
+- use net_effect.signals.heading_level_only and topic_signal_changed when supplied instead of inferring those facts from prose
 - pay particular attention to deterministic factual-token changes such as numbers, currency, percentages and date-like values
 - heading level changes are observations; judge their consequence in context rather than assuming every level change is harmful
 
