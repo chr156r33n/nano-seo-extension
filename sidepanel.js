@@ -5583,9 +5583,14 @@ async function analyseAll() {
           const provider
           of providers
         ) {
+          const domTask =
+            provider === "nano"
+              ? "dom_diff_summary"
+              : "dom_diff_triage";
+
           const call =
             await runTaskSilent(
-              "dom_diff_triage",
+              domTask,
               provider,
               {
                 items:
@@ -5603,6 +5608,8 @@ async function analyseAll() {
               batch:
                 batchIndex + 1,
               provider,
+              task:
+                domTask,
               itemIds:
                 batch.map(
                   x => x.id
