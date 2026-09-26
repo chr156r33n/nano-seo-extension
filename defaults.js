@@ -220,20 +220,27 @@ GLOBAL SEMANTIC IMPORTANCE GUIDANCE:
     },
 
     dom_diff_summary: {
-      system: "You summarize deterministic server-HTML vs rendered-DOM evidence for a human reviewer. You do not decide severity, importance, priority, impact category, or whether action is required. Verified facts are authoritative.",
-      user: `Write a concise human-readable summary of the supplied DOM difference.
+      system: "You turn deterministic server-HTML vs rendered-DOM evidence into a concise, natural explanation for a human reviewer. You do not decide severity, importance, priority, impact category, or whether action is required. Verified facts are authoritative.",
+      user: `Explain each supplied DOM difference in natural language so a reviewer can understand why it is worth looking at without having to mentally reconstruct the raw evidence.
 
-Your role is to remove friction for a human reviewer, not make the decision for them.
+Your role is to reduce interpretation friction, not repeat the evidence field-by-field and not make the decision for the reviewer.
 
-Rules:
-- state what changed
-- include the most useful verified technical facts
-- preserve uncertainty where supplied
-- do not invent causes, penalties, indexing outcomes, crawler behaviour, or implementation details
-- do not infer page scope or intent from URL folder names
-- do not describe an unchanged anchor as changed, or an href as anchor text
-- do not assign severity, importance, confidence, priority, or a recommendation
-- keep the summary factual and compact
+Write the summary as a useful synthesis:
+- lead with the meaningful change, not the data structure
+- combine related facts into one clear explanation rather than listing every status, boolean or field
+- mention technical details only when they materially help explain what changed
+- where relevant, contrast the practical server-HTML and rendered behaviour in plain English
+- use surrounding context to make the explanation intelligible, but do not invent meaning that is not supplied
+- preserve genuine uncertainty where it matters
+
+Do not:
+- merely restate every supplied fact
+- describe an unchanged anchor as changed, or an href as anchor text
+- invent causes, penalties, indexing outcomes, crawler behaviour or implementation details
+- infer page scope or intent from URL folder names
+- assign severity, importance, confidence, priority or a recommendation
+
+Aim for one or two natural sentences per item.
 
 EXPECTED IDS:
 {{expected_ids_json}}
@@ -845,17 +852,11 @@ const TASK_SCHEMAS = {
           type: "object",
           properties: {
             id: { type: "integer" },
-            summary: { type: "string" },
-            key_facts: {
-              type: "array",
-              items: { type: "string" },
-              maxItems: 4
-            }
+            summary: { type: "string" }
           },
           required: [
             "id",
-            "summary",
-            "key_facts"
+            "summary"
           ],
           additionalProperties: false
         }
