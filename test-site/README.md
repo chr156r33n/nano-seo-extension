@@ -61,6 +61,37 @@ Server HTML is deliberately changed after `DOMContentLoaded`:
 
 This fixture is especially useful for testing the deterministic net-effect logic before Nano review.
 
+
+### dom-reconciliation.html
+Repeated location cards deliberately create pairing ambiguity:
+- two links share the same anchor pattern and component structure
+- one destination + anchor changes, another only changes anchor text
+- local card headings/text should keep Chelmsford, Colchester and Ipswich identities separate
+- reconciliation output should expose confidence and near-competitor evidence instead of pretending every pair is obvious
+
+This exercises the recent local-identity and deterministic reconciliation work.
+
+### dom-transformations.html
+Controlled transformations exercise the neutral fingerprints:
+- £99 → £129 in a heading and link anchor
+- a body sentence changes both price and date
+- link query values change while the path remains stable
+- unchanged heading text moves H3 → H2
+
+The expected output is factual/structural evidence, not an automatic SEO verdict.
+
+### dom-aem-destination-context.html
+AEM-like signals and changed link destinations exercise the new technical context:
+- multiple independent AEM fingerprints should produce a high-confidence AEM context
+- legacy/friendly URLs redirect to the same final URL
+- two different destinations expose the same HTTP `Link: rel="canonical"`
+- one rendered destination is blocked by `robots.txt` for Googlebot/Bingbot
+- one rendered destination returns HTTP 403 to test incomplete/access-restricted evidence
+
+The model should receive these as deterministic observations. CMS confidence is contextual evidence only, and failed/blocked fetches should remain explicit uncertainty rather than being coerced into “equivalent” or “broken”.
+
+The local server has special `/verify/*` routes for these cases, so run the fixture through `python3 test-site/server.py` rather than opening the HTML file directly.
+
 ### page-purpose.html
 Clear expected classification:
 - page type: `location`
