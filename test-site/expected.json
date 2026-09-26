@@ -229,6 +229,38 @@
         "CMS context is evidence only and must not be treated as proof of URL equivalence.",
         "403/access-restricted evidence must not be silently converted into a negative or positive equivalence judgement."
       ]
+    },
+    "dom-heading-reconciliation.html": {
+      "expected_rendered_changes": [
+        {
+          "kind": "heading",
+          "case": "Premium card repeats Overview in server HTML but changes to Premium package details in rendered DOM",
+          "expected": "reconciled_changed_in_rendered"
+        },
+        {
+          "kind": "heading",
+          "case": "Emergency heading changes text substantially and moves H3 to H2",
+          "expected": "reconciled_changed_in_rendered"
+        }
+      ],
+      "expected_reconciliation": [
+        "The Basic card Overview heading must not be cross-paired with the Premium card heading solely because the text is identical.",
+        "The Premium heading should reconcile by selector + local container identity even though its text changes substantially.",
+        "The Emergency heading should reconcile as the same logical element even though both text and level change."
+      ],
+      "expected_heading_signals": {
+        "premium": {
+          "heading_level_only": false,
+          "topic_signal_changed": true,
+          "expected_same_context_container": true
+        },
+        "emergency": {
+          "heading_level_only": false,
+          "topic_signal_changed": true,
+          "expected_level_change": true,
+          "expected_same_context_container": true
+        }
+      }
     }
   }
 }
