@@ -1885,6 +1885,7 @@ function buildActionRows(report) {
       []
     ) {
       if (
+        !result.judgement ||
         result.judgement ===
         "probably_harmless"
       ) {
@@ -1918,10 +1919,10 @@ function buildActionRows(report) {
     const [id, results]
     of domById
   ) {
-    const impacts =
+    const changeAreas =
       results.map(
         result =>
-          result.impact
+          result.change_area
       );
 
     const important =
@@ -1932,15 +1933,14 @@ function buildActionRows(report) {
       );
 
     const highImpact =
-      impacts.some(
-        impact =>
+      changeAreas.some(
+        area =>
           [
             "indexing_control",
-            "link_discovery",
             "structured_data",
             "content_retrieval"
           ].includes(
-            impact
+            area
           )
       );
 
@@ -1964,7 +1964,7 @@ function buildActionRows(report) {
         results
           .map(
             result =>
-              `${result.provider}: ${humanLabel(result.judgement)} · ${humanLabel(result.impact)}`
+              `${result.provider}: ${humanLabel(result.judgement)} · ${humanLabel(result.change_area)}`
           )
           .join(" · "),
       state:
@@ -4736,7 +4736,12 @@ function renderAnalyseAllResults(report) {
 
   const domIssues = (report.domDiff?.items || []).filter(item => {
     const judgements = domJudgements.get(item.id) || [];
-    return judgements.some(j => j.judgement !== "probably_harmless");
+    return judgements.some(
+      j =>
+        !!j.judgement &&
+        j.judgement !==
+          "probably_harmless"
+    );
   });
 
   if (domIssues.length) {
