@@ -3183,6 +3183,407 @@ function pageContextForIssue(issue) {
   );
 }
 
+
+function deterministicFindingEvidenceHtml(issue) {
+  const value =
+    issue?.deterministicValue;
+
+  const code =
+    issue?.code ||
+    "";
+
+  if (
+    value === null ||
+    value === undefined
+  ) {
+    return "";
+  }
+
+  const codeLine =
+    (label, text) =>
+      text
+        ? `<div class="small"><strong>${escapeHtml(label)}:</strong> <code>${escapeHtml(String(text))}</code></div>`
+        : "";
+
+  const textLine =
+    (label, text) =>
+      text
+        ? `<div class="small"><strong>${escapeHtml(label)}:</strong> ${escapeHtml(String(text))}</div>`
+        : "";
+
+  const examples =
+    Array.isArray(
+      value?.examples
+    )
+      ? value.examples
+      : Array.isArray(value)
+        ? value
+        : [];
+
+  if (
+    [
+      "images_missing_alt",
+      "images_empty_alt",
+      "images_missing_dimensions"
+    ].includes(
+      code
+    )
+  ) {
+    const rows =
+      examples
+        .slice(0, 5)
+        .map(
+          item =>
+            `<div class="result-row static">` +
+            codeLine(
+              "Image",
+              item.src
+            ) +
+            (
+              item.link_href
+                ? codeLine(
+                    "Linked to",
+                    item.link_href
+                  )
+                : ""
+            ) +
+            (
+              item.html
+                ? codeLine(
+                    "Element",
+                    item.html
+                  )
+                : ""
+            ) +
+            (
+              item.selector
+                ? codeLine(
+                    "Selector",
+                    item.selector
+                  )
+                : ""
+            ) +
+            (
+              item.nearby_text
+                ? textLine(
+                    "Nearby",
+                    item.nearby_text
+                  )
+                : ""
+            ) +
+            `</div>`
+        )
+        .join("");
+
+    return rows
+      ? `<details class="subdetails finding-evidence"><summary>Affected image${examples.length === 1 ? "" : "s"}</summary><div class="result-list">${rows}</div></details>`
+      : "";
+  }
+
+  if (
+    code ===
+    "links_empty_anchor"
+  ) {
+    const anchorExamples =
+      Array.isArray(
+        value?.examples
+      )
+        ? value.examples
+        : [];
+
+    const rows =
+      anchorExamples
+        .slice(0, 5)
+        .map(
+          item =>
+            `<div class="result-row static">` +
+            codeLine(
+              "Href",
+              item.href ||
+              item.rawHref
+            ) +
+            (
+              item.html
+                ? codeLine(
+                    "Element",
+                    item.html
+                  )
+                : ""
+            ) +
+            (
+              item.selector
+                ? codeLine(
+                    "Selector",
+                    item.selector
+                  )
+                : ""
+            ) +
+            textLine(
+              "Visible",
+              item.visible_on_page ===
+                true
+                ? "yes"
+                : item.visible_on_page ===
+                    false
+                  ? "no"
+                  : ""
+            ) +
+            (
+              item.child_tags
+                ?.length
+                ? textLine(
+                    "Children",
+                    item.child_tags.join(
+                      ", "
+                    )
+                  )
+                : ""
+            ) +
+            (
+              item.nearby_text
+                ? textLine(
+                    "Nearby",
+                    item.nearby_text
+                  )
+                : ""
+            ) +
+            `</div>`
+        )
+        .join("");
+
+    return rows
+      ? `<details class="subdetails finding-evidence"><summary>Affected link${anchorExamples.length === 1 ? "" : "s"}</summary><div class="result-list">${rows}</div></details>`
+      : "";
+  }
+
+  if (
+    [
+      "internal_http_links",
+      "pagination_page1_parameter"
+    ].includes(
+      code
+    )
+  ) {
+    const rows =
+      examples
+        .slice(0, 8)
+        .map(
+          item =>
+            `<div class="result-row static">` +
+            codeLine(
+              "Href",
+              item.href ||
+              item.rawHref
+            ) +
+            (
+              item.anchor
+                ? textLine(
+                    "Anchor",
+                    item.anchor
+                  )
+                : ""
+            ) +
+            (
+              item.selector
+                ? codeLine(
+                    "Selector",
+                    item.selector
+                  )
+                : ""
+            ) +
+            `</div>`
+        )
+        .join("");
+
+    return rows
+      ? `<details class="subdetails finding-evidence"><summary>Affected link${examples.length === 1 ? "" : "s"}</summary><div class="result-list">${rows}</div></details>`
+      : "";
+  }
+
+  if (
+    code ===
+    "heading_hierarchy" &&
+    Array.isArray(value)
+  ) {
+    const rows =
+      value
+        .slice(0, 8)
+        .map(
+          item =>
+            `<div class="result-row static">` +
+            textLine(
+              "From",
+              item.from
+            ) +
+            (
+              item.fromSelector
+                ? codeLine(
+                    "From selector",
+                    item.fromSelector
+                  )
+                : ""
+            ) +
+            textLine(
+              "To",
+              item.to
+            ) +
+            (
+              item.toSelector
+                ? codeLine(
+                    "To selector",
+                    item.toSelector
+                  )
+                : ""
+            ) +
+            `</div>`
+        )
+        .join("");
+
+    return rows
+      ? `<details class="subdetails finding-evidence"><summary>Affected heading transition${value.length === 1 ? "" : "s"}</summary><div class="result-list">${rows}</div></details>`
+      : "";
+  }
+
+  if (
+    code ===
+    "jsonld_parse_error" &&
+    Array.isArray(value)
+  ) {
+    const rows =
+      value
+        .slice(0, 5)
+        .map(
+          item =>
+            `<div class="result-row static">` +
+            textLine(
+              "Block",
+              Number.isFinite(
+                Number(
+                  item.index
+                )
+              )
+                ? `#${Number(item.index) + 1}`
+                : ""
+            ) +
+            textLine(
+              "Error",
+              item.error
+            ) +
+            (
+              item.excerpt
+                ? codeLine(
+                    "Excerpt",
+                    item.excerpt
+                  )
+                : ""
+            ) +
+            `</div>`
+        )
+        .join("");
+
+    return rows
+      ? `<details class="subdetails finding-evidence"><summary>JSON-LD parse evidence</summary><div class="result-list">${rows}</div></details>`
+      : "";
+  }
+
+  if (
+    [
+      "hreflang_duplicate_value",
+      "hreflang_unapproved_value",
+      "hreflang_invalid_format",
+      "hreflang_empty_href"
+    ].includes(
+      code
+    )
+  ) {
+    const rows =
+      examples
+        .slice(0, 8)
+        .map(
+          item =>
+            `<div class="result-row static">` +
+            textLine(
+              "Hreflang",
+              item.value
+            ) +
+            codeLine(
+              "Href",
+              item.href
+            ) +
+            (
+              item.format_looks_valid !==
+                undefined
+                ? textLine(
+                    "Syntax",
+                    item.format_looks_valid
+                      ? "valid"
+                      : "invalid"
+                  )
+                : ""
+            ) +
+            (
+              item.agreed_match
+                ? textLine(
+                    "Project policy",
+                    humanLabel(
+                      item.agreed_match
+                    )
+                  )
+                : ""
+            ) +
+            (
+              item.agreed_basis
+                ? textLine(
+                    "Allowed by",
+                    item.agreed_basis
+                  )
+                : ""
+            ) +
+            (
+              item.agreed_related_values
+                ?.length
+                ? textLine(
+                    "Related configured values",
+                    item.agreed_related_values.join(
+                      ", "
+                    )
+                  )
+                : ""
+            ) +
+            `</div>`
+        )
+        .join("");
+
+    return rows
+      ? `<details class="subdetails finding-evidence"><summary>Hreflang evidence</summary><div class="result-list">${rows}</div></details>`
+      : "";
+  }
+
+  if (
+    [
+      "multiple_canonical",
+      "canonical_cross_origin",
+      "canonical_relative_href",
+      "canonical_fragment",
+      "canonical_protocol_downgrade",
+      "robots_noindex",
+      "robots_conflict",
+      "robots_googlebot_conflict",
+      "rendered_head_invalid_element",
+      "open_graph_incomplete",
+      "og_url_mismatch",
+      "twitter_card_incomplete",
+      "favicon_presence"
+    ].includes(
+      code
+    )
+  ) {
+    return `<details class="subdetails finding-evidence"><summary>Finding evidence</summary><pre>${escapeHtml(JSON.stringify(value, null, 2).slice(0, 4000))}</pre></details>`;
+  }
+
+  return "";
+}
+
 function renderIssues() {
   const box = $("#issues");
   const summary = $("#auditSummary");
@@ -3224,6 +3625,9 @@ function renderIssues() {
         `<div>` +
           `<strong>${escapeHtml(humanLabel(issue.code))}</strong>` +
           `<div class="muted small">${escapeHtml(issue.message)}</div>` +
+          deterministicFindingEvidenceHtml(
+            issue
+          ) +
         `</div>` +
         `<div class="row">` +
           `<button data-triage="${i}">Triage</button>` +
