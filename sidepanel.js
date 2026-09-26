@@ -4000,24 +4000,37 @@ function domJudgementSummaryHtml(judgements = []) {
     return '<span class="muted small">Not reviewed by a model</span>';
   }
 
-  const primary =
-    judgements[0];
+  return judgements
+    .map(
+      result => {
+        if (
+          result.summary &&
+          !result.judgement
+        ) {
+          const facts =
+            result.key_facts
+              ?.length
+              ? `<div class="muted small">${escapeHtml(result.key_facts.join(" · "))}</div>`
+              : "";
 
-  return [
-    badgeHtml(
-      primary.judgement
-    ),
-    badgeHtml(
-      primary.impact,
-      "neutral"
-    ),
-    confidenceHtml(
-      primary.confidence
-    ),
-    judgements.length > 1
-      ? `<span class="muted small">+${judgements.length - 1} more model result${judgements.length === 2 ? "" : "s"}</span>`
-      : ""
-  ].join("");
+          return (
+            '<div class="model-dom-summary">' +
+            '<div class="result-primary"><span class="badge neutral">Nano summary</span></div>' +
+            `<div class="small">${escapeHtml(result.summary)}</div>` +
+            facts +
+            '</div>'
+          );
+        }
+
+        return (
+          '<div class="model-dom-judgement">' +
+          `<div class="result-primary">${badgeHtml(result.judgement)}${badgeHtml(result.change_area, "neutral")}${confidenceHtml(result.confidence)}</div>` +
+          `<div class="small">${escapeHtml(result.rationale || "")}</div>` +
+          '</div>'
+        );
+      }
+    )
+    .join("");
 }
 
 function domDiffJoinedAccordion(
@@ -4039,10 +4052,6 @@ function domDiffJoinedAccordion(
     item.raw?.href ||
     "";
 
-  const primary =
-    judgements[0] ||
-    null;
-
   row.innerHTML = `
     <td><code>#${escapeHtml(item.id)}</code></td>
     <td>${escapeHtml(humanLabel(item.kind))}</td>
@@ -4057,11 +4066,9 @@ function domDiffJoinedAccordion(
       </details>
     </td>
     <td>
-      ${primary
-        ? `<div class="result-primary">${badgeHtml(primary.judgement)}${badgeHtml(primary.impact, "neutral")}${confidenceHtml(primary.confidence)}</div>
-           <div class="small">${escapeHtml(primary.rationale || "")}</div>
-           ${judgements.length > 1 ? `<div class="muted small">+${judgements.length - 1} more model result${judgements.length === 2 ? "" : "s"}</div>` : ""}`
-        : '<span class="muted small">Not reviewed</span>'}
+      ${domJudgementSummaryHtml(
+        judgements
+      )}
     </td>
   `;
 
@@ -4085,7 +4092,6 @@ function domDiffJoinedAccordion(
 
   return row;
 }
-
 function domDiffTable(
   items,
   judgementMap =
