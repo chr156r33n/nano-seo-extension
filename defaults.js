@@ -247,6 +247,8 @@ For links:
 - destination_verification.evidence_state may be complete, partial or unavailable
 - request errors, access restrictions, rate limits, possible WAF/access interference, robots.txt fetch failures or not-checked states are uncertainty. Do not silently interpret missing evidence as either safe or broken
 - use transformation.text for anchor-text changes
+- if net_effect.signals.anchor_only_same_destination is true, destination discovery did not change; do not label that change as link discovery
+- local_context_terms_added / local_context_terms_removed are compact overlap signals showing whether changed anchor terms come from the local heading/context
 - semantic weight describes page importance, not the severity of the implementation difference
 - never name a property, product, place or entity unless that name is explicitly present in the supplied before/after URL, anchor text or local context for that item
 - do not borrow identity/context from another diff item in the same batch
