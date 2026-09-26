@@ -230,7 +230,10 @@ Write the summary as a useful synthesis:
 - combine related facts into one clear explanation rather than listing every status, boolean or field
 - mention technical details only when they materially help explain what changed
 - where relevant, contrast the practical server-HTML and rendered behaviour in plain English
-- use surrounding context to make the explanation intelligible, but do not invent meaning that is not supplied
+- for link destination changes, prioritise destination outcome: whether each URL works, whether they resolve to the same final URL, and whether their declared canonicals overlap
+- if two different hrefs converge on the same final URL or canonical destination, say that explicitly because it materially changes how the difference should be understood
+- only mention zone, component or nearby DOM context when it genuinely helps identify or explain the changed element
+- use surrounding content to make the explanation intelligible, but do not invent meaning that is not supplied
 - preserve genuine uncertainty where it matters
 
 Do not:
