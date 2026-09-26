@@ -10,6 +10,7 @@ const taskResults = {
   link_group: {},
   false_positive: {},
   dom_diff_triage: {},
+  dom_diff_summary: {},
   url_consistency: {},
   jira_ticket: {}
 };
