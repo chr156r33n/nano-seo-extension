@@ -63,16 +63,15 @@ This fixture is especially useful for testing the deterministic net-effect logic
 
 
 ### dom-reconciliation.html
-Repeated location cards deliberately create pairing ambiguity:
-- two links share the same anchor pattern and component structure
-- one destination + anchor changes, another only changes anchor text
-- the server-side Colchester URL intentionally returns 404
-- the rendered Colchester replacement intentionally returns 200
-- the Chelmsford and Ipswich destinations return 200 so they do not add accidental broken-link noise
-- local card headings/text should keep Chelmsford, Colchester and Ipswich identities separate
+Repeated location cards deliberately create pairing ambiguity and different levels of model usefulness:
+- Chelmsford keeps the same working destination but changes from a generic CTA to a more context-specific anchor
+- Colchester replaces a server-visible 404 with a working destination that only appears after rendering
+- Ipswich keeps the same working destination but loses descriptive local/service wording
+- Norwich swaps between two working destinations and changes the anchor towards emergency-service intent
+- local card headings/text should keep each location identity separate
 - reconciliation output should expose confidence and near-competitor evidence instead of pretending every pair is obvious
 
-This exercises the recent local-identity and deterministic reconciliation work while also checking that replacing a broken source destination can legitimately reduce the assessed impact.
+The compiler should establish technical consequences first. Nano should only judge the residual contextual significance, particularly for the Ipswich and Norwich cases where raw status codes alone do not settle the question.
 
 ### dom-transformations.html
 Controlled transformations exercise the neutral fingerprints:
