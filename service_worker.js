@@ -3103,7 +3103,8 @@ async function updateAnalysisRun(
 
 function schemaForTaskPayload(
   task,
-  payload
+  payload,
+  provider = null
 ) {
   const base =
     TASK_SCHEMAS[
@@ -3122,6 +3123,7 @@ function schemaForTaskPayload(
     );
 
   if (
+    provider !== "gemini" &&
     [
       "link_group",
       "dom_diff_triage",
@@ -3192,7 +3194,8 @@ async function runTask({
   const schema =
     schemaForTaskPayload(
       task,
-      payload
+      payload,
+      provider
     );
 
   if (!promptDef || !schema) {
