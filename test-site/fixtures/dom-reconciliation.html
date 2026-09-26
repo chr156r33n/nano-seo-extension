@@ -20,7 +20,12 @@
 <section class="service-card" id="ipswich-card">
   <h2>Ipswich drainage</h2>
   <p>Emergency drain clearance and camera surveys in Ipswich.</p>
-  <a class="service-link" href="/locations/ipswich">View local services</a>
+  <a class="service-link" href="/locations/ipswich">Explore Ipswich drainage services</a>
+</section>
+<section class="service-card" id="norwich-card">
+  <h2>Norwich drainage</h2>
+  <p>Drain clearance, camera surveys and emergency attendance in Norwich.</p>
+  <a class="service-link" href="/locations/norwich">Drainage services in Norwich</a>
 </section>
 </main>
 <script>
@@ -31,6 +36,13 @@ document.addEventListener("DOMContentLoaded", () => {
 
   const chelmsford = document.querySelector("#chelmsford-card .service-link");
   chelmsford.textContent = "Explore Chelmsford services";
+
+  const ipswich = document.querySelector("#ipswich-card .service-link");
+  ipswich.textContent = "Learn more";
+
+  const norwich = document.querySelector("#norwich-card .service-link");
+  norwich.href = "/services/emergency-drainage/norwich";
+  norwich.textContent = "24/7 emergency drainage in Norwich";
 });
 </script>
 <footer><a href="/">Back to fixtures</a></footer>
