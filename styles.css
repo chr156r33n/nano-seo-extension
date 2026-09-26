@@ -1669,6 +1669,16 @@ h3 {
   width: 100%;
 }
 
+/* Copy controls inside finding follow-up results must stay icon-sized.
+   The broader follow-up button rule above is for the Jira action button. */
+.finding-followup-row button.copy-icon {
+  width: 22px;
+  min-width: 22px;
+  max-width: 22px;
+  justify-self: end;
+  flex: 0 0 22px;
+}
+
 .status {
   bottom: 6px;
   margin-top: 6px;
