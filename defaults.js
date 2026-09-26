@@ -583,7 +583,7 @@ EXAMPLE URL:
 
     hreflang_duplicate_value: `Multiple hreflang declarations for the same language/locale are suspicious when they point to different URLs. Exact duplicate declarations are redundant but less serious.`,
 
-    hreflang_unapproved_value: `When an agreed hreflang allowlist is configured, values outside it should normally be corrected to the agreed site convention. Prefer the configured suggested value rather than inventing a new locale strategy.`,
+    hreflang_unapproved_value: `This check is about project policy, not hreflang syntax. A syntactically valid locale should not be described as invalid or unsupported merely because it falls outside the configured project allow-list. Bare language entries in the allow-list permit valid language-family variants (for example es allows es-ES/es-MX; zh allows zh-Hans/zh-Hant). Specific locale entries remain specific. Treat an out-of-policy value as an implementation-consistency finding and use the supplied allow-list evidence rather than inventing a locale strategy.`,
 
     hreflang_invalid_format: `Malformed hreflang values can prevent language/region targeting from being interpreted as intended. x-default is valid; language and optional region/script subtags should otherwise be plausible.`,
 
