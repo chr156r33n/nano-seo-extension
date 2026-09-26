@@ -6524,12 +6524,17 @@ $("#assessDomDiffBtn").onclick =
           `Reviewing DOM differences · ${provider}…`
         );
 
+        const domTask =
+          provider === "nano"
+            ? "dom_diff_summary"
+            : "dom_diff_triage";
+
         const result =
           await sw({
             type:
               "RUN_TASK",
             task:
-              "dom_diff_triage",
+              domTask,
             provider,
             analysisRunId:
               analysisRun.id,
@@ -6545,10 +6550,11 @@ $("#assessDomDiffBtn").onclick =
                 .checked
           });
 
-        taskResults
-          .dom_diff_triage[
-            provider
-          ] = result;
+        taskResults[
+          domTask
+        ][
+          provider
+        ] = result;
 
         for (
           const judgement
