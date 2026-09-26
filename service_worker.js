@@ -2789,9 +2789,39 @@ async function callGemini({system, prompt, schema, settings}) {
   const data = await r.json();
 
   if (!r.ok) {
-    throw new Error(
+    const baseMessage =
       data?.error?.message ||
-      `Gemini HTTP ${r.status}`
+      `Gemini HTTP ${r.status}`;
+
+    const status =
+      data?.error?.status ||
+      "";
+
+    const details =
+      Array.isArray(
+        data?.error?.details
+      ) &&
+      data.error.details.length
+        ? JSON.stringify(
+            data.error.details
+          ).slice(
+            0,
+            1600
+          )
+        : "";
+
+    throw new Error(
+      [
+        baseMessage,
+        status
+          ? `status=${status}`
+          : "",
+        details
+          ? `details=${details}`
+          : ""
+      ]
+        .filter(Boolean)
+        .join(" · ")
     );
   }
 
@@ -3101,6 +3131,84 @@ async function updateAnalysisRun(
   );
 }
 
+
+function simplifyGeminiTaskSchema(
+  task,
+  schema
+) {
+  if (
+    task !==
+    "false_positive"
+  ) {
+    return schema;
+  }
+
+  const simplified =
+    JSON.parse(
+      JSON.stringify(
+        schema
+      )
+    );
+
+  const properties =
+    simplified.properties ||
+    {};
+
+  for (
+    const key
+    of [
+      "evidence_used",
+      "item_assessments",
+      "useful_context"
+    ]
+  ) {
+    if (
+      properties[key]
+    ) {
+      delete properties[key]
+        .minItems;
+      delete properties[key]
+        .maxItems;
+    }
+  }
+
+  if (
+    properties.confidence
+  ) {
+    delete properties
+      .confidence
+      .minimum;
+    delete properties
+      .confidence
+      .maximum;
+  }
+
+  const item =
+    properties
+      .item_assessments
+      ?.items;
+
+  if (item) {
+    delete item.required;
+    delete item.additionalProperties;
+
+    if (
+      item.properties
+        ?.judgement
+    ) {
+      delete item
+        .properties
+        .judgement
+        .enum;
+    }
+  }
+
+  delete simplified.required;
+  delete simplified.additionalProperties;
+
+  return simplified;
+}
+
 function schemaForTaskPayload(
   task,
   payload,
@@ -3179,7 +3287,13 @@ function schemaForTaskPayload(
     }
   }
 
-  return schema;
+  return provider ===
+    "gemini"
+      ? simplifyGeminiTaskSchema(
+          task,
+          schema
+        )
+      : schema;
 }
 
 async function runTask({
@@ -3198,7 +3312,18 @@ async function runTask({
       provider
     );
 
-  if (!promptDef || !schema) {
+  const validationSchema =
+    schemaForTaskPayload(
+      task,
+      payload,
+      null
+    );
+
+  if (
+    !promptDef ||
+    !schema ||
+    !validationSchema
+  ) {
     throw new Error(
       `Unknown task: ${task}`
     );
@@ -3277,7 +3402,7 @@ ${promptDef.system}`;
           task,
           cached.output,
           payload,
-          schema
+          validationSchema
         );
 
       if (
@@ -3436,7 +3561,7 @@ ${promptDef.system}`;
         task,
         result.parsed,
         payload,
-        schema
+        validationSchema
       );
 
     if (
