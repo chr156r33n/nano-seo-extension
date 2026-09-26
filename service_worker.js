@@ -1529,6 +1529,33 @@ function compactNetEffectForModel(
             signals.anchor_similarity
         }
       : {}),
+    ...(signals.destination_discovery_changed !=
+      null
+      ? {
+          destination_discovery_changed:
+            !!signals.destination_discovery_changed
+        }
+      : {}),
+    ...(signals.anchor_only_same_destination
+      ? {
+          anchor_only_same_destination:
+            true
+        }
+      : {}),
+    ...(signals.local_context_terms_added
+      ?.length
+      ? {
+          local_context_terms_added:
+            signals.local_context_terms_added
+        }
+      : {}),
+    ...(signals.local_context_terms_removed
+      ?.length
+      ? {
+          local_context_terms_removed:
+            signals.local_context_terms_removed
+        }
+      : {}),
     ...(signals.raw_destination_occurrences_in_rendered !=
       null
       ? {
@@ -1619,7 +1646,16 @@ function compactDomDiffItemForModel(
               .same_text,
           same_destination:
             item.reconciliation
-              .same_destination
+              .same_destination,
+          same_context_heading:
+            item.reconciliation
+              .same_context_heading,
+          same_context_container:
+            item.reconciliation
+              .same_context_container,
+          context_similarity:
+            item.reconciliation
+              .context_similarity
         }
       : null;
 
@@ -10442,6 +10478,23 @@ async function buildDomDiff() {
             rawContextHeading ===
               renderedContextHeading;
 
+          const rawContextContainer =
+            normaliseText(
+              rawContext
+                .container_selector
+            );
+
+          const renderedContextContainer =
+            normaliseText(
+              renderedContext
+                .container_selector
+            );
+
+          const sameContextContainer =
+            !!rawContextContainer &&
+            rawContextContainer ===
+              renderedContextContainer;
+
           const rawContextIdentity =
             normaliseText(
               [
@@ -10523,7 +10576,9 @@ async function buildDomDiff() {
                       )
                   ),
                 same_context_heading:
-                  sameContextHeading
+                  sameContextHeading,
+                same_context_container:
+                  sameContextContainer
               };
             }
 
@@ -10573,7 +10628,35 @@ async function buildDomDiff() {
                       )
                   ),
                 same_context_heading:
-                  sameContextHeading
+                  sameContextHeading,
+                same_context_container:
+                  sameContextContainer
+              };
+            }
+
+            if (
+              sameSelector &&
+              sameContextContainer &&
+              sameContextHeading &&
+              contextSimilarity >=
+                0.75
+            ) {
+              return {
+                score:
+                  0.998,
+                reason:
+                  "same_link_selector_and_local_identity",
+                context_similarity:
+                  Number(
+                    contextSimilarity
+                      .toFixed(
+                        3
+                      )
+                  ),
+                same_context_heading:
+                  true,
+                same_context_container:
+                  true
               };
             }
 
@@ -10602,7 +10685,9 @@ async function buildDomDiff() {
                         )
                     ),
                   same_context_heading:
-                    true
+                    true,
+                  same_context_container:
+                    sameContextContainer
                 };
               }
 
@@ -10623,7 +10708,9 @@ async function buildDomDiff() {
                         )
                     ),
                   same_context_heading:
-                    false
+                    false,
+                  same_context_container:
+                    sameContextContainer
                 };
               }
 
@@ -10664,7 +10751,9 @@ async function buildDomDiff() {
                       )
                   ),
                 same_context_heading:
-                  sameContextHeading
+                  sameContextHeading,
+                same_context_container:
+                  sameContextContainer
               };
             }
 
@@ -10688,7 +10777,9 @@ async function buildDomDiff() {
                       )
                   ),
                 same_context_heading:
-                  sameContextHeading
+                  sameContextHeading,
+                same_context_container:
+                  sameContextContainer
               };
             }
           }
@@ -10722,7 +10813,9 @@ async function buildDomDiff() {
                       )
                   ),
                 same_context_heading:
-                  sameContextHeading
+                  sameContextHeading,
+                same_context_container:
+                  sameContextContainer
               };
             }
 
@@ -10977,6 +11070,10 @@ async function buildDomDiff() {
               same_context_heading:
                 candidate
                   .same_context_heading ??
+                false,
+              same_context_container:
+                candidate
+                  .same_context_container ??
                 false,
               source_ids: [
                 candidate
@@ -11454,6 +11551,97 @@ async function buildDomDiff() {
                 )
               : 0;
 
+          const anchorOnlySameDestination =
+            anchorTextChanged &&
+            !!rawHref &&
+            rawHref ===
+              renderedHref;
+
+          const contextText =
+            normaliseText(
+              [
+                rawValue
+                  .local_context
+                  ?.heading,
+                rawValue
+                  .local_context
+                  ?.aria_label,
+                rawValue
+                  .local_context
+                  ?.image_alt,
+                renderedValue
+                  .local_context
+                  ?.heading,
+                renderedValue
+                  .local_context
+                  ?.aria_label,
+                renderedValue
+                  .local_context
+                  ?.image_alt
+              ]
+                .filter(Boolean)
+                .join(
+                  " "
+                )
+            );
+
+          const contextTokens =
+            new Set(
+              wordTokens(
+                contextText
+              )
+            );
+
+          const rawAnchorTokens =
+            new Set(
+              wordTokens(
+                rawText
+              )
+            );
+
+          const renderedAnchorTokens =
+            new Set(
+              wordTokens(
+                renderedText
+              )
+            );
+
+          const localContextTermsAdded =
+            [
+              ...renderedAnchorTokens
+            ]
+              .filter(
+                token =>
+                  !rawAnchorTokens.has(
+                    token
+                  ) &&
+                  contextTokens.has(
+                    token
+                  )
+              )
+              .slice(
+                0,
+                6
+              );
+
+          const localContextTermsRemoved =
+            [
+              ...rawAnchorTokens
+            ]
+              .filter(
+                token =>
+                  !renderedAnchorTokens.has(
+                    token
+                  ) &&
+                  contextTokens.has(
+                    token
+                  )
+              )
+              .slice(
+                0,
+                6
+              );
+
           const rawHrefInRendered =
             countLinkHref(
               rendered,
@@ -11475,6 +11663,10 @@ async function buildDomDiff() {
             !!renderedHref &&
             renderedHrefInRaw ===
               0;
+
+          const destinationDiscoveryChanged =
+            destinationAdded ||
+            destinationRemoved;
 
           const rawPairInRendered =
             countLinkPair(
@@ -11533,7 +11725,7 @@ async function buildDomDiff() {
                   : "medium";
 
               reason =
-                "The same logical link was reconciled and its anchor text changed while the destination stayed the same. Use the text transformation fingerprint to judge whether link context materially changed.";
+                "The same logical link was reconciled and its anchor text changed while destination discovery stayed the same. Use the text transformation and local-context overlap to judge whether link context materially changed.";
             }
           } else if (
             destinationAdded ||
@@ -11632,6 +11824,14 @@ async function buildDomDiff() {
                 anchorSemanticsAdded,
               anchor_semantics_removed:
                 anchorSemanticsRemoved,
+              destination_discovery_changed:
+                destinationDiscoveryChanged,
+              anchor_only_same_destination:
+                anchorOnlySameDestination,
+              local_context_terms_added:
+                localContextTermsAdded,
+              local_context_terms_removed:
+                localContextTermsRemoved,
               semantic_weight:
                 weight
             }
