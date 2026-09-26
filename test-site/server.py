@@ -40,7 +40,7 @@ class Handler(SimpleHTTPRequestHandler):
             self.send_header("Content-Type", "text/html; charset=utf-8")
             self.send_header(
                 "Link",
-                '<http://localhost:8765/verify/shared-canonical.html>; rel="canonical"',
+                '</verify/shared-canonical.html>; rel="canonical"',
             )
             self.send_header("Content-Length", str(len(body)))
             self.end_headers()
