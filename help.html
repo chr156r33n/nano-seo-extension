@@ -38,13 +38,19 @@
 
   <section class="card" id="start">
     <h2>Start here: analysing a page</h2>
-    <p>Nano SEO Lab is designed to sit between a traditional SEO extension and a model-powered review. It collects evidence from the page, runs deterministic checks where a rule can be tested directly, and uses a selected model for the parts that benefit from interpretation.</p>
+    <p>For a normal page review, the shortest path is: <strong>choose who reviews the page → Run analysis → start with Prioritised actions</strong>. Run analysis reads the current page first, so you do not need to click Read page separately unless you only want the browser checks and page evidence.</p>
+    <p>Nano SEO Lab separates the work into three layers:</p>
+    <ul>
+      <li><strong>Page evidence</strong> is what the browser and deterministic checks can establish directly.</li>
+      <li><strong>Model review</strong> interprets evidence where context matters.</li>
+      <li><strong>Actions</strong> are the subset of results that may be worth doing something about.</li>
+    </ul>
     <ol>
       <li><strong>Open the page you want to inspect</strong> and click the Nano SEO Lab extension icon. This gives the extension temporary access to that tab and opens the side panel.</li>
-      <li><strong>REQUIRED (first time) Choose who reviews the page.</strong> Nano can run locally in Chrome where available, or you can use a configured Gemini or OpenAI model.</li>
-      <li><strong>REQUIRED Click Read this page.</strong> This captures the current rendered page and the deterministic SEO evidence used by the checks.</li>
-      <li><strong>OPTIONAL Click Run analysis (takes longer).</strong> The selected checks run together and produce a prioritised action summary, supporting results and the checks the page passed.</li>
-      <li><strong>OR Drill into individual tools/checks.</strong> You can classify links, compare page type with intent, compare server HTML with the rendered DOM, review URL and locale signals, or manually check link responses.</li>
+      <li><strong>Choose who reviews the page.</strong> Nano can run locally in Chrome where available, or you can use a configured Gemini or OpenAI model.</li>
+      <li><strong>Click Run analysis</strong> for the normal full-page workflow. It reads the page, runs the configured checks and combines the results.</li>
+      <li><strong>Start with Prioritised actions</strong>, then open Findings or the specialist tabs when you need the underlying evidence.</li>
+      <li><strong>Use Read page</strong> when you only want to refresh the deterministic page evidence without running the full model-assisted workflow.</li>
     </ol>
     <p class="muted small">If you switch to another tab or site, click the extension icon on that page before analysing it. Nano SEO Lab uses temporary page access rather than permanent access to every website.</p>
   </section>
@@ -52,7 +58,7 @@
   <section class="card" id="checks">
     <h2>What the main checks are doing</h2>
     <p><strong>Deterministic SEO checks</strong> cover things a browser can establish directly, such as metadata, headings, canonicals, robots directives, links, images, hreflang and structured-data signals. These do not need a language model to decide whether the underlying fact exists.</p>
-    <p><strong>Finding impact triage</strong> separates whether a deterministic detector appears wrong from how much a real condition matters. A model can label a finding as a likely false positive, no material impact, low impact, context-dependent, meaningful, or needing review. Each check also has an editable consequence profile in Settings, with short impact labels and a baseline priority, so model review gets useful framing without another large block of page context.</p>
+    <p><strong>Finding review</strong> keeps the factual finding separate from the model judgement. A finding is the condition detected by the browser checks. Model review then decides whether the detector itself appears wrong, whether the real condition has little or no material impact, whether impact depends on context, or whether it looks meaningful. The interface uses <strong>Likely detector error</strong> only when the detector appears factually wrong; a real-but-benign condition is shown as a real condition with low or no material impact.</p>
     <p><strong>Site check exclusions</strong> can be configured in Settings for exact hostnames or wildcard subdomains. Use these for known, non-actionable platform constraints. Excluded checks remain visible for traceability but are removed from issue triage, model review and prioritised actions for matching hosts.</p>
     <p><strong>Model review</strong> is used where the answer is more contextual: what role a link appears to play, what type of page this is, the likely user intent, whether page type and intent align, whether a flagged issue may be a false positive, and whether server/rendered differences look meaningful.</p>
     <p><strong>Server vs rendered comparison</strong> helps surface content or links that change after JavaScript runs. This is useful when considering what different crawling or retrieval pipelines may encounter. Iframe elements themselves can appear in this comparison, but the document rendered inside an iframe is treated separately rather than silently merged into the parent DOM.</p>
@@ -65,7 +71,7 @@
   <section class="card" id="testing">
     <h2>Optional: use it as a model-testing framework</h2>
     <p>You do not need to compare models to use Nano SEO Lab. The comparison features are there for testing how different models and page representations affect the same SEO judgement.</p>
-    <p>For a simple comparison, select two or more providers and run the same task. Most tasks use closely related evidence and judgement labels across providers, but the output shape is no longer always identical. Nano is deliberately used for smaller, more constrained local tasks, while Gemini and OpenAI can return richer structured judgements.</p>
+    <p>For a simple comparison, select two or more providers and run the same task. Most tasks use closely related evidence and judgement labels across providers, but the output shape is not always identical. The interface labels these as reviews or summaries according to the role they are performing rather than pretending every provider is returning the same thing.</p>
     <p><strong>Nano vs Gemini/OpenAI:</strong> Nano is primarily a local summarisation, classification and triage layer. It is useful for compact tasks where the extension can pre-compile the evidence and ask the model for a bounded answer. In DOM review specifically, Nano summarises the supplied deterministic evidence rather than acting as the final rich judgement layer. Gemini and OpenAI receive the fuller review task and can return more detailed structured judgements, rationales and per-item assessments. This means a Nano result should not be expected to have exactly the same fields or level of explanation as a Gemini/OpenAI result.</p>
     <p>For page type and intent, you can also change the evidence representation sent to the model:</p>
     <ul>
@@ -101,8 +107,8 @@
 
   <section class="card" id="interpretation">
     <h2>A sensible way to interpret the results</h2>
-    <p>Use deterministic findings as factual page evidence. Treat model results as contextual judgements that can help prioritise or explain that evidence, not as an oracle with unusually strong opinions about title tags.</p>
-    <p>For day-to-day work, the prioritised action summary is the quickest route through the results. For research, comparison or debugging, inspect individual model outputs, evidence representations and history instead.</p>
+    <p>Use findings as factual page evidence. Treat model reviews as contextual judgements that can help prioritise or explain that evidence, not as replacements for the underlying facts.</p>
+    <p>For day-to-day work, start with <strong>Prioritised actions</strong>. Open <strong>Finding details</strong> when you want to separate what the browser found from what the model thought it meant. For research, comparison or debugging, inspect individual model outputs, evidence representations and history instead.</p>
   </section>
 </body>
 </html>

@@ -737,6 +737,29 @@ copyOutputObserver.observe(
 
 
 function humanLabel(value) {
+  const displayLabels = {
+    likely_false_positive:
+      "Likely detector error",
+    no_material_impact:
+      "Real condition · no material impact",
+    low_impact:
+      "Real condition · low impact",
+    context_dependent:
+      "Context dependent",
+    meaningful_issue:
+      "Meaningful issue",
+    manual_review:
+      "Manual review"
+  };
+
+  const key =
+    String(value ?? "")
+      .toLowerCase();
+
+  if (displayLabels[key]) {
+    return displayLabels[key];
+  }
+
   return String(value ?? "")
     .replace(/[_-]+/g, " ")
     .replace(/\b\w/g, char => char.toUpperCase());
@@ -1473,6 +1496,20 @@ function taskResultHtml(task, result, displayContext = null) {
   return genericResultHtml(r);
 }
 
+function providerReviewLabel(
+  provider,
+  task
+) {
+  if (
+    provider === "nano" &&
+    task === "dom_diff_summary"
+  ) {
+    return "Nano summary";
+  }
+
+  return `${humanLabel(provider)} review`;
+}
+
 function providerCard(task, provider, result, mode = null, displayContext = null) {
   const d = document.createElement("div");
   d.className = "card result-card";
@@ -1549,7 +1586,7 @@ function providerCard(task, provider, result, mode = null, displayContext = null
       : "";
 
   d.innerHTML =
-    `<div class="result-card-head"><div><div class="result-provider">${escapeHtml(provider)}</div><div class="result-meta">${context}${meta.cacheHit ? '<span class="mini-chip">Cache</span>' : ""}${meta.durationMs ? `<span>${escapeHtml(meta.durationMs)} ms total</span>` : ""}${timingChips}</div></div>${copyIconHtml("Copy this result")}</div>${securityWarningHtml(security)}<div class="result-body">${taskResultHtml(task, clean, displayContext)}</div>${rawJsonDetails(clean)}`;
+    `<div class="result-card-head"><div><div class="result-provider">${escapeHtml(providerReviewLabel(provider, task))}</div><div class="result-meta">${context}${meta.cacheHit ? '<span class="mini-chip">Cache</span>' : ""}${meta.durationMs ? `<span>${escapeHtml(meta.durationMs)} ms total</span>` : ""}${timingChips}</div></div>${copyIconHtml("Copy this result")}</div>${securityWarningHtml(security)}<div class="result-body">${taskResultHtml(task, clean, displayContext)}</div>${rawJsonDetails(clean)}`;
 
   const table =
     d.querySelector(
@@ -1873,7 +1910,7 @@ function deterministicFindingDisposition(
       key:
         "likely_false_positive",
       label:
-        "Likely false positive",
+        "Likely detector error",
       tone:
         "good",
       actionRequired:
@@ -1896,7 +1933,7 @@ function deterministicFindingDisposition(
       key:
         "no_material_impact",
       label:
-        "No material impact",
+        "Real condition · no material impact",
       tone:
         "good",
       actionRequired:
@@ -1919,7 +1956,7 @@ function deterministicFindingDisposition(
       key:
         "low_impact",
       label:
-        "Low impact",
+        "Real condition · low impact",
       tone:
         "neutral",
       actionRequired:
@@ -1973,7 +2010,7 @@ function deterministicFindingDisposition(
       key:
         "needs_review",
       label:
-        "Needs review",
+        "Manual review",
       tone:
         "warn",
       actionRequired:
@@ -2970,7 +3007,7 @@ function deterministicResultDetails(data, open = true) {
 
 function analyseConfigDetails(config = {}, skipped = []) {
   const details = document.createElement("details"); details.className = "card analyse-result-group";
-  details.innerHTML = `<summary>Analyse all configuration</summary><div class="analyse-group-body"><div class="chip-row">${Object.entries(config).map(([key,enabled]) => `<span class="mini-chip ${enabled ? "enabled" : "disabled"}">${escapeHtml(humanLabel(key))}: ${enabled ? "on" : "off"}</span>`).join("")}</div>${skipped.length ? `<div class="result-subsection"><div class="result-label">Skipped</div><ul class="evidence-list">${skipped.map(item => `<li><strong>${escapeHtml(humanLabel(item.stage))}:</strong> ${escapeHtml(item.reason)}</li>`).join("")}</ul></div>` : ""}</div>`;
+  details.innerHTML = `<summary>Run configuration</summary><div class="analyse-group-body"><div class="chip-row">${Object.entries(config).map(([key,enabled]) => `<span class="mini-chip ${enabled ? "enabled" : "disabled"}">${escapeHtml(humanLabel(key))}: ${enabled ? "on" : "off"}</span>`).join("")}</div>${skipped.length ? `<div class="result-subsection"><div class="result-label">Skipped</div><ul class="evidence-list">${skipped.map(item => `<li><strong>${escapeHtml(humanLabel(item.stage))}:</strong> ${escapeHtml(item.reason)}</li>`).join("")}</ul></div>` : ""}</div>`;
   return details;
 }
 
@@ -3020,7 +3057,21 @@ async function runAcross(task, payload, target, mode = null) {
   }
 
   for (const provider of providers) {
-    setStatus(`Running ${task}${mode ? ` · ${mode}` : ""} · ${provider}…`);
+    const taskLabels = {
+      page_type: "Identifying page type",
+      intent: "Identifying intent",
+      alignment: "Reviewing page and intent alignment",
+      link_group: "Reviewing links",
+      false_positive: "Reviewing findings",
+      dom_diff_triage: "Reviewing DOM differences",
+      dom_diff_summary: "Summarising DOM differences",
+      url_consistency: "Reviewing URL and locale signals",
+      jira_ticket: "Drafting Jira ticket"
+    };
+
+    setStatus(
+      `${taskLabels[task] || "Running model review"} · ${providerReviewLabel(provider, task)}…`
+    );
 
     try {
       const result = await sw({
@@ -5108,13 +5159,13 @@ function clearAnalysisOutput() {
   if (linkProgress) linkProgress.textContent = "";
 
   const auditSummary = $("#auditSummary");
-  if (auditSummary) auditSummary.textContent = "Analyse all is running…";
+  if (auditSummary) auditSummary.textContent = "Full-page analysis is running…";
 
   const domSummary = $("#domDiffSummary");
-  if (domSummary) domSummary.textContent = "Analyse all is running…";
+  if (domSummary) domSummary.textContent = "Full-page analysis is running…";
 
   const urlSummary = $("#urlSignalSummary");
-  if (urlSummary) urlSummary.innerHTML = '<div class="card"><span class="muted">Analyse all is running…</span></div>';
+  if (urlSummary) urlSummary.innerHTML = '<div class="card"><span class="muted">Full-page analysis is running…</span></div>';
 }
 
 async function runTaskSilent(task, provider, payload, mode = null) {
@@ -5219,21 +5270,19 @@ function renderAnalyseAllResults(report) {
   summary.innerHTML = `
     <div class="result-card-head">
       <div>
-        <h3>Complete analysis</h3>
+        <h3>Analysis complete</h3>
         <div class="muted small">${escapeHtml(report.url || "")}</div>
       </div>
       ${report.errors.length ? badgeHtml(`${report.errors.length} error${report.errors.length === 1 ? "" : "s"}`, "bad") : badgeHtml("complete", "good")}
     </div>
     <div class="metric-row" style="margin-top:10px">
-      ${metricHtml("Model calls", `${report.completedCalls}/${report.totalCalls}`)}
       ${metricHtml("Findings", report.deterministic?.findings?.length || 0)}
-      ${metricHtml("Providers", report.providers.length)}
-      ${metricHtml("Modes", report.modes.length)}
-      ${metricHtml("Injection warnings", securityWarnings)}
+      ${metricHtml("Reviewers", report.providers.length)}
+      ${metricHtml("Warnings", securityWarnings)}
     </div>
-    <div class="result-label">Providers</div>
+    <div class="result-label">Reviewed with</div>
     ${chipsHtml(report.providers)}
-    <div class="result-label" style="margin-top:8px">Input modes</div>
+    <div class="result-label" style="margin-top:8px">Evidence representation</div>
     ${chipsHtml(report.modes)}
   `;
   target.appendChild(summary);
@@ -5254,7 +5303,7 @@ function renderAnalyseAllResults(report) {
   target.appendChild(
     deterministicResultDetails(
       report.deterministic,
-      true
+      false
     )
   );
 
@@ -5284,14 +5333,14 @@ function renderAnalyseAllResults(report) {
 
   target.appendChild(
     analyseTaskDetails(
-      "Link context",
+      "Link review",
       report.links,
       "link_group"
     )
   );
 
   const fp = analyseTaskDetails(
-    "Finding impact triage",
+    "Finding review",
     report.falsePositives,
     "false_positive",
     report.falsePositives.length > 0
@@ -5314,8 +5363,8 @@ function renderAnalyseAllResults(report) {
       "card";
 
     jiraBox.innerHTML =
-      "<h3>Finding follow-up</h3>" +
-      '<div class="muted small">All deterministic findings are retained here for reference. Model review distinguishes detector false positives from real conditions with low, contextual or meaningful impact.</div>';
+      "<h3>Finding details</h3>" +
+      '<div class="muted small">The finding is the factual result from the page checks. Model review is shown separately to help judge practical impact.</div>';
 
     const triageMap =
       deterministicTriageByCode(
@@ -5515,8 +5564,8 @@ function renderAnalyseAllResults(report) {
       "card";
 
     box.innerHTML =
-      "<h3>DOM differences needing attention</h3>" +
-      '<div class="muted small">Open a difference to review the evidence and model judgement together.</div>';
+      "<h3>Reviewed DOM differences</h3>" +
+      '<div class="muted small">Open a difference to compare the deterministic evidence with the model review.</div>';
 
     box.appendChild(
       domDiffTable(
@@ -6002,7 +6051,7 @@ async function analyseAll() {
 
       setAnalyseAllProgress(
         percent,
-        `${label} · ${completedCalls}/${totalCalls} model calls`
+        label
       );
     };
 
@@ -6082,7 +6131,7 @@ async function analyseAll() {
           }
 
           bump(
-            `Links · batch ${batchIndex + 1}/${linkBatches.length} · ${provider}`
+            `Reviewing links · ${providerReviewLabel(provider, "link_group")}`
           );
         }
       }
@@ -6134,7 +6183,7 @@ async function analyseAll() {
           }
 
           bump(
-            `Page type · ${mode} · ${provider}`
+            `Identifying page type · ${providerReviewLabel(provider, "page_type")}`
           );
         }
       }
@@ -6186,7 +6235,7 @@ async function analyseAll() {
           }
 
           bump(
-            `Intent · ${mode} · ${provider}`
+            `Identifying intent · ${providerReviewLabel(provider, "intent")}`
           );
         }
       }
@@ -6237,7 +6286,7 @@ async function analyseAll() {
             });
 
             bump(
-              `Alignment · ${mode} · ${provider}`
+              `Reviewing page and intent alignment · ${providerReviewLabel(provider, "alignment")}`
             );
 
             continue;
@@ -6372,7 +6421,7 @@ async function analyseAll() {
           }
 
           bump(
-            `Finding · ${batch.issue.code}${batch.batchCount > 1 ? ` · batch ${batch.batch}/${batch.batchCount}` : ""} · ${provider}`
+            `Reviewing findings · ${providerReviewLabel(provider, "false_positive")}`
           );
         }
       }
@@ -6450,7 +6499,7 @@ async function analyseAll() {
           }
 
           bump(
-            `DOM diff · batch ${batchIndex + 1}/${diffBatches.length} · ${provider}`
+            `Reviewing DOM differences · ${providerReviewLabel(provider, provider === "nano" ? "dom_diff_summary" : "dom_diff_triage")}`
           );
         }
       }
@@ -6500,7 +6549,7 @@ async function analyseAll() {
         }
 
         bump(
-          `URL & locale consistency · ${provider}`
+          `Reviewing URL and locale signals · ${providerReviewLabel(provider, "url_consistency")}`
         );
       }
     }
@@ -6519,7 +6568,9 @@ async function analyseAll() {
 
     setAnalyseAllProgress(
       100,
-      `Complete · ${completedCalls}/${totalCalls} model calls · ${report.errors.length} error(s)`
+      report.errors.length
+        ? `Analysis complete with ${report.errors.length} incomplete step${report.errors.length === 1 ? "" : "s"}`
+        : "Analysis complete"
     );
 
     setStatus("");
@@ -7308,7 +7359,7 @@ $("#assessDomDiffBtn").onclick =
       "muted small";
 
     batchLabel.textContent =
-      `Reviewing exceptions ${Math.max(1, domDiffCursor - batch.length + 1)}–${domDiffCursor} of ${reviewItems.length} (${domDiff.items.length} total changes found).`;
+      `Reviewing differences ${Math.max(1, domDiffCursor - batch.length + 1)}–${domDiffCursor} of ${reviewItems.length} (${domDiff.items.length} total changes found).`;
 
     target.appendChild(
       batchLabel

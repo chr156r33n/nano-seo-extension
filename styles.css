@@ -372,6 +372,27 @@ th {
   box-shadow: none;
 }
 
+.analyse-all-advanced {
+  margin-top: 10px;
+  border-color: rgba(255,255,255,.28);
+  background: rgba(255,255,255,.06);
+}
+
+.analyse-all-advanced > summary {
+  color: rgba(255,255,255,.88);
+  font-size: 10px;
+}
+
+.analyse-all-advanced .control-panel-body {
+  border-top-color: rgba(255,255,255,.16);
+}
+
+.advanced-run-settings > summary {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 700;
+}
+
 /* Full-analysis output sits inside the red shell but renders on light surfaces.
    Reset foreground colours at the output boundary so light cards never inherit white text. */
 .analyse-all-shell #analyseAllResults {
