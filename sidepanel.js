@@ -5116,6 +5116,12 @@ async function analyseAll() {
         caveat:
           domDiff?.caveat ||
           null,
+        cmsContext:
+          domDiff?.cmsContext ||
+          null,
+        destinationVerification:
+          domDiff?.destinationVerification ||
+          null,
         items:
           diffItems,
         assessments: []
@@ -5595,7 +5601,10 @@ async function analyseAll() {
               provider,
               {
                 items:
-                  batch
+                  batch,
+                cmsContext:
+                  domDiff?.cmsContext ||
+                  null
               }
             );
 
@@ -6538,7 +6547,10 @@ $("#assessDomDiffBtn").onclick =
               analysisRun.id,
             payload: {
               items:
-                batch
+                batch,
+              cmsContext:
+                domDiff?.cmsContext ||
+                null
             },
             useCache:
               $("#useCache")
