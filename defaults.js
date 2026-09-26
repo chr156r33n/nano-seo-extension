@@ -219,8 +219,33 @@ GLOBAL SEMANTIC IMPORTANCE GUIDANCE:
 {{semantic_guidance}}`
     },
 
+    dom_diff_summary: {
+      system: "You summarize deterministic server-HTML vs rendered-DOM evidence for a human reviewer. You do not decide severity, importance, priority, impact category, or whether action is required. Verified facts are authoritative.",
+      user: `Write a concise human-readable summary of the supplied DOM difference.
+
+Your role is to remove friction for a human reviewer, not make the decision for them.
+
+Rules:
+- state what changed
+- include the most useful verified technical facts
+- preserve uncertainty where supplied
+- do not invent causes, penalties, indexing outcomes, crawler behaviour, or implementation details
+- do not infer page scope or intent from URL folder names
+- do not describe an unchanged anchor as changed, or an href as anchor text
+- do not assign severity, importance, confidence, priority, or a recommendation
+- keep the summary factual and compact
+
+EXPECTED IDS:
+{{expected_ids_json}}
+
+Return exactly one result for every expected id above.
+
+DOM EVIDENCE:
+{{diff_json}}`
+    },
+
     dom_diff_triage: {
-      system: "You assess semantically meaningful differences between a same-origin server HTML refetch and the current rendered DOM. Judge the significance of the specific element identified in each diff item. Do not treat all headings or elements as equally important.",
+      system: "You assess the practical significance of a verified server-HTML vs rendered-DOM difference. Verified facts are authoritative. Judge the specific change in context without inventing unsupported technical consequences.",
       user: `Judge the practical significance of the supplied server-HTML vs rendered-DOM change for SEO and users.
 
 VERIFIED facts are authoritative. Do not contradict them or invent facts that are not supplied.
@@ -231,11 +256,18 @@ Use:
 - verified for established technical facts
 - transformation for compact wording/factual changes
 
+The output field change_area describes the area of the change, not whether it is harmful:
+- link_destination: href/destination changes
+- anchor_context: anchor wording/context changes where the destination itself is unchanged
+- page_understanding: heading/content meaning changes
+- indexing_control, content_retrieval, url_consistency, structured_data or ui_only when those are the best factual fit
+- judgement expresses likely practical significance
+
 Rules:
 - do not infer page scope, hierarchy or intent from URL folder names alone
-- use link_discovery only when verified.destination_discovery_changed is true or working-link availability differs between server HTML and rendered DOM
-- if the working link is unavailable in server HTML but available after rendering, that rendering dependency is a real link-discovery concern; judge its importance in context
-- if destination discovery is unchanged, judge anchor changes on clarity, relevance and user/page understanding instead
+- a different href that resolves to the same final URL can still be a link_destination change without being an important discovery problem
+- use anchor_context for anchor-text-only changes when the destination and availability are unchanged
+- if a working link is unavailable in server HTML but available after rendering, that rendering dependency is relevant when judging the destination change
 - semantic_weight is element importance, not change severity
 - uncertainty fields mean evidence is incomplete; do not silently resolve them
 
@@ -804,6 +836,35 @@ const TASK_SCHEMAS = {
     additionalProperties: false
   },
 
+  dom_diff_summary: {
+    type: "object",
+    properties: {
+      results: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            id: { type: "integer" },
+            summary: { type: "string" },
+            key_facts: {
+              type: "array",
+              items: { type: "string" },
+              maxItems: 4
+            }
+          },
+          required: [
+            "id",
+            "summary",
+            "key_facts"
+          ],
+          additionalProperties: false
+        }
+      }
+    },
+    required: ["results"],
+    additionalProperties: false
+  },
+
   dom_diff_triage: {
     type: "object",
     properties: {
@@ -822,13 +883,14 @@ const TASK_SCHEMAS = {
                 "manual_review"
               ]
             },
-            impact: {
+            change_area: {
               type: "string",
               enum: [
                 "indexing_control",
                 "page_understanding",
                 "content_retrieval",
-                "link_discovery",
+                "link_destination",
+                "anchor_context",
                 "url_consistency",
                 "structured_data",
                 "ui_only",
@@ -841,7 +903,7 @@ const TASK_SCHEMAS = {
           required: [
             "id",
             "judgement",
-            "impact",
+            "change_area",
             "confidence",
             "rationale"
           ],
