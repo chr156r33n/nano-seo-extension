@@ -1,0 +1,39 @@
+<!doctype html><html lang="en-GB"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>DOM heading reconciliation fixture</title>
+<meta name="description" content="Repeated heading text and substantial heading changes for reconciliation testing.">
+<link rel="canonical" href="http://localhost:8765/fixtures/dom-heading-reconciliation.html">
+<link rel="stylesheet" href="/styles.css">
+</head><body>
+<header><div class="kicker">Fixture · heading reconciliation</div><h1>Drainage packages</h1></header>
+<main>
+<section class="package-card" id="basic-card">
+  <h2 class="section-title">Overview</h2>
+  <p>Basic drain clearance for straightforward blockages.</p>
+</section>
+
+<section class="package-card" id="premium-card">
+  <h2 class="section-title" id="premium-heading">Overview</h2>
+  <p>Premium drainage support with camera inspection and reporting.</p>
+</section>
+
+<section class="package-card" id="emergency-card">
+  <h3 class="section-title" id="emergency-heading">Emergency response</h3>
+  <p>Urgent attendance for serious drainage failures and flooding.</p>
+</section>
+</main>
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+  const premium = document.querySelector("#premium-heading");
+  premium.textContent = "Premium package details";
+
+  const emergency = document.querySelector("#emergency-heading");
+  const replacement = document.createElement("h2");
+  replacement.id = emergency.id;
+  replacement.className = emergency.className;
+  replacement.textContent = "24/7 emergency drainage support";
+  emergency.replaceWith(replacement);
+});
+</script>
+<footer><a href="/">Back to fixtures</a></footer>
+</body></html>

@@ -123,7 +123,8 @@
       "expected_reconciliation": [
         "Repeated link text/selectors should use card-local heading/text to avoid cross-pairing.",
         "Colchester evidence must not borrow Chelmsford or Ipswich identity.",
-        "Reconciled pairs should expose confidence and alternative-candidate evidence."
+        "Reconciled pairs should expose confidence and alternative-candidate evidence.",
+        "Colchester before/after links should reconcile as one changed_in_rendered item using the same local heading + same local container + same technical selector even though destination and anchor text both change."
       ],
       "expected_destination_verification": {
         "source_colchester": {
@@ -148,7 +149,21 @@
         "The Colchester source URL is intentionally 404 and the rendered replacement is intentionally 200.",
         "Replacing/removing a broken source destination can reduce the practical impact of the DOM change; model judgement should use the supplied destination evidence rather than treating every removed link as harmful.",
         "The destination status difference does not remove the need to reconcile the before/after Colchester link using local identity."
-      ]
+      ],
+      "expected_anchor_context": {
+        "chelmsford": {
+          "destination_discovery_changed": false,
+          "anchor_only_same_destination": true,
+          "expected_local_context_terms_added": [
+            "chelmsford"
+          ]
+        },
+        "colchester": {
+          "expected_reconciliation_reason": "same_link_selector_and_local_identity",
+          "expected_same_context_heading": true,
+          "expected_same_context_container": true
+        }
+      }
     },
     "dom-transformations.html": {
       "expected_rendered_changes": [
@@ -214,6 +229,38 @@
         "CMS context is evidence only and must not be treated as proof of URL equivalence.",
         "403/access-restricted evidence must not be silently converted into a negative or positive equivalence judgement."
       ]
+    },
+    "dom-heading-reconciliation.html": {
+      "expected_rendered_changes": [
+        {
+          "kind": "heading",
+          "case": "Premium card repeats Overview in server HTML but changes to Premium package details in rendered DOM",
+          "expected": "reconciled_changed_in_rendered"
+        },
+        {
+          "kind": "heading",
+          "case": "Emergency heading changes text substantially and moves H3 to H2",
+          "expected": "reconciled_changed_in_rendered"
+        }
+      ],
+      "expected_reconciliation": [
+        "The Basic card Overview heading must not be cross-paired with the Premium card heading solely because the text is identical.",
+        "The Premium heading should reconcile by selector + local container identity even though its text changes substantially.",
+        "The Emergency heading should reconcile as the same logical element even though both text and level change."
+      ],
+      "expected_heading_signals": {
+        "premium": {
+          "heading_level_only": false,
+          "topic_signal_changed": true,
+          "expected_same_context_container": true
+        },
+        "emergency": {
+          "heading_level_only": false,
+          "topic_signal_changed": true,
+          "expected_level_change": true,
+          "expected_same_context_container": true
+        }
+      }
     }
   }
 }

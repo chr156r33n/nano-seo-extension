@@ -83,6 +83,17 @@ Controlled transformations exercise the neutral fingerprints:
 
 The expected output is factual/structural evidence, not an automatic SEO verdict.
 
+
+### dom-heading-reconciliation.html
+Repeated headings exercise heading identity rather than text-only matching:
+- two cards start with the same `Overview` heading
+- only the Premium card heading changes text after rendering
+- an Emergency heading changes both text and level
+- unchanged repeated headings must not be cross-paired
+- changed headings should reconcile from selector + local container/context when identity is otherwise strong
+
+The compiler should also expose compact `heading_level_only` and `topic_signal_changed` facts rather than asking the model to infer those from prose.
+
 ### dom-aem-destination-context.html
 AEM-like signals and changed link destinations exercise the new technical context:
 - multiple independent AEM fingerprints should produce a high-confidence AEM context
