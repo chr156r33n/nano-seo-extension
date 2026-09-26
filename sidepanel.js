@@ -3843,18 +3843,47 @@ function renderIssues() {
             ) ||
           issue;
 
-        await runAcross(
-          "false_positive",
-          {
-            issue:
-              fullIssue,
-            context:
-              pageContextForIssue(
-                fullIssue
-              )
-          },
-          target
-        );
+        const batches =
+          findingReviewBatches(
+            fullIssue
+          );
+
+        for (
+          const batch
+          of batches
+        ) {
+          if (
+            batches.length > 1
+          ) {
+            const label =
+              document.createElement(
+                "div"
+              );
+
+            label.className =
+              "muted small";
+
+            label.textContent =
+              `Batch ${batch.batch}/${batch.batchCount} · affected items ${batch.itemStart}-${batch.itemEnd} of ${batch.totalItems}`;
+
+            target.appendChild(
+              label
+            );
+          }
+
+          await runAcross(
+            "false_positive",
+            {
+              issue:
+                batch.issue,
+              context:
+                pageContextForIssue(
+                  fullIssue
+                )
+            },
+            target
+          );
+        }
       } catch (e) {
         target.innerHTML =
           `<div class="card"><h3>Triage error</h3><pre>${escapeHtml(e?.message || String(e))}</pre></div>`;
