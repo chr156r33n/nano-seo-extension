@@ -830,7 +830,7 @@ const TASK_SCHEMAS = {
           ],
           additionalProperties: false
         },
-        maxItems: 8
+        maxItems: 100
       },
       useful_context: {
         type: "array",
