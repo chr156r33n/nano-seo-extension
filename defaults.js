@@ -515,6 +515,11 @@ EXAMPLE URL:
       baselinePriority: "medium",
       consequence: "Missing alt text matters when an image conveys information or functions as a control; decorative images can legitimately omit meaningful alt text."
     },
+    iframe_embedded_content: {
+      impacts: ["Page understanding", "Indexing context", "Content attribution"],
+      baselinePriority: "context-dependent",
+      consequence: "Content inside iframes can be indexed or attributed differently from normal parent-page DOM. Same-origin iframe contents are counted separately when readable; inaccessible frames remain an uncertainty. Google's noindex + indexifembedded directive can make embedded content eligible for indexing as part of the parent page, but that behaviour is Google-specific."
+    },
     images_empty_alt: {
       impacts: ["Accessibility", "Image understanding"],
       baselinePriority: "low",
