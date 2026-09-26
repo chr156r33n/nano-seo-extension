@@ -5025,22 +5025,46 @@ async function captureActiveTab() {
               const agreedValue =
                 agreedContext.exact;
 
+              const agreedLanguageFamily =
+                language &&
+                agreedMap.get(
+                  language.toLowerCase()
+                ) ||
+                "";
+
+              const allowedByLanguageFamily =
+                !agreedValue &&
+                !!agreedLanguageFamily &&
+                formatLooksValid;
+
               return {
                 ...item,
                 in_agreed_list:
                   agreed.length
-                    ? !!agreedValue
+                    ? (
+                        !!agreedValue ||
+                        allowedByLanguageFamily
+                      )
                     : null,
                 agreed_match:
                   !agreed.length
                     ? "not_configured"
                     : agreedValue
                       ? "exact"
-                      : agreedContext
-                          .related
-                          .length
-                        ? "same_language_family"
-                        : "none",
+                      : allowedByLanguageFamily
+                        ? "language_family"
+                        : agreedContext
+                            .related
+                            .length
+                          ? "same_language_family_not_allowed"
+                          : "none",
+                agreed_basis:
+                  agreedValue ||
+                  (
+                    allowedByLanguageFamily
+                      ? agreedLanguageFamily
+                      : ""
+                  ),
                 agreed_related_values:
                   agreedContext.related,
                 format_looks_valid:
