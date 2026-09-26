@@ -385,7 +385,7 @@ function render() {
             <h2>Hreflang allow-list</h2>
 
             <p class="muted">
-              One value per line. This is an optional project-specific allow-list, not a list of locales that must be present.
+              One value per line. This is an optional project-specific allow-list, not a list of locales that must be present. A bare language code such as <code>es</code>, <code>pt</code>, <code>ko</code> or <code>zh</code> permits valid regional/script variants in that language family; a specific locale such as <code>en-GB</code> remains exact.
             </p>
 
             <textarea id="hreflangAgreedValues" placeholder="en-GB&#10;en-US&#10;fr-FR&#10;x-default">${(current.hreflangAgreedValues || []).map(esc).join("\n")}</textarea>
