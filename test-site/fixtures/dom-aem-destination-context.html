@@ -1,0 +1,39 @@
+<!doctype html><html lang="en-GB"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="generator" content="Adobe Experience Manager">
+<title>AEM and destination verification fixture</title>
+<meta name="description" content="AEM-like platform signals plus controlled destination changes.">
+<link rel="canonical" href="http://localhost:8765/fixtures/dom-aem-destination-context.html">
+<link rel="stylesheet" href="/styles.css">
+<link rel="stylesheet" href="/etc.clientlibs/example/clientlibs/site.css">
+</head><body>
+<header><div class="kicker">Fixture · AEM / destination evidence</div><h1 data-cmp-is="title">Holiday offers</h1></header>
+<main class="aem-Grid">
+<section data-cmp-is="teaser" data-cmp-data-layer='{"teaser":{"@type":"example/components/teaser"}}'>
+  <h2>Redirect convergence</h2>
+  <a id="redirect-link" href="/verify/legacy-offer">View offer</a>
+</section>
+<section data-cmp-is="teaser">
+  <h2>HTTP canonical convergence</h2>
+  <a id="header-canonical-link" href="/verify/header-canonical-old.html">View room details</a>
+</section>
+<section data-cmp-is="teaser">
+  <h2>Robots restriction</h2>
+  <a id="robots-link" href="/verify/shared-canonical.html">View searchable details</a>
+</section>
+<section data-cmp-is="teaser">
+  <h2>Access uncertainty</h2>
+  <a id="restricted-link" href="/verify/shared-offer.html">View protected offer</a>
+</section>
+<img src="/content/dam/example/hero.jpg" alt="Example AEM asset">
+</main>
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+  document.querySelector("#redirect-link").href = "/verify/friendly-offer";
+  document.querySelector("#header-canonical-link").href = "/verify/header-canonical-new.html";
+  document.querySelector("#robots-link").href = "/verify/robots-blocked.html";
+  document.querySelector("#restricted-link").href = "/verify/access-restricted.html";
+});
+</script>
+<footer><a href="/">Back to fixtures</a></footer>
+</body></html>

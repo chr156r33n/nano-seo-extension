@@ -106,6 +106,90 @@
         "The scanner is expected to warn because the article legitimately contains injection phrases.",
         "The warning must not remove evidence, block analysis, or force an attack conclusion."
       ]
+    },
+    "dom-reconciliation.html": {
+      "expected_rendered_changes": [
+        {
+          "kind": "link",
+          "case": "Colchester card keeps local identity while href and anchor change",
+          "expected": "reconciled_changed_in_rendered"
+        },
+        {
+          "kind": "link",
+          "case": "Chelmsford card anchor changes while destination stays the same",
+          "expected": "reconciled_changed_in_rendered"
+        }
+      ],
+      "expected_reconciliation": [
+        "Repeated link text/selectors should use card-local heading/text to avoid cross-pairing.",
+        "Colchester evidence must not borrow Chelmsford or Ipswich identity.",
+        "Reconciled pairs should expose confidence and alternative-candidate evidence."
+      ]
+    },
+    "dom-transformations.html": {
+      "expected_rendered_changes": [
+        {
+          "kind": "heading",
+          "case": "£99 changes to £129",
+          "expected": "factual_token_change"
+        },
+        {
+          "kind": "content_block",
+          "case": "price and date both change",
+          "expected": "factual_token_change"
+        },
+        {
+          "kind": "link",
+          "case": "query values and anchor price change",
+          "expected": "url_and_text_transformation"
+        },
+        {
+          "kind": "heading",
+          "case": "same heading text H3 becomes H2",
+          "expected": "level_change_only"
+        }
+      ],
+      "expected_transformation_signals": [
+        "currency/number delta £99 -> £129",
+        "date-like delta 2026-09-01 -> 2026-10-01",
+        "query_changed = true",
+        "heading level_changed = true with retained text"
+      ]
+    },
+    "dom-aem-destination-context.html": {
+      "expected_cms_context": {
+        "primary": "aem",
+        "confidence": "high",
+        "signals": [
+          "generator",
+          "core_component_attributes",
+          "clientlibs",
+          "aem_grid",
+          "content_dam"
+        ]
+      },
+      "expected_destination_cases": [
+        {
+          "case": "legacy and friendly URLs redirect to the same final URL",
+          "expected": "same_final_url_true"
+        },
+        {
+          "case": "old and new URLs expose the same HTTP Link canonical",
+          "expected": "declared_canonical_overlap_true"
+        },
+        {
+          "case": "rendered destination is blocked in robots.txt",
+          "expected": "rendered_googlebot_and_bingbot_disallowed"
+        },
+        {
+          "case": "rendered destination returns 403",
+          "expected": "partial_or_unavailable_evidence_with_access_uncertainty"
+        }
+      ],
+      "notes": [
+        "CMS context is evidence only and must not be treated as proof of URL equivalence.",
+        "403/access-restricted evidence must not be silently converted into a negative or positive equivalence judgement."
+      ]
     }
   }
 }

@@ -1,0 +1,38 @@
+<!doctype html><html lang="en-GB"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>DOM transformation fingerprint fixture</title>
+<meta name="description" content="Controlled text, factual and URL transformations.">
+<link rel="canonical" href="http://localhost:8765/fixtures/dom-transformations.html">
+<link rel="stylesheet" href="/styles.css">
+</head><body>
+<header><div class="kicker">Fixture · transformations</div><h1>Drain survey packages</h1></header>
+<main>
+<section id="price-card">
+  <h2 id="price-heading">Camera drain survey from £99</h2>
+  <p id="price-copy">Our standard survey costs £99 and includes a written report dated 2026-09-01.</p>
+  <a id="package-link" href="/services/drain-survey?package=standard&utm_source=legacy">Book the £99 survey</a>
+</section>
+<section id="level-card">
+  <h3 id="retained-heading">What the survey includes</h3>
+  <p>The wording stays identical while the heading level changes.</p>
+</section>
+</main>
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+  document.querySelector("#price-heading").textContent = "Camera drain survey from £129";
+  document.querySelector("#price-copy").textContent =
+    "Our standard survey costs £129 and includes a written report dated 2026-10-01.";
+
+  const packageLink = document.querySelector("#package-link");
+  packageLink.href = "/services/drain-survey?package=premium&utm_source=rendered";
+  packageLink.textContent = "Book the £129 survey";
+
+  const oldHeading = document.querySelector("#retained-heading");
+  const replacement = document.createElement("h2");
+  replacement.id = oldHeading.id;
+  replacement.textContent = oldHeading.textContent;
+  oldHeading.replaceWith(replacement);
+});
+</script>
+<footer><a href="/">Back to fixtures</a></footer>
+</body></html>

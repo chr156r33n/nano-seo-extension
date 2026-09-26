@@ -1675,7 +1675,13 @@ function compactDomDiffItemForModel(
               netEffect
           }
         : {};
-    })()
+    })(),
+    ...(item?.destination_verification
+      ? {
+          destination_verification:
+            item.destination_verification
+        }
+      : {})
   };
 }
 
@@ -1859,6 +1865,16 @@ function taskVars(task, payload, settings, provider = null) {
     return {
       semantic_guidance:
         settings.semanticImportanceGuidance,
+      cms_context_json:
+        untrustedEvidence(
+          "cms_context",
+          payload.cmsContext ||
+          {
+            primary: null,
+            candidates: [],
+            ambiguous: false
+          }
+        ),
       expected_ids_json:
         JSON.stringify(
           items.map(
@@ -5802,6 +5818,8 @@ function parseHtmlIndexabilitySignals(html, baseUrl) {
   const metaRefreshValues = [];
   const source = String(html || "").slice(0, 1000000);
   const tags = source.match(/<(?:meta|link)\b[^>]*>/gi) || [];
+  const headCanonicals = [];
+  const headCanonicalRawHrefs = [];
 
   for (const tag of tags) {
     const attrs = parseTagAttributes(tag);
@@ -5829,7 +5847,33 @@ function parseHtmlIndexabilitySignals(html, baseUrl) {
     if (name === "refresh" && content) metaRefreshValues.push(content);
   }
 
-  return {canonicals, canonicalRawHrefs, robotsMetaValues, googlebotMetaValues, metaRefreshValues};
+  const headMatch = source.match(/<head\b[^>]*>([\s\S]*?)(?:<\/head\s*>|<body\b)/i);
+  const headLinkTags = (headMatch?.[1] || "").match(/<link\b[^>]*>/gi) || [];
+
+  for (const tag of headLinkTags) {
+    const attrs = parseTagAttributes(tag);
+    const rel = String(attrs.rel || "").toLowerCase().split(/\s+/);
+    if (!rel.includes("canonical")) continue;
+    const raw = String(attrs.href || "").trim();
+    headCanonicalRawHrefs.push(raw);
+    if (!raw) continue;
+    try {
+      headCanonicals.push(new URL(raw, baseUrl).href);
+    } catch {
+      headCanonicals.push(raw);
+    }
+  }
+
+  return {
+    canonicals,
+    canonicalRawHrefs,
+    headCanonicals,
+    headCanonicalRawHrefs,
+    headDetected: Boolean(headMatch),
+    robotsMetaValues,
+    googlebotMetaValues,
+    metaRefreshValues
+  };
 }
 
 
@@ -7398,6 +7442,363 @@ async function checkIndexabilitySignals(payload) {
   return output;
 }
 
+
+function domDestinationFetchState(resource) {
+  if (resource?.error) {
+    return {
+      state: "request_error",
+      error: String(resource.error),
+      possible_waf_or_access_interference: false
+    };
+  }
+
+  const status = Number(resource?.status);
+
+  if (!Number.isFinite(status)) {
+    return {
+      state: "unknown",
+      error: null,
+      possible_waf_or_access_interference: false
+    };
+  }
+
+  if (status === 429) {
+    return {
+      state: "rate_limited",
+      error: null,
+      possible_waf_or_access_interference: true
+    };
+  }
+
+  if (status === 401 || status === 403) {
+    return {
+      state: "access_restricted",
+      error: null,
+      possible_waf_or_access_interference: true
+    };
+  }
+
+  if (status >= 500) {
+    return {
+      state: "server_error",
+      error: null,
+      possible_waf_or_access_interference: status === 503
+    };
+  }
+
+  if (status >= 400) {
+    return {
+      state: "http_error",
+      error: null,
+      possible_waf_or_access_interference: false
+    };
+  }
+
+  return {
+    state: "ok",
+    error: null,
+    possible_waf_or_access_interference: false
+  };
+}
+
+async function verifyDomDiffDestination(url, timeoutMs, robotsCache) {
+  const resource = await fetchIndexabilityResource(url, {
+    parseHtml: true,
+    timeoutMs
+  });
+
+  const fetchState = domDestinationFetchState(resource);
+  const finalUrl = resource.finalUrl || url;
+  const isHtml = /(?:text\/html|application\/xhtml\+xml)/i.test(resource.contentType || "");
+
+  const htmlHeadState =
+    fetchState.state !== "ok"
+      ? "unavailable_due_to_fetch_state"
+      : !isHtml
+        ? "not_html"
+        : resource.html?.headDetected
+          ? "checked"
+          : "head_not_detected";
+
+  let robotsUrl = "";
+  try {
+    robotsUrl = new URL("/robots.txt", finalUrl).href;
+  } catch {}
+
+  let robotsResource = null;
+
+  if (robotsUrl) {
+    if (!robotsCache.has(robotsUrl)) {
+      robotsCache.set(
+        robotsUrl,
+        fetchIndexabilityResource(robotsUrl, {timeoutMs})
+      );
+    }
+    robotsResource = await robotsCache.get(robotsUrl);
+  }
+
+  const robotsFetchState = robotsResource
+    ? domDestinationFetchState(robotsResource)
+    : {
+        state: "not_checked",
+        error: null,
+        possible_waf_or_access_interference: false
+      };
+
+  const robotsUsable =
+    robotsResource?.ok === true &&
+    robotsFetchState.state === "ok";
+
+  const searchBots = robotsUsable
+    ? ["googlebot", "bingbot"].map(userAgent =>
+        evaluateRobotsTxt(robotsResource.text, finalUrl, userAgent)
+      )
+    : [];
+
+  return {
+    requested_url: url,
+    fetch: {
+      state: fetchState.state,
+      status: resource.status,
+      final_url: resource.finalUrl || null,
+      redirected: !!resource.redirected,
+      content_type: resource.contentType || "",
+      error: fetchState.error,
+      possible_waf_or_access_interference:
+        !!fetchState.possible_waf_or_access_interference
+    },
+    canonical: {
+      http_link: resource.headerCanonicals || [],
+      html_head: resource.html?.headCanonicals || [],
+      html_head_state: htmlHeadState
+    },
+    robots_txt: {
+      url: robotsUrl || null,
+      state: robotsFetchState.state,
+      status: robotsResource?.status ?? null,
+      error: robotsFetchState.error,
+      possible_waf_or_access_interference:
+        !!robotsFetchState.possible_waf_or_access_interference,
+      search_bots: searchBots.map(item => ({
+        user_agent: item.userAgent,
+        allowed: item.allowed,
+        matched_user_agent: item.matchedUserAgentToken,
+        matched_rule: item.matchedRule
+      })),
+      blocked_search_bots: searchBots
+        .filter(item => item.allowed === false)
+        .map(item => item.userAgent)
+    }
+  };
+}
+
+function domDestinationCanonicalSet(verification) {
+  return [
+    ...(verification?.canonical?.http_link || []),
+    ...(verification?.canonical?.html_head || [])
+  ].filter(Boolean);
+}
+
+function domDestinationEvidenceState(sides) {
+  const values = sides.filter(Boolean);
+  if (!values.length) return "not_checked";
+
+  const pageStates = values.map(value => value.fetch?.state || "unknown");
+  const robotsStates = values.map(value => value.robots_txt?.state || "not_checked");
+  const successfulPages = pageStates.filter(state => state === "ok").length;
+
+  if (!successfulPages) return "unavailable";
+
+  if (
+    successfulPages !== values.length ||
+    robotsStates.some(state => state !== "ok")
+  ) {
+    return "partial";
+  }
+
+  return "complete";
+}
+
+async function enrichDomDiffLinkDestinations(result, settings) {
+  const linkItems = (result?.items || []).filter(item => item.kind === "link");
+
+  if (!linkItems.length) {
+    if (result) {
+      result.destinationVerification = {
+        checkedAt: new Date().toISOString(),
+        state: "not_applicable",
+        uniqueDestinations: 0,
+        checkedDestinations: 0,
+        skippedByLimit: 0
+      };
+    }
+    return result;
+  }
+
+  const uniqueUrls = [
+    ...new Set(
+      linkItems
+        .flatMap(item => [
+          item.raw && typeof item.raw === "object" ? item.raw.href : "",
+          item.rendered && typeof item.rendered === "object" ? item.rendered.href : ""
+        ])
+        .map(value => String(value || ""))
+        .filter(value => /^https?:\/\//i.test(value))
+    )
+  ];
+
+  const maxChecks = Math.max(
+    1,
+    settings?.limits?.maxLinkResponseChecks || 100
+  );
+  const timeoutMs = Math.max(
+    1000,
+    settings?.limits?.linkResponseTimeoutMs || 12000
+  );
+  const concurrency = Math.max(
+    1,
+    Math.min(8, settings?.limits?.linkResponseConcurrency || 6)
+  );
+
+  const checkUrls = uniqueUrls.slice(0, maxChecks);
+  const skippedUrls = uniqueUrls.slice(maxChecks);
+  const byUrl = new Map();
+  const robotsCache = new Map();
+  let cursor = 0;
+
+  const worker = async () => {
+    while (cursor < checkUrls.length) {
+      const index = cursor++;
+      const url = checkUrls[index];
+      byUrl.set(
+        url,
+        await verifyDomDiffDestination(url, timeoutMs, robotsCache)
+      );
+    }
+  };
+
+  await Promise.all(
+    Array.from(
+      {length: Math.min(concurrency, checkUrls.length)},
+      () => worker()
+    )
+  );
+
+  for (const url of skippedUrls) {
+    byUrl.set(url, {
+      requested_url: url,
+      fetch: {
+        state: "not_checked_limit",
+        status: null,
+        final_url: null,
+        redirected: false,
+        content_type: "",
+        error: null,
+        possible_waf_or_access_interference: false
+      },
+      canonical: {
+        http_link: [],
+        html_head: [],
+        html_head_state: "not_checked"
+      },
+      robots_txt: {
+        url: null,
+        state: "not_checked",
+        status: null,
+        error: null,
+        possible_waf_or_access_interference: false,
+        search_bots: [],
+        blocked_search_bots: []
+      }
+    });
+  }
+
+  for (const item of linkItems) {
+    const rawHref =
+      item.raw && typeof item.raw === "object"
+        ? String(item.raw.href || "")
+        : "";
+    const renderedHref =
+      item.rendered && typeof item.rendered === "object"
+        ? String(item.rendered.href || "")
+        : "";
+
+    const rawVerification = rawHref ? byUrl.get(rawHref) || null : null;
+    const renderedVerification = renderedHref ? byUrl.get(renderedHref) || null : null;
+    const sides = [rawVerification, renderedVerification].filter(Boolean);
+    const rawCanonicals = domDestinationCanonicalSet(rawVerification);
+    const renderedCanonicals = domDestinationCanonicalSet(renderedVerification);
+
+    const canonicalOverlap =
+      rawCanonicals.length && renderedCanonicals.length
+        ? rawCanonicals.some(rawCanonical =>
+            renderedCanonicals.some(renderedCanonical =>
+              sameUrl(rawCanonical, renderedCanonical)
+            )
+          )
+        : null;
+
+    const rawFinal = rawVerification?.fetch?.final_url || "";
+    const renderedFinal = renderedVerification?.fetch?.final_url || "";
+    const uncertainties = [];
+
+    for (const [side, verification] of [
+      ["raw", rawVerification],
+      ["rendered", renderedVerification]
+    ]) {
+      if (!verification) continue;
+
+      if (verification.fetch?.state !== "ok") {
+        uncertainties.push(
+          `${side}_destination_fetch_${verification.fetch?.state || "unknown"}`
+        );
+      }
+
+      if (verification.robots_txt?.state !== "ok") {
+        uncertainties.push(
+          `${side}_robots_txt_${verification.robots_txt?.state || "unknown"}`
+        );
+      }
+    }
+
+    item.destination_verification = {
+      evidence_state: domDestinationEvidenceState(sides),
+      raw: rawVerification,
+      rendered: renderedVerification,
+      relationship: {
+        same_final_url:
+          rawFinal && renderedFinal
+            ? sameUrl(rawFinal, renderedFinal)
+            : null,
+        declared_canonical_overlap: canonicalOverlap
+      },
+      uncertainties
+    };
+  }
+
+  const states = linkItems.map(
+    item => item.destination_verification?.evidence_state || "not_checked"
+  );
+
+  result.destinationVerification = {
+    checkedAt: new Date().toISOString(),
+    state:
+      states.every(state => state === "complete")
+        ? "complete"
+        : states.some(state => state === "complete" || state === "partial")
+          ? "partial"
+          : "unavailable",
+    uniqueDestinations: uniqueUrls.length,
+    checkedDestinations: checkUrls.length,
+    skippedByLimit: skippedUrls.length,
+    completeItems: states.filter(state => state === "complete").length,
+    partialItems: states.filter(state => state === "partial").length,
+    unavailableItems: states.filter(state => state === "unavailable").length
+  };
+
+  return result;
+}
+
 async function checkOneLinkResponse(
   url,
   timeoutMs
@@ -8438,6 +8839,286 @@ async function buildDomDiff() {
 
         const renderedDoc =
           document;
+
+        const cmsContext =
+          (() => {
+            const evidence = new Map();
+
+            const addSignal = (
+              platform,
+              label,
+              id,
+              weight,
+              matched,
+              source
+            ) => {
+              if (!matched) return;
+
+              if (!evidence.has(platform)) {
+                evidence.set(platform, {
+                  platform,
+                  label,
+                  signals: []
+                });
+              }
+
+              const entry = evidence.get(platform);
+
+              if (entry.signals.some(signal => signal.id === id)) {
+                return;
+              }
+
+              entry.signals.push({
+                id,
+                weight,
+                source
+              });
+            };
+
+            const generatorValues = [
+              ...new Set(
+                [
+                  ...rawDoc.querySelectorAll("meta[name]"),
+                  ...renderedDoc.querySelectorAll("meta[name]")
+                ]
+                  .filter(node =>
+                    String(node.getAttribute("name") || "").toLowerCase() ===
+                    "generator"
+                  )
+                  .map(node =>
+                    normaliseText(node.getAttribute("content") || "")
+                  )
+                  .filter(Boolean)
+              )
+            ];
+
+            const generatorText = generatorValues.join(" ");
+
+            const hasSelector = selector => {
+              try {
+                return !!(
+                  rawDoc.querySelector(selector) ||
+                  renderedDoc.querySelector(selector)
+                );
+              } catch {
+                return false;
+              }
+            };
+
+            const rawMatches = regex => regex.test(rawHtml);
+
+            addSignal(
+              "aem",
+              "Adobe Experience Manager",
+              "generator",
+              0.72,
+              /(?:adobe experience manager|\baem\b)/i.test(generatorText),
+              "meta_generator"
+            );
+            addSignal(
+              "aem",
+              "Adobe Experience Manager",
+              "core_component_attributes",
+              0.34,
+              hasSelector("[data-cmp-is],[data-cmp-data-layer]") ||
+                rawMatches(/data-cmp-(?:is|data-layer)\s*=/i),
+              "html_attributes"
+            );
+            addSignal(
+              "aem",
+              "Adobe Experience Manager",
+              "clientlibs",
+              0.34,
+              hasSelector('[src*="/etc.clientlibs/"],[href*="/etc.clientlibs/"]') ||
+                rawMatches(/\/etc\.clientlibs\//i),
+              "resource_urls"
+            );
+            addSignal(
+              "aem",
+              "Adobe Experience Manager",
+              "aem_grid",
+              0.2,
+              hasSelector(".aem-Grid") ||
+                rawMatches(/\baem-Grid\b/),
+              "html_classes"
+            );
+            addSignal(
+              "aem",
+              "Adobe Experience Manager",
+              "content_dam",
+              0.14,
+              rawMatches(/\/content\/dam\//i),
+              "resource_urls"
+            );
+
+            addSignal(
+              "wordpress",
+              "WordPress",
+              "generator",
+              0.72,
+              /\bwordpress\b/i.test(generatorText),
+              "meta_generator"
+            );
+            addSignal(
+              "wordpress",
+              "WordPress",
+              "wp_content",
+              0.34,
+              rawMatches(/\/wp-content\//i),
+              "resource_urls"
+            );
+            addSignal(
+              "wordpress",
+              "WordPress",
+              "wp_includes",
+              0.24,
+              rawMatches(/\/wp-includes\//i),
+              "resource_urls"
+            );
+
+            addSignal(
+              "drupal",
+              "Drupal",
+              "generator",
+              0.72,
+              /\bdrupal\b/i.test(generatorText),
+              "meta_generator"
+            );
+            addSignal(
+              "drupal",
+              "Drupal",
+              "drupal_runtime",
+              0.34,
+              rawMatches(/(?:drupalSettings|data-drupal-selector\s*=)/i),
+              "html_runtime"
+            );
+            addSignal(
+              "drupal",
+              "Drupal",
+              "sites_files",
+              0.2,
+              rawMatches(/\/sites\/(?:default|all)\/files\//i),
+              "resource_urls"
+            );
+
+            addSignal(
+              "shopify",
+              "Shopify",
+              "generator",
+              0.72,
+              /\bshopify\b/i.test(generatorText),
+              "meta_generator"
+            );
+            addSignal(
+              "shopify",
+              "Shopify",
+              "cdn_shop",
+              0.32,
+              rawMatches(/(?:cdn\.shopify\.com|\/cdn\/shop\/)/i),
+              "resource_urls"
+            );
+            addSignal(
+              "shopify",
+              "Shopify",
+              "shopify_sections",
+              0.28,
+              hasSelector('[id^="shopify-section-"],.shopify-section') ||
+                rawMatches(/shopify-section-/i),
+              "html_structure"
+            );
+            addSignal(
+              "shopify",
+              "Shopify",
+              "shopify_runtime",
+              0.28,
+              rawMatches(/(?:window\.)?Shopify\s*(?:=|\.|\[)/i),
+              "html_runtime"
+            );
+
+            addSignal(
+              "magento",
+              "Magento",
+              "generator",
+              0.72,
+              /\bmagento\b/i.test(generatorText),
+              "meta_generator"
+            );
+            addSignal(
+              "magento",
+              "Magento",
+              "static_frontend",
+              0.32,
+              rawMatches(/\/static\/version[^/]+\/frontend\//i),
+              "resource_urls"
+            );
+            addSignal(
+              "magento",
+              "Magento",
+              "mage_runtime",
+              0.3,
+              rawMatches(/(?:data-mage-init|Magento_[A-Za-z]+\/js|\bmage\/)/i),
+              "html_runtime"
+            );
+
+            const candidates = [...evidence.values()]
+              .map(entry => {
+                const confidence = Math.min(
+                  0.99,
+                  entry.signals.reduce(
+                    (total, signal) => total + Number(signal.weight || 0),
+                    0
+                  )
+                );
+
+                return {
+                  platform: entry.platform,
+                  label: entry.label,
+                  confidence: Number(confidence.toFixed(2)),
+                  confidence_label:
+                    confidence >= 0.75
+                      ? "high"
+                      : confidence >= 0.45
+                        ? "medium"
+                        : "low",
+                  signals: entry.signals.map(signal => ({
+                    id: signal.id,
+                    source: signal.source
+                  }))
+                };
+              })
+              .sort((a, b) => b.confidence - a.confidence);
+
+            const strongest = candidates[0] || null;
+            const runnerUp = candidates[1] || null;
+
+            const strongestHasEnoughEvidence =
+              !!strongest &&
+              strongest.confidence >= 0.45 &&
+              (
+                strongest.signals.length >= 2 ||
+                strongest.signals.some(signal => signal.id === "generator")
+              );
+
+            const primary = strongestHasEnoughEvidence
+              ? strongest
+              : null;
+
+            return {
+              primary,
+              candidates: candidates.slice(0, 3),
+              ambiguous:
+                !!(
+                  primary &&
+                  runnerUp &&
+                  runnerUp.confidence >= 0.45 &&
+                  (primary.confidence - runnerUp.confidence) < 0.15
+                ),
+              generator_values: generatorValues.slice(0, 4),
+              caveat:
+                "Heuristic CMS fingerprints provide context only. They do not prove that two URLs, components or render states are equivalent."
+            };
+          })();
+
 
         const absUrl = (
           value,
@@ -11684,6 +12365,8 @@ async function buildDomDiff() {
           caveat:
             "The server HTML is a same-origin refetch made after page load, not a guaranteed copy of the original navigation response.",
 
+          cmsContext,
+
           capturedAt:
             new Date()
               .toISOString(),
@@ -11761,6 +12444,22 @@ async function buildDomDiff() {
 
   const [{result}] =
     execution;
+
+  if (result) {
+    try {
+      await enrichDomDiffLinkDestinations(result, settings);
+    } catch (error) {
+      result.destinationVerification = {
+        checkedAt: new Date().toISOString(),
+        state: "error",
+        error: String(
+          error?.message ||
+          error ||
+          "Destination verification failed"
+        )
+      };
+    }
+  }
 
   const {
     lastSnapshotFingerprint,

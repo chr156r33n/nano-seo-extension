@@ -1,0 +1,37 @@
+<!doctype html><html lang="en-GB"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>DOM reconciliation fixture</title>
+<meta name="description" content="Repeated cards and local context for DOM reconciliation testing.">
+<link rel="canonical" href="http://localhost:8765/fixtures/dom-reconciliation.html">
+<link rel="stylesheet" href="/styles.css">
+</head><body>
+<header><div class="kicker">Fixture · reconciliation</div><h1>City service cards</h1></header>
+<main>
+<section class="service-card" id="chelmsford-card">
+  <h2>Chelmsford drainage</h2>
+  <p>Emergency drain clearance and camera surveys in Chelmsford.</p>
+  <a class="service-link" href="/locations/chelmsford">View local services</a>
+</section>
+<section class="service-card" id="colchester-card">
+  <h2>Colchester drainage</h2>
+  <p>Emergency drain clearance and camera surveys in Colchester.</p>
+  <a class="service-link" href="/locations/colchester">View local services</a>
+</section>
+<section class="service-card" id="ipswich-card">
+  <h2>Ipswich drainage</h2>
+  <p>Emergency drain clearance and camera surveys in Ipswich.</p>
+  <a class="service-link" href="/locations/ipswich">View local services</a>
+</section>
+</main>
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+  const colchester = document.querySelector("#colchester-card .service-link");
+  colchester.href = "/areas/essex/colchester";
+  colchester.textContent = "Explore Colchester services";
+
+  const chelmsford = document.querySelector("#chelmsford-card .service-link");
+  chelmsford.textContent = "Explore Chelmsford services";
+});
+</script>
+<footer><a href="/">Back to fixtures</a></footer>
+</body></html>

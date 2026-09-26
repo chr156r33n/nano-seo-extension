@@ -223,12 +223,18 @@ GLOBAL SEMANTIC IMPORTANCE GUIDANCE:
       system: "You assess semantically meaningful differences between a same-origin server HTML refetch and the current rendered DOM. Judge the significance of the specific element identified in each diff item. Do not treat all headings or elements as equally important.",
       user: `Assess each server-HTML vs rendered-DOM difference.
 
-Use the deterministic reconciliation and transformation metadata before judging impact.
+Use the deterministic reconciliation, transformation, destination-verification and CMS context before judging impact.
 
 For reconciled items:
 - reconciliation describes how confidently the server/rendered records appear to be the same logical element
 - transformation describes what objectively changed
 - net_effect summarises inventory-level consequences such as destination/topic uniqueness
+
+CMS context:
+- CMS detection is heuristic context built from multiple page signals and includes a confidence level
+- use it to understand whether a transformation pattern is plausible for the detected platform
+- never treat CMS detection as proof that two URLs, components or render states are equivalent
+- low-confidence or ambiguous CMS evidence should reduce certainty rather than encourage a platform-specific assumption
 
 Do not treat a changed href, anchor text, heading, or content block as inherently harmful merely because it changed.
 
@@ -236,6 +242,10 @@ For links:
 - use raw.local_context / rendered.local_context to identify the local card, property, product or surrounding content associated with the link
 - use transformation.url to understand same-origin/host/scheme relationships, path retention, query changes and path-prefix changes
 - structural URL similarity is evidence of relationship, not proof that two URLs resolve to the same content
+- use destination_verification when supplied: it records direct fetch evidence for the before/after destinations, including redirect/final URL, HTTP Link canonicals, HTML <head> canonicals and robots.txt checks for Googlebot/Bingbot
+- destination_verification.relationship.same_final_url and declared_canonical_overlap are factual convergence signals, not proof that the page content is equivalent
+- destination_verification.evidence_state may be complete, partial or unavailable
+- request errors, access restrictions, rate limits, possible WAF/access interference, robots.txt fetch failures or not-checked states are uncertainty. Do not silently interpret missing evidence as either safe or broken
 - use transformation.text for anchor-text changes
 - semantic weight describes page importance, not the severity of the implementation difference
 - never name a property, product, place or entity unless that name is explicitly present in the supplied before/after URL, anchor text or local context for that item
@@ -254,6 +264,9 @@ Do not assume rendered-only content or any reconciled change is automatically a 
 
 GLOBAL SEMANTIC IMPORTANCE GUIDANCE:
 {{semantic_guidance}}
+
+CMS CONTEXT:
+{{cms_context_json}}
 
 EXPECTED IDS:
 {{expected_ids_json}}
@@ -980,6 +993,7 @@ function mergeSettings(saved = {}) {
         k ===
           "dom_diff_triage" &&
         [
+          "Assess each server-HTML vs rendered-DOM difference.\n\nUse the deterministic reconciliation and transformation metadata before judging impact.\n\nFor reconciled items:\n- reconciliation describes how confidently the server/rendered records appear to be the same logical element\n- transformation describes what objectively changed\n- net_effect summarises inventory-level consequences such as destination/topic uniqueness\n\nDo not treat a changed href, anchor text, heading, or content block as inherently harmful merely because it changed.\n\nFor links:\n- use raw.local_context / rendered.local_context to identify the local card, property, product or surrounding content associated with the link\n- use transformation.url to understand same-origin/host/scheme relationships, path retention, query changes and path-prefix changes\n- structural URL similarity is evidence of relationship, not proof that two URLs resolve to the same content\n- use transformation.text for anchor-text changes\n- semantic weight describes page importance, not the severity of the implementation difference\n- never name a property, product, place or entity unless that name is explicitly present in the supplied before/after URL, anchor text or local context for that item\n- do not borrow identity/context from another diff item in the same batch\n\nFor headings and content:\n- use transformation.text to distinguish minor wording changes from substantial replacement\n- pay particular attention to deterministic factual-token changes such as numbers, currency, percentages and date-like values\n- heading level changes are observations; judge their consequence in context rather than assuming every level change is harmful\n\nA difference is more likely important when the supplied facts support an effect on indexation controls, primary-topic understanding, meaningful factual/product content, useful link discovery, preferred-URL consistency or structured-data meaning.\n\nA difference is more likely harmless when the change is ordinary UI state, repeated template content, incidental controls, or a small transformation with no clear adverse consequence.\n\nDo not assume rendered-only content or any reconciled change is automatically a problem.\n\nGLOBAL SEMANTIC IMPORTANCE GUIDANCE:\n{{semantic_guidance}}\n\nEXPECTED IDS:\n{{expected_ids_json}}\n\nReturn exactly one result for every expected id above. Do not omit an id and do not return any id that is not listed.\n\nDIFF ITEMS:\n{{diff_json}}",
           "Assess each server-HTML vs rendered-DOM difference.\n\nUse the element metadata (selector, zone, component and semantic weight) to understand what was reviewed.\n\nA difference is more likely important when it changes indexation controls, the primary topic, meaningful main content, factual/product information, important internal link discovery, or structured-data meaning.\n\nA difference is more likely harmless when it is ordinary UI state, cookie/consent content, footer/navigation boilerplate, repeated template content, incidental controls, or minor wording that does not affect page understanding.\n\nDo not assume rendered-only content is automatically a problem.\n\nGLOBAL SEMANTIC IMPORTANCE GUIDANCE:\n{{semantic_guidance}}\n\nReturn exactly one result per supplied id.\n\nDIFF ITEMS:\n{{diff_json}}",
           "Assess each server-HTML vs rendered-DOM difference.\n\nUse the deterministic reconciliation and transformation metadata before judging impact.\n\nFor reconciled items:\n- reconciliation describes how confidently the server/rendered records appear to be the same logical element\n- transformation describes what objectively changed\n- net_effect summarises inventory-level consequences such as destination/topic uniqueness\n\nDo not treat a changed href, anchor text, heading, or content block as inherently harmful merely because it changed.\n\nFor links:\n- use transformation.url to understand same-origin/host/scheme relationships, path retention, query changes and path-prefix changes\n- structural URL similarity is evidence of relationship, not proof that two URLs resolve to the same content\n- use transformation.text for anchor-text changes\n- semantic weight describes page importance, not the severity of the implementation difference\n\nFor headings and content:\n- use transformation.text to distinguish minor wording changes from substantial replacement\n- pay particular attention to deterministic factual-token changes such as numbers, currency, percentages and date-like values\n- heading level changes are observations; judge their consequence in context rather than assuming every level change is harmful\n\nA difference is more likely important when the supplied facts support an effect on indexation controls, primary-topic understanding, meaningful factual/product content, useful link discovery, preferred-URL consistency or structured-data meaning.\n\nA difference is more likely harmless when the change is ordinary UI state, repeated template content, incidental controls, or a small transformation with no clear adverse consequence.\n\nDo not assume rendered-only content or any reconciled change is automatically a problem.\n\nGLOBAL SEMANTIC IMPORTANCE GUIDANCE:\n{{semantic_guidance}}\n\nEXPECTED IDS:\n{{expected_ids_json}}\n\nReturn exactly one result for every expected id above. Do not omit an id and do not return any id that is not listed.\n\nDIFF ITEMS:\n{{diff_json}}"
         ].includes(
