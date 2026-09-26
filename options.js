@@ -297,8 +297,8 @@ function render() {
         <summary>
           <span>
             <span class="section-kicker">Analysis workflow</span>
-            <strong>Run stages and processing limits</strong>
-            <small>Control what Run analysis does and how much work each batch can perform.</small>
+            <strong>Full-page analysis and processing limits</strong>
+            <small>Control what Run analysis does. Processing limits are advanced tuning controls.</small>
           </span>
         </summary>
         <div class="settings-group-body">
@@ -314,8 +314,8 @@ function render() {
               ["linkContext", "Understand link roles"],
               ["pageType", "Page type"],
               ["intent", "Intent"],
-              ["alignment", "Check page type ↔ intent alignment"],
-              ["triageFindings", "Review flagged checks with model context"],
+              ["alignment", "Review page type ↔ intent alignment"],
+              ["triageFindings", "Review findings with model context"],
               ["domDiff", "Compare server HTML with rendered page"],
               ["urlConsistency", "Review URL and page-identity signals"]
             ]
@@ -428,7 +428,7 @@ function render() {
           <span>
             <span class="section-kicker">Site-specific rules</span>
             <strong>Hostname check exclusions</strong>
-            <small>Suppress known or non-actionable findings before model triage.</small>
+            <small>Suppress known or non-actionable findings before model review.</small>
           </span>
         </summary>
         <div class="settings-group-body">
@@ -445,7 +445,7 @@ function render() {
           >${(current.siteCheckExclusions || []).map(profile => [profile.hostname, (profile.checks || []).join(", "), profile.note || ""].join(" | ").replace(/ \| $/, "")).map(esc).join("\n")}</textarea>
 
           <p class="muted small">
-            Exact hostnames and <code>*.example.com</code> wildcards are supported. Excluded checks remain visible for traceability but are not treated as findings, triaged by a model, or added to prioritised actions.
+            Exact hostnames and <code>*.example.com</code> wildcards are supported. Excluded checks remain visible for traceability but are not treated as findings, reviewed by a model, or added to prioritised actions.
           </p>
 
           <details class="control-panel">
