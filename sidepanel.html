@@ -27,22 +27,22 @@
   </header>
 
   <section class="page-context">
-    <div id="pageMeta" class="page-title">No page captured yet.</div>
+    <div id="pageMeta" class="page-title">Page not read yet.</div>
     <div id="runMeta" class="muted small"></div>
 
     <div class="toolbar page-actions">
-      <button id="captureBtn">Read this page</button>
+      <button id="captureBtn">Read page</button>
       <label class="toggle-label">
         <input id="useCache" type="checkbox" checked>
-        <span>Reuse saved model results</span>
+        <span>Reuse identical model results</span>
       </label>
     </div>
   </section>
 
   <section class="global-model-bar">
     <div>
-      <div class="section-kicker">Models</div>
-      <div class="section-copy">Select your model(s) for assistance</div>
+      <div class="section-kicker">Model review</div>
+      <div class="section-copy">Review with</div>
     </div>
     <div id="providers" class="checks model-picker"></div>
   </section>
@@ -60,29 +60,34 @@
       <section class="analyse-all-shell">
         <div class="analyse-all-head">
           <div>
-            <h2>Run selected checks</h2>
-            <div class="section-copy">Run the configured checks and combine the results.</div>
+            <h2>Full-page analysis</h2>
+            <div class="section-copy">Reads the current page, runs the configured checks and combines the results into actions and supporting evidence.</div>
           </div>
           <button id="analyseAllBtn">Run analysis</button>
         </div>
 
-        <div class="batch-controls batch-controls-dark">
-          <label>
-            <span>Links batch</span>
-            <input id="analyseLinkBatchSize" type="number" min="1" max="100" step="1">
-          </label>
-          <label>
-            <span>Finding batch</span>
-            <input id="analyseFindingBatchSize" type="number" min="1" max="100" step="1">
-          </label>
-          <label>
-            <span>DOM batch</span>
-            <input id="analyseDomBatchSize" type="number" min="1" max="100" step="1">
-          </label>
-          <div class="batch-help">
-            Finding batches control affected examples per triage call; DOM batches control render-review items per call.
+        <details class="control-panel advanced-run-settings analyse-all-advanced">
+          <summary>Advanced run settings</summary>
+          <div class="control-panel-body">
+            <div class="batch-controls batch-controls-dark">
+              <label>
+                <span>Links per model call</span>
+                <input id="analyseLinkBatchSize" type="number" min="1" max="100" step="1">
+              </label>
+              <label>
+                <span>Examples per finding review</span>
+                <input id="analyseFindingBatchSize" type="number" min="1" max="100" step="1">
+              </label>
+              <label>
+                <span>DOM differences per model call</span>
+                <input id="analyseDomBatchSize" type="number" min="1" max="100" step="1">
+              </label>
+              <div class="batch-help">
+                These controls only change how much evidence is sent in each model call. The defaults are suitable for normal use.
+              </div>
+            </div>
           </div>
-        </div>
+        </details>
 
         <div id="analyseAllProgressWrap" class="analyse-progress" hidden>
           <div class="progress-track" aria-hidden="true">
@@ -95,23 +100,28 @@
       </section>
 
       <section class="tool-section">
-        <h2>Review flagged checks</h2>
-        <div class="section-copy">Deterministic findings first; use model review where context changes the practical impact.</div>
-        <div class="run-control-row">
-          <label class="batch-inline">
-            <span>Affected items per call</span>
-            <input id="findingBatchSize" type="number" min="1" max="100" step="1">
-          </label>
-        </div>
-        <div class="section-copy batch-guidance">
-          Recommended: Nano ≈ 5 affected elements per finding call. Findings without item-level evidence still run once.
-        </div>
+        <h2>Findings</h2>
+        <div class="section-copy">Facts found by the page checks, with model review where context changes the practical impact.</div>
+        <details class="control-panel advanced-run-settings">
+          <summary>Advanced review settings</summary>
+          <div class="control-panel-body">
+            <div class="run-control-row">
+              <label class="batch-inline">
+                <span>Examples per finding review</span>
+                <input id="findingBatchSize" type="number" min="1" max="100" step="1">
+              </label>
+            </div>
+            <div class="section-copy batch-guidance">
+              Nano works best with smaller groups of examples. Findings without item-level evidence still run once.
+            </div>
+          </div>
+        </details>
         <div id="auditSummary" class="muted small"></div>
         <div id="issues"></div>
       </section>
 
       <section class="tool-section">
-        <h2>What this page got right</h2>
+        <h2>Passed checks</h2>
         <div class="section-copy">Passed deterministic checks from the current page.</div>
         <div id="passedChecks" class="results"></div>
       </section>
@@ -119,11 +129,11 @@
 
     <div id="panel-page-intent" class="main-tab-panel" role="tabpanel" aria-labelledby="tab-page-intent" data-main-panel="page-intent" hidden>
       <section class="tool-section tool-section-first">
-        <h2>Compare page type and intent</h2>
-        <div class="section-copy">Identify page type and user intent, then compare them.</div>
+        <h2>Review page type and intent</h2>
+        <div class="section-copy">Identify page type and user intent, then review how well they align.</div>
 
         <details class="control-panel">
-          <summary>Evidence sent to the model</summary>
+          <summary>Advanced: evidence sent to the reviewer</summary>
           <div class="control-panel-body">
             <label class="radio-option">
               <input type="radio" name="inputMode" value="digest" checked>
@@ -160,7 +170,7 @@
         <div class="row section-actions">
           <button id="pageTypeBtn">Identify page type</button>
           <button id="intentBtn">Identify intent</button>
-          <button id="alignmentBtn" class="secondary">Check alignment</button>
+          <button id="alignmentBtn" class="secondary">Review alignment</button>
         </div>
 
         <div id="intentResults" class="results"></div>
@@ -169,19 +179,26 @@
 
     <div id="panel-links" class="main-tab-panel" role="tabpanel" aria-labelledby="tab-links" data-main-panel="links" hidden>
       <section class="tool-section tool-section-first">
-        <h2>Understand link roles</h2>
+        <h2>Review link roles</h2>
         <div class="section-copy">Classify links by what they do on the page: navigation, editorial, product/category, CTA, utility and more.</div>
         <div class="run-control-row">
-          <button id="classifyLinksBtn">Classify next links</button>
-          <label class="batch-inline">
-            <span>Batch</span>
-            <input id="linkBatchSize" type="number" min="1" max="100" step="1">
-          </label>
+          <button id="classifyLinksBtn">Review next links</button>
           <button id="checkLinkResponsesBtn" class="secondary">Check link responses</button>
         </div>
-        <div class="section-copy batch-guidance">
-          Recommended: Nano ≤ 6 · Gemini/OpenAI ≈ 25 per batch.
-        </div>
+        <details class="control-panel advanced-run-settings">
+          <summary>Advanced review settings</summary>
+          <div class="control-panel-body">
+            <div class="run-control-row">
+              <label class="batch-inline">
+                <span>Links per model call</span>
+                <input id="linkBatchSize" type="number" min="1" max="100" step="1">
+              </label>
+            </div>
+            <div class="section-copy batch-guidance">
+              Nano works best with smaller groups; Gemini and OpenAI can usually review larger groups.
+            </div>
+          </div>
+        </details>
         <div class="section-copy" style="margin-top:8px">
           Link response checking is manual only. It checks every unique HTTP(S) destination on the page in manageable batches, follows redirects to the final response, and may request temporary access to external origins.
         </div>
@@ -200,15 +217,22 @@
 
         <div class="run-control-row">
           <button id="buildDomDiffBtn">Compare server vs rendered</button>
-          <button id="assessDomDiffBtn" class="secondary">Review next exceptions</button>
-          <label class="batch-inline">
-            <span>Batch</span>
-            <input id="domDiffBatchSize" type="number" min="1" max="100" step="1">
-          </label>
+          <button id="assessDomDiffBtn" class="secondary">Review next differences</button>
         </div>
-        <div class="section-copy batch-guidance">
-          Use smaller batches for Nano if summaries become muddled; larger API-model batches are usually fine.
-        </div>
+        <details class="control-panel advanced-run-settings">
+          <summary>Advanced review settings</summary>
+          <div class="control-panel-body">
+            <div class="run-control-row">
+              <label class="batch-inline">
+                <span>DOM differences per model call</span>
+                <input id="domDiffBatchSize" type="number" min="1" max="100" step="1">
+              </label>
+            </div>
+            <div class="section-copy batch-guidance">
+              Use smaller groups for Nano if summaries become muddled; hosted models can usually review larger groups.
+            </div>
+          </div>
+        </details>
 
         <div id="domDiffSummary" class="muted small"></div>
         <div id="domDiffResults" class="results"></div>
