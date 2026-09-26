@@ -3668,6 +3668,28 @@ ${promptDef.system}`;
     !error &&
     result?.parsed
   ) {
+    // Gemini can occasionally return more array items than the supplied
+    // response schema permits. For false-positive triage, evidence_used is
+    // supporting context rather than a one-to-one assessment list, so trim
+    // only this field to the validator's explicit maximum instead of failing
+    // the entire model run. item_assessments remains untouched.
+    if (
+      provider === "gemini" &&
+      task === "false_positive" &&
+      Array.isArray(result.parsed.evidence_used)
+    ) {
+      const evidenceMaxItems =
+        validationSchema?.properties?.evidence_used?.maxItems;
+      if (
+        Number.isInteger(evidenceMaxItems) &&
+        evidenceMaxItems >= 0 &&
+        result.parsed.evidence_used.length > evidenceMaxItems
+      ) {
+        result.parsed.evidence_used =
+          result.parsed.evidence_used.slice(0, evidenceMaxItems);
+      }
+    }
+
     outputValidation =
       validateTaskResult(
         task,
