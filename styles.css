@@ -379,12 +379,26 @@ th {
 }
 
 .analyse-all-advanced > summary {
-  color: rgba(255,255,255,.88);
+  color: #fff;
   font-size: 10px;
 }
 
 .analyse-all-advanced .control-panel-body {
-  border-top-color: rgba(255,255,255,.16);
+  border-top-color: rgba(255,255,255,.24);
+}
+
+.analyse-all-advanced .batch-controls,
+.analyse-all-advanced .batch-help,
+.analyse-all-advanced .batch-guidance,
+.analyse-all-advanced label,
+.analyse-all-advanced span {
+  color: #fff;
+}
+
+.analyse-all-advanced input {
+  border-color: rgba(255,255,255,.62);
+  background: #fff;
+  color: var(--ink);
 }
 
 .advanced-run-settings > summary {
@@ -891,6 +905,49 @@ th {
   font-size: 8px;
   letter-spacing: .04em;
   text-transform: uppercase;
+}
+
+.audit-summary-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(82px, 1fr));
+  gap: 6px;
+  margin: 8px 0 10px;
+}
+
+.audit-summary-card {
+  padding: 8px 9px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--paper);
+}
+
+.audit-summary-card.good {
+  border-color: #bdd7c8;
+  background: var(--good-bg);
+}
+
+.audit-summary-card.warn {
+  border-color: #dfc16a;
+  background: var(--warn-bg);
+}
+
+.audit-summary-value,
+.audit-summary-label {
+  display: block;
+}
+
+.audit-summary-value {
+  font-size: 16px;
+  line-height: 1.1;
+  font-weight: 800;
+  color: var(--ink);
+}
+
+.audit-summary-label {
+  margin-top: 3px;
+  font-size: 9px;
+  line-height: 1.25;
+  color: var(--muted);
 }
 
 .analyse-results-summary {

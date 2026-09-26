@@ -1033,6 +1033,78 @@ const TASK_SCHEMAS = {
 };
 
 function mergeSettings(saved = {}) {
+  // Settings persistence contract:
+  // - bundled defaults fill only values that are missing
+  // - any value already saved by the user is authoritative
+  // - updates must not silently rewrite existing saved configuration
+  // - Restore defaults is the explicit opt-in path to adopt current defaults
+  const mergeSavedOverDefaults = (
+    defaults,
+    savedValue
+  ) => {
+    if (
+      savedValue ===
+      undefined
+    ) {
+      return structuredClone(
+        defaults
+      );
+    }
+
+    if (
+      Array.isArray(
+        savedValue
+      )
+    ) {
+      return structuredClone(
+        savedValue
+      );
+    }
+
+    if (
+      savedValue &&
+      typeof savedValue ===
+        "object"
+    ) {
+      const base =
+        defaults &&
+        typeof defaults ===
+          "object" &&
+        !Array.isArray(
+          defaults
+        )
+          ? structuredClone(
+              defaults
+            )
+          : {};
+
+      for (
+        const [
+          key,
+          value
+        ]
+        of Object.entries(
+          savedValue
+        )
+      ) {
+        base[key] =
+          mergeSavedOverDefaults(
+            defaults?.[key],
+            value
+          );
+      }
+
+      return base;
+    }
+
+    return savedValue;
+  };
+
+  return mergeSavedOverDefaults(
+    DEFAULT_SETTINGS,
+    saved || {}
+  );
+}) {
   const d = structuredClone(DEFAULT_SETTINGS);
 
   if (saved.providers) {

@@ -435,3 +435,15 @@ The progress bar updates after each model call. Analysis results are accumulated
 Jira-ticket generation remains manual and is not included in Analyse All.
 
 Closing the Side Panel while Analyse All is running stops the UI orchestration for that run.
+
+
+## Lightweight UI/config contracts
+
+Two dependency-free Node checks cover regressions that are easy to miss in manual extension testing:
+
+```bash
+node test-site/ui-contrast-contract.mjs
+node test-site/settings-persistence-contract.mjs
+```
+
+The contrast contract checks named foreground/background pairs on high-risk surfaces. The settings contract verifies that saved user configuration remains authoritative across default updates while newly introduced default keys can still be added.
