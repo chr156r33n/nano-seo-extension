@@ -618,10 +618,17 @@ function decorateCopyableOutputs(
     )
     .forEach(
       element => {
+        const isFindingFollowup =
+          element.classList.contains(
+            "finding-followup-row"
+          );
+
         if (
           element
             .querySelector(
-              ":scope > .copy-icon-float"
+              isFindingFollowup
+                ? ".finding-followup-copy > .finding-followup-copy-icon"
+                : ":scope > .copy-icon-float"
             )
         ) {
           return;
@@ -637,7 +644,9 @@ function decorateCopyableOutputs(
           "button";
 
         button.className =
-          "copy-icon copy-icon-float";
+          isFindingFollowup
+            ? "copy-icon finding-followup-copy-icon"
+            : "copy-icon copy-icon-float";
 
         button.title =
           "Copy output";
@@ -673,7 +682,14 @@ function decorateCopyableOutputs(
             );
           };
 
-        element.appendChild(
+        const copyTarget =
+          isFindingFollowup
+            ? element.querySelector(
+                ".finding-followup-copy"
+              ) || element
+            : element;
+
+        copyTarget.appendChild(
           button
         );
       }
