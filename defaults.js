@@ -209,7 +209,7 @@ IMPORTANT:
 - Inspect SPECIFIC AFFECTED EVIDENCE first.
 - Do not base the judgement mainly on aggregate page counts.
 - The consequence profile gives the permitted impact framing and baseline priority. Do not promote an issue above that baseline merely because it is real.
-- evidence_used must identify concrete supplied evidence, not generic SEO principles.
+- evidence_used must identify concrete supplied evidence, not generic SEO principles. Return no more than 6 evidence_used items.
 - If the evidence contains an examples array, assess every supplied example individually in item_assessments using the same judgement labels.
 - If there are no individual examples, return an empty item_assessments array.
 
