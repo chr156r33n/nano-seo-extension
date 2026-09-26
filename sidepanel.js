@@ -878,6 +878,156 @@ function runtimeDomBatchSize() {
   );
 }
 
+
+function runtimeFindingBatchSize() {
+  const input =
+    $("#analyseFindingBatchSize") ||
+    $("#findingBatchSize");
+
+  return clampBatchSize(
+    input?.value,
+    settings?.limits
+      ?.findingBatchSize ||
+      5
+  );
+}
+
+function findingEvidenceItems(issue) {
+  const value =
+    issue?.deterministicValue;
+
+  if (
+    value &&
+    typeof value ===
+      "object" &&
+    !Array.isArray(value) &&
+    Array.isArray(
+      value.examples
+    )
+  ) {
+    return {
+      kind:
+        "examples_object",
+      items:
+        value.examples
+    };
+  }
+
+  if (
+    Array.isArray(value)
+  ) {
+    return {
+      kind:
+        "array",
+      items:
+        value
+    };
+  }
+
+  return {
+    kind:
+      "single",
+    items:
+      []
+  };
+}
+
+function findingReviewBatches(
+  issue,
+  batchSize =
+    runtimeFindingBatchSize()
+) {
+  const source =
+    findingEvidenceItems(
+      issue
+    );
+
+  if (
+    source.kind ===
+      "single" ||
+    !source.items.length
+  ) {
+    return [
+      {
+        issue,
+        batch:
+          1,
+        batchCount:
+          1,
+        itemStart:
+          null,
+        itemEnd:
+          null,
+        itemCount:
+          0,
+        totalItems:
+          0
+      }
+    ];
+  }
+
+  const batches = [];
+
+  for (
+    let start = 0;
+    start <
+      source.items.length;
+    start +=
+      batchSize
+  ) {
+    const items =
+      source.items.slice(
+        start,
+        start +
+          batchSize
+      );
+
+    const deterministicValue =
+      source.kind ===
+        "examples_object"
+        ? {
+            ...issue
+              .deterministicValue,
+            examples:
+              items,
+            examples_sent:
+              items.length,
+            examples_total:
+              issue
+                .deterministicValue
+                ?.count ??
+              source.items.length
+          }
+        : items;
+
+    batches.push({
+      issue: {
+        ...issue,
+        deterministicValue
+      },
+      batch:
+        batches.length +
+        1,
+      batchCount:
+        Math.ceil(
+          source.items.length /
+          batchSize
+        ),
+      itemStart:
+        start + 1,
+      itemEnd:
+        start +
+        items.length,
+      itemCount:
+        items.length,
+      totalItems:
+        source.items.length
+    });
+  }
+
+  return batches;
+}
+
 function initialiseBatchControls() {
   const linkDefault =
     clampBatchSize(
@@ -891,6 +1041,13 @@ function initialiseBatchControls() {
       settings?.limits
         ?.domDiffBatchSize,
       6
+    );
+
+  const findingDefault =
+    clampBatchSize(
+      settings?.limits
+        ?.findingBatchSize,
+      5
     );
 
   setBatchInputs(
@@ -907,6 +1064,14 @@ function initialiseBatchControls() {
       "#domDiffBatchSize"
     ],
     domDefault
+  );
+
+  setBatchInputs(
+    [
+      "#analyseFindingBatchSize",
+      "#findingBatchSize"
+    ],
+    findingDefault
   );
 
   const bindGroup =
@@ -959,6 +1124,14 @@ function initialiseBatchControls() {
       "#domDiffBatchSize"
     ],
     domDefault
+  );
+
+  bindGroup(
+    [
+      "#analyseFindingBatchSize",
+      "#findingBatchSize"
+    ],
+    findingDefault
   );
 }
 
@@ -3024,8 +3197,7 @@ function pageContextForIssue(issue) {
         affected:
           snapshot.imageStats?.missingAlt || 0,
         examples:
-          snapshot.imageStats
-            ?.missingAltExamples || []
+          []
       }
     },
 
@@ -3037,8 +3209,7 @@ function pageContextForIssue(issue) {
         affected:
           snapshot.imageStats?.emptyAlt || 0,
         examples:
-          snapshot.imageStats
-            ?.emptyAltExamples || []
+          []
       }
     },
 
@@ -3051,8 +3222,7 @@ function pageContextForIssue(issue) {
           snapshot.imageStats
             ?.missingDimensions || 0,
         examples:
-          snapshot.imageStats
-            ?.missingDimensionExamples || []
+          []
       }
     },
 
@@ -3673,18 +3843,47 @@ function renderIssues() {
             ) ||
           issue;
 
-        await runAcross(
-          "false_positive",
-          {
-            issue:
-              fullIssue,
-            context:
-              pageContextForIssue(
-                fullIssue
-              )
-          },
-          target
-        );
+        const batches =
+          findingReviewBatches(
+            fullIssue
+          );
+
+        for (
+          const batch
+          of batches
+        ) {
+          if (
+            batches.length > 1
+          ) {
+            const label =
+              document.createElement(
+                "div"
+              );
+
+            label.className =
+              "muted small";
+
+            label.textContent =
+              `Batch ${batch.batch}/${batch.batchCount} · affected items ${batch.itemStart}-${batch.itemEnd} of ${batch.totalItems}`;
+
+            target.appendChild(
+              label
+            );
+          }
+
+          await runAcross(
+            "false_positive",
+            {
+              issue:
+                batch.issue,
+              context:
+                pageContextForIssue(
+                  fullIssue
+                )
+            },
+            target
+          );
+        }
       } catch (e) {
         target.innerHTML =
           `<div class="card"><h3>Triage error</h3><pre>${escapeHtml(e?.message || String(e))}</pre></div>`;
@@ -5394,6 +5593,16 @@ async function analyseAll() {
       );
     }
 
+    const findingBatches =
+      cfg.triageFindings
+        ? findings.flatMap(
+            issue =>
+              findingReviewBatches(
+                issue
+              )
+          )
+        : [];
+
     const diffItems =
       cfg.domDiff
         ? (
@@ -5450,7 +5659,7 @@ async function analyseAll() {
       ) +
       (
         cfg.triageFindings
-          ? findings.length
+          ? findingBatches.length
           : 0
       ) +
       (
@@ -5936,8 +6145,8 @@ async function analyseAll() {
 
     if (cfg.triageFindings) {
       for (
-        const issue
-        of findings
+        const batch
+        of findingBatches
       ) {
         for (
           const provider
@@ -5948,10 +6157,11 @@ async function analyseAll() {
               "false_positive",
               provider,
               {
-                issue,
+                issue:
+                  batch.issue,
                 context:
                   pageContextForIssue(
-                    issue
+                    batch.issue
                   )
               }
             );
@@ -5959,10 +6169,20 @@ async function analyseAll() {
           report.falsePositives.push({
             issue: {
               code:
-                issue.code,
+                batch.issue.code,
               message:
-                issue.message
+                batch.issue.message
             },
+            batch:
+              batch.batch,
+            batchCount:
+              batch.batchCount,
+            itemStart:
+              batch.itemStart,
+            itemEnd:
+              batch.itemEnd,
+            totalItems:
+              batch.totalItems,
             provider,
             result:
               call.ok
@@ -5981,7 +6201,9 @@ async function analyseAll() {
               stage:
                 "false_positive",
               issue:
-                issue.code,
+                batch.issue.code,
+              batch:
+                batch.batch,
               provider,
               error:
                 call.error
@@ -5989,7 +6211,7 @@ async function analyseAll() {
           }
 
           bump(
-            `Finding · ${issue.code} · ${provider}`
+            `Finding · ${batch.issue.code}${batch.batchCount > 1 ? ` · batch ${batch.batch}/${batch.batchCount}` : ""} · ${provider}`
           );
         }
       }
