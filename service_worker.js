@@ -1059,13 +1059,17 @@ function validateTaskResult(
   }
 
   if (
-    task ===
-    "dom_diff_triage"
+    [
+      "dom_diff_triage",
+      "dom_diff_summary"
+    ].includes(
+      task
+    )
   ) {
     validateExactIds(
       payload?.items,
       output?.results,
-      "dom_diff_triage"
+      task
     );
   }
 
@@ -2455,7 +2459,14 @@ function taskVars(task, payload, settings, provider = null) {
     };
   }
 
-  if (task === "dom_diff_triage") {
+  if (
+    [
+      "dom_diff_triage",
+      "dom_diff_summary"
+    ].includes(
+      task
+    )
+  ) {
     const items =
       payload.items ||
       [];
@@ -3071,7 +3082,8 @@ async function updateAnalysisRun(
   } else if (
     task === "link_group" ||
     task === "false_positive" ||
-    task === "dom_diff_triage"
+    task === "dom_diff_triage" ||
+    task === "dom_diff_summary"
   ) {
     run.tasks[task][provider] ||= [];
     run.tasks[task][provider].push(
@@ -3114,7 +3126,8 @@ function schemaForTaskPayload(
   if (
     [
       "link_group",
-      "dom_diff_triage"
+      "dom_diff_triage",
+      "dom_diff_summary"
     ].includes(
       task
     )

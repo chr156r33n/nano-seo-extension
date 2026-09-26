@@ -10,6 +10,7 @@ const taskResults = {
   link_group: {},
   false_positive: {},
   dom_diff_triage: {},
+  dom_diff_summary: {},
   url_consistency: {},
   jira_ticket: {}
 };
@@ -1884,6 +1885,7 @@ function buildActionRows(report) {
       []
     ) {
       if (
+        !result.judgement ||
         result.judgement ===
         "probably_harmless"
       ) {
@@ -1917,10 +1919,10 @@ function buildActionRows(report) {
     const [id, results]
     of domById
   ) {
-    const impacts =
+    const changeAreas =
       results.map(
         result =>
-          result.impact
+          result.change_area
       );
 
     const important =
@@ -1931,15 +1933,14 @@ function buildActionRows(report) {
       );
 
     const highImpact =
-      impacts.some(
-        impact =>
+      changeAreas.some(
+        area =>
           [
             "indexing_control",
-            "link_discovery",
             "structured_data",
             "content_retrieval"
           ].includes(
-            impact
+            area
           )
       );
 
@@ -1963,7 +1964,7 @@ function buildActionRows(report) {
         results
           .map(
             result =>
-              `${result.provider}: ${humanLabel(result.judgement)} · ${humanLabel(result.impact)}`
+              `${result.provider}: ${humanLabel(result.judgement)} · ${humanLabel(result.change_area)}`
           )
           .join(" · "),
       state:
@@ -3999,24 +4000,37 @@ function domJudgementSummaryHtml(judgements = []) {
     return '<span class="muted small">Not reviewed by a model</span>';
   }
 
-  const primary =
-    judgements[0];
+  return judgements
+    .map(
+      result => {
+        if (
+          result.summary &&
+          !result.judgement
+        ) {
+          const facts =
+            result.key_facts
+              ?.length
+              ? `<div class="muted small">${escapeHtml(result.key_facts.join(" · "))}</div>`
+              : "";
 
-  return [
-    badgeHtml(
-      primary.judgement
-    ),
-    badgeHtml(
-      primary.impact,
-      "neutral"
-    ),
-    confidenceHtml(
-      primary.confidence
-    ),
-    judgements.length > 1
-      ? `<span class="muted small">+${judgements.length - 1} more model result${judgements.length === 2 ? "" : "s"}</span>`
-      : ""
-  ].join("");
+          return (
+            '<div class="model-dom-summary">' +
+            '<div class="result-primary"><span class="badge neutral">Nano summary</span></div>' +
+            `<div class="small">${escapeHtml(result.summary)}</div>` +
+            facts +
+            '</div>'
+          );
+        }
+
+        return (
+          '<div class="model-dom-judgement">' +
+          `<div class="result-primary">${badgeHtml(result.judgement)}${badgeHtml(result.change_area, "neutral")}${confidenceHtml(result.confidence)}</div>` +
+          `<div class="small">${escapeHtml(result.rationale || "")}</div>` +
+          '</div>'
+        );
+      }
+    )
+    .join("");
 }
 
 function domDiffJoinedAccordion(
@@ -4038,10 +4052,6 @@ function domDiffJoinedAccordion(
     item.raw?.href ||
     "";
 
-  const primary =
-    judgements[0] ||
-    null;
-
   row.innerHTML = `
     <td><code>#${escapeHtml(item.id)}</code></td>
     <td>${escapeHtml(humanLabel(item.kind))}</td>
@@ -4056,11 +4066,9 @@ function domDiffJoinedAccordion(
       </details>
     </td>
     <td>
-      ${primary
-        ? `<div class="result-primary">${badgeHtml(primary.judgement)}${badgeHtml(primary.impact, "neutral")}${confidenceHtml(primary.confidence)}</div>
-           <div class="small">${escapeHtml(primary.rationale || "")}</div>
-           ${judgements.length > 1 ? `<div class="muted small">+${judgements.length - 1} more model result${judgements.length === 2 ? "" : "s"}</div>` : ""}`
-        : '<span class="muted small">Not reviewed</span>'}
+      ${domJudgementSummaryHtml(
+        judgements
+      )}
     </td>
   `;
 
@@ -4084,7 +4092,6 @@ function domDiffJoinedAccordion(
 
   return row;
 }
-
 function domDiffTable(
   items,
   judgementMap =
@@ -4729,7 +4736,12 @@ function renderAnalyseAllResults(report) {
 
   const domIssues = (report.domDiff?.items || []).filter(item => {
     const judgements = domJudgements.get(item.id) || [];
-    return judgements.some(j => j.judgement !== "probably_harmless");
+    return judgements.some(
+      j =>
+        !!j.judgement &&
+        j.judgement !==
+          "probably_harmless"
+    );
   });
 
   if (domIssues.length) {
@@ -5582,9 +5594,14 @@ async function analyseAll() {
           const provider
           of providers
         ) {
+          const domTask =
+            provider === "nano"
+              ? "dom_diff_summary"
+              : "dom_diff_triage";
+
           const call =
             await runTaskSilent(
-              "dom_diff_triage",
+              domTask,
               provider,
               {
                 items:
@@ -5602,6 +5619,8 @@ async function analyseAll() {
               batch:
                 batchIndex + 1,
               provider,
+              task:
+                domTask,
               itemIds:
                 batch.map(
                   x => x.id
@@ -6523,12 +6542,17 @@ $("#assessDomDiffBtn").onclick =
           `Reviewing DOM differences · ${provider}…`
         );
 
+        const domTask =
+          provider === "nano"
+            ? "dom_diff_summary"
+            : "dom_diff_triage";
+
         const result =
           await sw({
             type:
               "RUN_TASK",
             task:
-              "dom_diff_triage",
+              domTask,
             provider,
             analysisRunId:
               analysisRun.id,
@@ -6544,10 +6568,11 @@ $("#assessDomDiffBtn").onclick =
                 .checked
           });
 
-        taskResults
-          .dom_diff_triage[
-            provider
-          ] = result;
+        taskResults[
+          domTask
+        ][
+          provider
+        ] = result;
 
         for (
           const judgement
