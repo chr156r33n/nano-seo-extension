@@ -66,6 +66,8 @@ const DEFAULT_SETTINGS = {
   limits: {
     bodyChars: 12000,
     linkBatchSize: 8,
+    findingBatchSize: 5,
+    maxFindingReviewItems: 100,
     maxLinksForClassification: 40,
     maxLinkResponseChecks: 100,
     linkResponseConcurrency: 6,
