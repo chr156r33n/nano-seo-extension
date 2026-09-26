@@ -5443,6 +5443,282 @@ async function captureActiveTab() {
           ]
         };
 
+        const iframeDetails =
+          [
+            ...document.querySelectorAll(
+              "iframe"
+            )
+          ].map(
+            (frame, index) => {
+              const rect =
+                frame.getBoundingClientRect();
+
+              const style =
+                getComputedStyle(frame);
+
+              const visible =
+                rect.width > 0 &&
+                rect.height > 0 &&
+                style.display !== "none" &&
+                style.visibility !== "hidden" &&
+                style.opacity !== "0";
+
+              const rawSrc =
+                frame.getAttribute("src") ||
+                "";
+
+              let src =
+                rawSrc;
+
+              let sameOrigin =
+                false;
+
+              try {
+                const resolved =
+                  new URL(
+                    rawSrc ||
+                    location.href,
+                    location.href
+                  );
+
+                src =
+                  resolved.href;
+
+                sameOrigin =
+                  resolved.origin ===
+                  location.origin;
+              } catch {}
+
+              let contentAccessible =
+                false;
+
+              let wordCount =
+                null;
+
+              let headingCount =
+                null;
+
+              let linkCount =
+                null;
+
+              let robotsDirectives =
+                [];
+
+              let googlebotDirectives =
+                [];
+
+              let noindex =
+                false;
+
+              let indexifembedded =
+                false;
+
+              try {
+                const doc =
+                  frame.contentDocument;
+
+                if (
+                  doc &&
+                  doc.documentElement
+                ) {
+                  contentAccessible =
+                    true;
+
+                  const frameText =
+                    (
+                      doc.body
+                        ?.innerText ||
+                      doc.body
+                        ?.textContent ||
+                      ""
+                    )
+                      .replace(
+                        /\s+/g,
+                        " "
+                      )
+                      .trim();
+
+                  wordCount =
+                    frameText
+                      ? frameText
+                          .split(
+                            /\s+/
+                          )
+                          .length
+                      : 0;
+
+                  headingCount =
+                    doc.querySelectorAll(
+                      "h1,h2,h3,h4,h5,h6"
+                    ).length;
+
+                  linkCount =
+                    doc.querySelectorAll(
+                      "a[href]"
+                    ).length;
+
+                  robotsDirectives =
+                    [
+                      ...doc.querySelectorAll(
+                        'meta[name="robots" i]'
+                      )
+                    ]
+                      .map(
+                        el =>
+                          el.content ||
+                          ""
+                      )
+                      .filter(Boolean);
+
+                  googlebotDirectives =
+                    [
+                      ...doc.querySelectorAll(
+                        'meta[name="googlebot" i]'
+                      )
+                    ]
+                      .map(
+                        el =>
+                          el.content ||
+                          ""
+                      )
+                      .filter(Boolean);
+
+                  const combined =
+                    [
+                      ...robotsDirectives,
+                      ...googlebotDirectives
+                    ]
+                      .join(",")
+                      .toLowerCase()
+                      .split(
+                        /[,\s]+/
+                      )
+                      .filter(Boolean);
+
+                  noindex =
+                    combined.includes(
+                      "noindex"
+                    );
+
+                  indexifembedded =
+                    combined.includes(
+                      "indexifembedded"
+                    );
+                }
+              } catch {}
+
+              return {
+                id:
+                  index + 1,
+                src,
+                raw_src:
+                  rawSrc,
+                title:
+                  frame.getAttribute(
+                    "title"
+                  ) || "",
+                visible,
+                same_origin:
+                  sameOrigin,
+                content_accessible:
+                  contentAccessible,
+                word_count:
+                  wordCount,
+                heading_count:
+                  headingCount,
+                link_count:
+                  linkCount,
+                robots:
+                  robotsDirectives,
+                googlebot:
+                  googlebotDirectives,
+                noindex,
+                indexifembedded,
+                google_index_as_embedded:
+                  noindex &&
+                  indexifembedded,
+                note:
+                  noindex &&
+                  indexifembedded
+                    ? "Google may index this noindex iframe content when embedded in the parent page; this is Google-specific."
+                    : contentAccessible
+                      ? "Iframe content is reported separately from the parent DOM because indexing/attribution can differ."
+                      : "Iframe content could not be inspected from the parent document; indexing/attribution may differ."
+              };
+            }
+          );
+
+        const visibleIframes =
+          iframeDetails.filter(
+            frame =>
+              frame.visible
+          );
+
+        const accessibleVisibleIframes =
+          visibleIframes.filter(
+            frame =>
+              frame.content_accessible
+          );
+
+        const inaccessibleVisibleIframes =
+          visibleIframes.filter(
+            frame =>
+              !frame.content_accessible
+          );
+
+        const iframeStats = {
+          total:
+            iframeDetails.length,
+          visible:
+            visibleIframes.length,
+          accessible_visible:
+            accessibleVisibleIframes.length,
+          inaccessible_visible:
+            inaccessibleVisibleIframes.length,
+          words:
+            accessibleVisibleIframes
+              .reduce(
+                (sum, frame) =>
+                  sum +
+                  (
+                    frame.word_count ||
+                    0
+                  ),
+                0
+              ),
+          headings:
+            accessibleVisibleIframes
+              .reduce(
+                (sum, frame) =>
+                  sum +
+                  (
+                    frame.heading_count ||
+                    0
+                  ),
+                0
+              ),
+          links:
+            accessibleVisibleIframes
+              .reduce(
+                (sum, frame) =>
+                  sum +
+                  (
+                    frame.link_count ||
+                    0
+                  ),
+                0
+              ),
+          google_indexifembedded:
+            accessibleVisibleIframes
+              .filter(
+                frame =>
+                  frame.google_index_as_embedded
+              )
+              .length,
+          frames:
+            iframeDetails
+        };
+
         const imgs =
           [...document.images];
 
@@ -6769,6 +7045,30 @@ async function captureActiveTab() {
           metaDescriptionCount
         );
 
+        addCheck(
+          "iframe_embedded_content",
+          iframeStats.visible > 0
+            ? "finding"
+            : "pass",
+          iframeStats.visible > 0
+            ? [
+                `${iframeStats.visible} visible iframe(s) detected`,
+                iframeStats.accessible_visible
+                  ? `${iframeStats.words} words, ${iframeStats.headings} headings and ${iframeStats.links} links were readable inside ${iframeStats.accessible_visible} iframe(s)`
+                  : "",
+                iframeStats.inaccessible_visible
+                  ? `${iframeStats.inaccessible_visible} visible iframe(s) could not be inspected from the parent document`
+                  : "",
+                iframeStats.google_indexifembedded
+                  ? `${iframeStats.google_indexifembedded} iframe(s) use noindex + indexifembedded, which Google may index as embedded parent-page content`
+                  : ""
+              ]
+                .filter(Boolean)
+                .join(". ")
+            : "No visible iframe content detected",
+          iframeStats
+        );
+
         const findings =
           auditChecks
             .filter(
@@ -6849,6 +7149,8 @@ async function captureActiveTab() {
           socialMeta,
 
           imageStats,
+
+          iframeStats,
 
           imageCount:
             imgs.length,
