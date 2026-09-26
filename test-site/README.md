@@ -66,10 +66,13 @@ This fixture is especially useful for testing the deterministic net-effect logic
 Repeated location cards deliberately create pairing ambiguity:
 - two links share the same anchor pattern and component structure
 - one destination + anchor changes, another only changes anchor text
+- the server-side Colchester URL intentionally returns 404
+- the rendered Colchester replacement intentionally returns 200
+- the Chelmsford and Ipswich destinations return 200 so they do not add accidental broken-link noise
 - local card headings/text should keep Chelmsford, Colchester and Ipswich identities separate
 - reconciliation output should expose confidence and near-competitor evidence instead of pretending every pair is obvious
 
-This exercises the recent local-identity and deterministic reconciliation work.
+This exercises the recent local-identity and deterministic reconciliation work while also checking that replacing a broken source destination can legitimately reduce the assessed impact.
 
 ### dom-transformations.html
 Controlled transformations exercise the neutral fingerprints:
