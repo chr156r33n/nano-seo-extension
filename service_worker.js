@@ -1631,47 +1631,621 @@ function compactNetEffectForModel(
   };
 }
 
+function compactDomEvidenceValueForModel(
+  value
+) {
+  if (
+    !value ||
+    typeof value !== "object"
+  ) {
+    return value || "";
+  }
+
+  return {
+    ...(value.text
+      ? {
+          text:
+            String(
+              value.text
+            ).slice(
+              0,
+              320
+            )
+        }
+      : {}),
+    ...(value.href
+      ? {
+          href:
+            String(
+              value.href
+            ).slice(
+              0,
+              700
+            )
+        }
+      : {}),
+    ...(value.level
+      ? {
+          level:
+            value.level
+        }
+      : {})
+  };
+}
+
+function compactDomContextForModel(
+  item
+) {
+  const preferred =
+    item?.rendered &&
+    typeof item.rendered ===
+      "object"
+      ? item.rendered
+      : item?.raw &&
+          typeof item.raw ===
+            "object"
+        ? item.raw
+        : {};
+
+  const element =
+    preferred.element ||
+    {};
+
+  const local =
+    preferred.local_context ||
+    {};
+
+  const heading =
+    String(
+      local.heading ||
+      ""
+    ).slice(
+      0,
+      140
+    );
+
+  let nearbyText =
+    String(
+      local.text ||
+      ""
+    );
+
+  for (
+    const remove
+    of [
+      heading,
+      preferred.text
+    ]
+  ) {
+    const text =
+      String(
+        remove ||
+        ""
+      ).trim();
+
+    if (text) {
+      nearbyText =
+        nearbyText.replace(
+          text,
+          " "
+        );
+    }
+  }
+
+  nearbyText =
+    nearbyText
+      .replace(
+        /\s+/g,
+        " "
+      )
+      .trim()
+      .slice(
+        0,
+        180
+      );
+
+  return {
+    zone:
+      element.zone ||
+      "",
+    component:
+      element.component ||
+      "",
+    semantic_weight:
+      Number.isFinite(
+        Number(
+          element.semantic_weight
+        )
+      )
+        ? Number(
+            element.semantic_weight
+          )
+        : null,
+    ...(heading
+      ? {
+          heading
+        }
+      : {}),
+    ...(nearbyText
+      ? {
+          nearby_text:
+            nearbyText
+        }
+      : {})
+  };
+}
+
+function domDestinationHealthForModel(
+  verification
+) {
+  if (!verification) {
+    return "not_present";
+  }
+
+  const state =
+    verification.fetch
+      ?.state ||
+    "unknown";
+
+  const status =
+    Number(
+      verification.fetch
+        ?.status
+    );
+
+  if (
+    state === "ok" &&
+    Number.isFinite(
+      status
+    ) &&
+    status >= 200 &&
+    status < 400
+  ) {
+    return "working";
+  }
+
+  if (
+    state ===
+      "access_restricted" ||
+    state ===
+      "rate_limited"
+  ) {
+    return "restricted_or_rate_limited";
+  }
+
+  if (
+    Number.isFinite(
+      status
+    ) &&
+    status >= 400 &&
+    status < 500
+  ) {
+    return "broken";
+  }
+
+  if (
+    state ===
+      "server_error"
+  ) {
+    return "server_error";
+  }
+
+  return "unknown";
+}
+
+function compactDomDestinationForModel(
+  item
+) {
+  const verification =
+    item
+      ?.destination_verification;
+
+  if (!verification) {
+    return null;
+  }
+
+  const side =
+    value => {
+      if (!value) {
+        return null;
+      }
+
+      const blockedBots =
+        value.robots_txt
+          ?.blocked_search_bots ||
+        [];
+
+      return {
+        health:
+          domDestinationHealthForModel(
+            value
+          ),
+        fetch_state:
+          value.fetch
+            ?.state ||
+          "unknown",
+        status:
+          Number.isFinite(
+            Number(
+              value.fetch
+                ?.status
+            )
+          )
+            ? Number(
+                value.fetch
+                  .status
+              )
+            : null,
+        redirected:
+          !!value.fetch
+            ?.redirected,
+        search_bot_access:
+          value.robots_txt
+              ?.state ===
+            "ok"
+            ? blockedBots.length
+              ? "blocked"
+              : "allowed"
+            : "unknown"
+      };
+    };
+
+  const before =
+    side(
+      verification.raw
+    );
+
+  const after =
+    side(
+      verification.rendered
+    );
+
+  const beforeHealth =
+    before?.health ||
+    "not_present";
+
+  const afterHealth =
+    after?.health ||
+    "not_present";
+
+  return {
+    evidence_state:
+      verification
+        .evidence_state ||
+      "not_checked",
+    transition:
+      `${beforeHealth}_to_${afterHealth}`,
+    before,
+    after,
+    same_final_url:
+      verification
+        .relationship
+        ?.same_final_url ??
+      null,
+    declared_canonical_overlap:
+      verification
+        .relationship
+        ?.declared_canonical_overlap ??
+      null,
+    uncertainties:
+      (
+        verification
+          .uncertainties ||
+        []
+      ).slice(
+        0,
+        4
+      )
+  };
+}
+
+function anchorContextDirectionForModel(
+  item
+) {
+  const signals =
+    item?.net_effect
+      ?.signals ||
+    {};
+
+  if (
+    !signals
+      .anchor_text_changed
+  ) {
+    return "unchanged";
+  }
+
+  const added =
+    signals
+      .local_context_terms_added ||
+    [];
+
+  const removed =
+    signals
+      .local_context_terms_removed ||
+    [];
+
+  if (
+    added.length &&
+    !removed.length
+  ) {
+    return "more_context_specific";
+  }
+
+  if (
+    removed.length &&
+    !added.length
+  ) {
+    return "less_context_specific";
+  }
+
+  if (
+    added.length &&
+    removed.length
+  ) {
+    return "mixed_context_change";
+  }
+
+  return "wording_changed_without_local_context_overlap";
+}
+
+function compileDomConsequenceForModel(
+  item,
+  destination
+) {
+  const signals =
+    item?.net_effect
+      ?.signals ||
+    {};
+
+  const consequence = {
+    established:
+      true,
+    affected_area:
+      "page_understanding",
+    code:
+      "contextual_change",
+    statement:
+      String(
+        item?.net_effect
+          ?.reason ||
+        "A rendered-DOM difference was detected."
+      ).slice(
+        0,
+        320
+      ),
+    model_question:
+      "Judge the contextual significance of this established change without re-deriving or contradicting the compiler facts."
+  };
+
+  if (
+    item?.kind ===
+    "link"
+  ) {
+    const anchorDirection =
+      anchorContextDirectionForModel(
+        item
+      );
+
+    consequence.anchor_context_specificity =
+      anchorDirection;
+
+    if (
+      signals
+        .anchor_only_same_destination
+    ) {
+      consequence.code =
+        "destination_discovery_unchanged";
+      consequence.affected_area =
+        "page_understanding";
+      consequence.statement =
+        anchorDirection ===
+          "more_context_specific"
+          ? "The destination is unchanged and remains discoverable in server HTML. Rendering makes the anchor more context-specific."
+          : anchorDirection ===
+              "less_context_specific"
+            ? "The destination is unchanged and remains discoverable in server HTML. Rendering makes the anchor less context-specific."
+            : "The destination is unchanged and remains discoverable in server HTML. Only the anchor wording changes.";
+      consequence.model_question =
+        "Judge whether the anchor wording change materially affects clarity, relevance or user understanding. It does not change link discovery.";
+      return consequence;
+    }
+
+    const transition =
+      destination
+        ?.transition ||
+      "";
+
+    if (
+      signals
+        .destination_changed &&
+      transition ===
+        "broken_to_working"
+    ) {
+      consequence.code =
+        "working_destination_not_exposed_in_server_html";
+      consequence.affected_area =
+        "link_discovery";
+      consequence.statement =
+        "Server HTML exposes a broken destination. Rendering replaces it with a working destination, so this element does not expose the working link until rendering occurs.";
+      consequence.model_question =
+        "Judge how consequential this rendering dependency is for this page and user journey. The dependency itself is already established.";
+      return consequence;
+    }
+
+    if (
+      signals
+        .destination_changed &&
+      transition ===
+        "working_to_broken"
+    ) {
+      consequence.code =
+        "rendering_replaces_working_destination_with_broken_destination";
+      consequence.affected_area =
+        "link_discovery";
+      consequence.statement =
+        "Server HTML exposes a working destination, but rendering replaces it with a broken destination.";
+      consequence.model_question =
+        "Judge how consequential the rendered breakage is in this page context.";
+      return consequence;
+    }
+
+    if (
+      signals
+        .destination_changed &&
+      transition ===
+        "working_to_working"
+    ) {
+      consequence.code =
+        "working_destination_replaced_after_rendering";
+      consequence.affected_area =
+        "link_discovery";
+      consequence.statement =
+        "Both destinations are reachable, but rendering replaces the server-visible destination with a different working destination.";
+      consequence.model_question =
+        "Judge whether the destination and anchor changes materially alter user intent, page understanding or useful link discovery. Do not infer page scope from URL path labels alone.";
+      return consequence;
+    }
+
+    if (
+      item?.change_type ===
+        "added_in_rendered"
+    ) {
+      consequence.code =
+        destination
+          ?.after
+          ?.health ===
+        "working"
+          ? "working_link_added_only_after_rendering"
+          : "link_added_only_after_rendering";
+      consequence.affected_area =
+        "link_discovery";
+      consequence.statement =
+        "This link is absent from server HTML and appears only after rendering.";
+      consequence.model_question =
+        "Judge the contextual importance of this rendered-only discovery path.";
+      return consequence;
+    }
+
+    if (
+      item?.change_type ===
+        "removed_in_rendered"
+    ) {
+      consequence.code =
+        "server_link_removed_after_rendering";
+      consequence.affected_area =
+        "link_discovery";
+      consequence.statement =
+        "This link exists in server HTML but is removed from the rendered DOM.";
+      consequence.model_question =
+        "Judge whether removal from the rendered experience materially affects users or search interpretation.";
+      return consequence;
+    }
+
+    consequence.affected_area =
+      signals
+        .destination_discovery_changed
+        ? "link_discovery"
+        : "page_understanding";
+
+    return consequence;
+  }
+
+  if (
+    item?.kind ===
+    "heading"
+  ) {
+    if (
+      signals
+        .heading_level_only
+    ) {
+      consequence.code =
+        "heading_structure_only";
+      consequence.affected_area =
+        "page_understanding";
+      consequence.statement =
+        "Heading text is retained and only the heading level changes.";
+      consequence.model_question =
+        "Judge whether the structural level change is consequential in this page context.";
+      return consequence;
+    }
+
+    if (
+      signals
+        .topic_signal_changed
+    ) {
+      consequence.code =
+        "heading_topic_signal_changed";
+      consequence.affected_area =
+        "page_understanding";
+      consequence.statement =
+        "The heading wording changes enough that the deterministic compiler identifies a changed topic signal.";
+      consequence.model_question =
+        "Judge how materially the changed heading affects page understanding or user expectations.";
+      return consequence;
+    }
+  }
+
+  return consequence;
+}
+
 function compactDomDiffItemForModel(
   item
 ) {
+  const destination =
+    compactDomDestinationForModel(
+      item
+    );
+
   const reconciliation =
     item?.reconciliation
       ? {
-          score:
-            item.reconciliation
-              .score,
-          reason:
-            item.reconciliation
-              .reason,
+          same_logical_element:
+            item.change_type ===
+            "changed_in_rendered",
           confidence:
             item.reconciliation
-              .confidence,
+              .confidence ||
+            "unknown",
+          method:
+            item.reconciliation
+              .reason ||
+            "",
+          local_identity_stable:
+            !!(
+              item.reconciliation
+                .same_context_heading &&
+              item.reconciliation
+                .same_context_container
+            ),
           near_competitors:
             item.reconciliation
-              .near_competitors,
-          strongest_alternative_score:
-            item.reconciliation
-              .strongest_alternative_score,
-          same_selector:
-            item.reconciliation
-              .same_selector,
-          same_text:
-            item.reconciliation
-              .same_text,
-          same_destination:
-            item.reconciliation
-              .same_destination,
-          same_context_heading:
-            item.reconciliation
-              .same_context_heading,
-          same_context_container:
-            item.reconciliation
-              .same_context_container,
-          context_similarity:
-            item.reconciliation
-              .context_similarity
+              .near_competitors ||
+            0
         }
-      : null;
+      : {
+          same_logical_element:
+            false
+        };
+
+  const compiler =
+    {
+      identity:
+        reconciliation,
+      transformation:
+        compactTransformationForModel(
+          item
+        ),
+      deterministic_consequence:
+        compileDomConsequenceForModel(
+          item,
+          destination
+        ),
+      ...(destination
+        ? {
+            destination
+          }
+        : {})
+    };
 
   return {
     id:
@@ -1688,50 +2262,19 @@ function compactDomDiffItemForModel(
             item.field
         }
       : {}),
-    raw:
-      compactDomModelValue(
+    before:
+      compactDomEvidenceValueForModel(
         item?.raw
       ),
-    rendered:
-      compactDomModelValue(
+    after:
+      compactDomEvidenceValueForModel(
         item?.rendered
       ),
-    ...(reconciliation
-      ? {
-          reconciliation
-        }
-      : {}),
-    ...(() => {
-      const transformation =
-        compactTransformationForModel(
-          item
-        );
-
-      return transformation
-        ? {
-            transformation
-          }
-        : {};
-    })(),
-    ...(() => {
-      const netEffect =
-        compactNetEffectForModel(
-          item
-        );
-
-      return netEffect
-        ? {
-            net_effect:
-              netEffect
-          }
-        : {};
-    })(),
-    ...(item?.destination_verification
-      ? {
-          destination_verification:
-            item.destination_verification
-        }
-      : {})
+    context:
+      compactDomContextForModel(
+        item
+      ),
+    compiler
   };
 }
 
