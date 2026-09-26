@@ -3574,6 +3574,7 @@ async function captureActiveTab() {
         semanticWeights,
         agreedHreflangs,
         maxSchemaUrlRefs,
+        maxFindingReviewItems,
         hreflangLanguageCodes,
         hreflangRegionCodes,
         siteCheckExclusions
@@ -4074,7 +4075,10 @@ async function captureActiveTab() {
 
         const emptyAnchorDetails =
           emptyAnchorElements
-            .slice(0, 20)
+            .slice(
+              0,
+              maxFindingReviewItems
+            )
             .map(
               (a, index) => {
                 const rawHref =
@@ -5315,11 +5319,11 @@ async function captureActiveTab() {
                 i.getAttribute("loading") === "lazy"
             ).length,
           missingAltExamples:
-            missingAltImages.slice(0, 20),
+            missingAltImages.slice(0, maxFindingReviewItems),
           emptyAltExamples:
-            emptyAltImages.slice(0, 20),
+            emptyAltImages.slice(0, maxFindingReviewItems),
           missingDimensionExamples:
-            missingDimensionImages.slice(0, 20)
+            missingDimensionImages.slice(0, maxFindingReviewItems)
         };
 
         const buttons =
@@ -5907,10 +5911,10 @@ async function captureActiveTab() {
             count:
               missingAlt,
             examples:
-              missingAltImages.slice(0, 20),
+              missingAltImages.slice(0, maxFindingReviewItems),
             examples_capped:
               missingAlt >
-              20
+              maxFindingReviewItems
           }
         );
 
@@ -6178,10 +6182,10 @@ async function captureActiveTab() {
             count:
               emptyAlt,
             examples:
-              emptyAltImages.slice(0, 20),
+              emptyAltImages.slice(0, maxFindingReviewItems),
             examples_capped:
               emptyAlt >
-              20
+              maxFindingReviewItems
           }
         );
 
@@ -6197,10 +6201,10 @@ async function captureActiveTab() {
             count:
               missingImageDimensions,
             examples:
-              missingDimensionImages.slice(0, 20),
+              missingDimensionImages.slice(0, maxFindingReviewItems),
             examples_capped:
               missingImageDimensions >
-              20
+              maxFindingReviewItems
           }
         );
 
@@ -6231,7 +6235,7 @@ async function captureActiveTab() {
           internalHttpLinks.length > 0
             ? `${internalHttpLinks.length} internal HTTP link(s) found on an HTTPS page`
             : "No internal HTTP links found on this HTTPS page",
-          internalHttpLinks.slice(0, 30)
+          internalHttpLinks.slice(0, maxFindingReviewItems)
         );
 
         addCheck(
@@ -6398,6 +6402,9 @@ async function captureActiveTab() {
         settings
           .limits
           .maxSchemaUrlRefs,
+        settings
+          .limits
+          .maxFindingReviewItems,
         HREFLANG_LANGUAGE_CODES,
         HREFLANG_REGION_CODES,
         settings
