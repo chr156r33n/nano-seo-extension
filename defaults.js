@@ -173,7 +173,7 @@ PAGE SUMMARY:
     },
 
     false_positive: {
-      system: "You assess the practical impact of deterministic SEO audit findings. The deterministic condition may be a genuine issue, a low-impact condition, context-dependent, or a detector false positive. The SPECIFIC AFFECTED EVIDENCE is the primary evidence and must be inspected before using general page context. Use the trusted consequence profile to understand the kinds of impact the check can have, but do not invent impacts that are not supported by the evidence. Cite concrete supplied values, URLs, selectors, zones or element properties in evidence_used and the rationale.",
+      system: "You assess the practical impact of deterministic SEO audit findings. First separate whether the detector's literal condition is actually present from whether that real condition has meaningful impact. Use likely_false_positive only when the detector itself appears factually wrong about the condition it claims to have found. If the supplied deterministic evidence confirms the condition exists, do not call it a false positive; use no_material_impact, low_impact, context_dependent, meaningful_issue or manual_review instead. The SPECIFIC AFFECTED EVIDENCE is the primary evidence and must be inspected before using general page context. Use the trusted consequence profile to understand the kinds of impact the check can have, but do not invent impacts that are not supported by the evidence. Cite concrete supplied values, URLs, selectors, zones or element properties in evidence_used and the rationale.",
       user: `Assess this deterministic audit finding on this specific page.
 
 Classify the overall finding as exactly one of:
@@ -185,14 +185,17 @@ meaningful_issue
 manual_review
 
 Use these labels consistently:
-- likely_false_positive: the deterministic detector appears wrong for this evidence
-- no_material_impact: the condition is real, but it has no meaningful consequence on this page
-- low_impact: the condition is real and has a limited consequence
-- context_dependent: the consequence materially depends on page/site context
-- meaningful_issue: the condition is real and likely worth action within the supplied consequence profile
-- manual_review: the evidence is insufficient to make a reliable judgement
+- likely_false_positive: the detector's literal factual claim is probably wrong; use this only when the supplied evidence suggests the detected condition itself is not actually present
+- no_material_impact: the condition is definitely present, but the supplied context indicates no meaningful practical consequence on this page
+- low_impact: the condition is definitely present and has a limited practical consequence
+- context_dependent: the condition is present, but its consequence materially depends on page/site context that cannot be resolved confidently from the supplied evidence
+- meaningful_issue: the condition is present and the supplied evidence supports a meaningful consequence worth action within the configured consequence profile
+- manual_review: the evidence is insufficient to determine either the condition or its consequence reliably
 
 IMPORTANT:
+- First answer the factual question: does the supplied deterministic evidence establish that the detector's literal condition exists?
+- If yes, likely_false_positive is not an allowed interpretation. A real-but-benign condition is no_material_impact, not a false positive.
+- A stylistic, semantic or best-practice disagreement does not make a detector false positive when its literal condition is present.
 - Inspect SPECIFIC AFFECTED EVIDENCE first.
 - Do not base the judgement mainly on aggregate page counts.
 - The consequence profile gives the permitted impact framing and baseline priority. Do not promote an issue above that baseline merely because it is real.
@@ -1031,6 +1034,33 @@ function mergeSettings(saved = {}) {
       const savedPrompt =
         saved.prompts[k] ||
         {};
+
+      if (
+        k ===
+          "false_positive" &&
+        typeof savedPrompt.user ===
+          "string" &&
+        savedPrompt.user.includes(
+          "- likely_false_positive: the deterministic detector appears wrong for this evidence"
+        ) &&
+        savedPrompt.user.includes(
+          "- no_material_impact: the condition is real, but it has no meaningful consequence on this page"
+        )
+      ) {
+        d.prompts[k] = {
+          ...d.prompts[k],
+          system:
+            savedPrompt.system &&
+            !savedPrompt.system.includes(
+              "The deterministic condition may be a genuine issue, a low-impact condition, context-dependent, or a detector false positive."
+            )
+              ? savedPrompt.system
+              : d.prompts[k]
+                  .system
+        };
+
+        continue;
+      }
 
       if (
         k ===
