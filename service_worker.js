@@ -2391,19 +2391,17 @@ function taskVars(task, payload, settings, provider = null) {
       specificEvidence = {
         ...rawEvidence,
         examples:
-          rawEvidence.examples.slice(0, 8),
+          rawEvidence.examples,
         examples_sent:
-          Math.min(
-            rawEvidence.examples.length,
-            8
-          ),
+          rawEvidence.examples.length,
         examples_total:
+          rawEvidence.examples_total ??
           rawEvidence.count ??
           rawEvidence.examples.length
       };
     } else if (Array.isArray(rawEvidence)) {
       specificEvidence =
-        rawEvidence.slice(0, 8);
+        rawEvidence;
     }
 
     const context =
