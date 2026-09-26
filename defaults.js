@@ -202,6 +202,7 @@ Use these labels consistently:
 - manual_review: the evidence is insufficient to determine either the condition or its consequence reliably
 
 IMPORTANT:
+- Return all required fields: judgement, confidence, rationale, evidence_used, item_assessments, useful_context.
 - First answer the factual question: does the supplied deterministic evidence establish that the detector's literal condition exists?
 - If yes, likely_false_positive is not an allowed interpretation. A real-but-benign condition is no_material_impact, not a false positive.
 - A stylistic, semantic or best-practice disagreement does not make a detector false positive when its literal condition is present.
