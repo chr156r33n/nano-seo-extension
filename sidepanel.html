@@ -72,11 +72,11 @@
             <input id="analyseLinkBatchSize" type="number" min="1" max="100" step="1">
           </label>
           <label>
-            <span>DOM review</span>
-            <input id="analyseDomBatchSize" type="number" min="1" max="1" step="1" value="1" disabled>
+            <span>DOM batch</span>
+            <input id="analyseDomBatchSize" type="number" min="1" max="100" step="1">
           </label>
           <div class="batch-help">
-            DOM triage runs one item per model call for isolated judgement.
+            Nano summaries and API judgements use the selected DOM batch size.
           </div>
         </div>
 
@@ -189,12 +189,12 @@
           <button id="buildDomDiffBtn">Compare server vs rendered</button>
           <button id="assessDomDiffBtn" class="secondary">Review next exceptions</button>
           <label class="batch-inline">
-            <span>Per call</span>
-            <input id="domDiffBatchSize" type="number" min="1" max="1" step="1" value="1" disabled>
+            <span>Batch</span>
+            <input id="domDiffBatchSize" type="number" min="1" max="100" step="1">
           </label>
         </div>
         <div class="section-copy batch-guidance">
-          DOM triage uses one change per model call so Nano and API models see identical isolated evidence.
+          Use smaller batches for Nano if summaries become muddled; larger API-model batches are usually fine.
         </div>
 
         <div id="domDiffSummary" class="muted small"></div>
