@@ -2750,10 +2750,20 @@ async function callNano({task, system, prompt, schema, settings}) {
   };
 }
 
-async function callGemini({system, prompt, schema, settings}) {
-  const cfg = settings.providers.gemini;
+async function callGemini({
+  task,
+  system,
+  prompt,
+  schema,
+  settings
+}) {
+  const cfg =
+    settings.providers.gemini;
+
   if (!cfg.apiKey) {
-    throw new Error("Gemini API key is not configured.");
+    throw new Error(
+      "Gemini API key is not configured."
+    );
   }
 
   const url =
@@ -2761,32 +2771,116 @@ async function callGemini({system, prompt, schema, settings}) {
     `${encodeURIComponent(cfg.model)}:generateContent?key=` +
     `${encodeURIComponent(cfg.apiKey)}`;
 
-  const body = {
-    systemInstruction: {
-      parts: [{text: system}]
-    },
-    contents: [{
-      role: "user",
-      parts: [{text: prompt}]
-    }],
-    generationConfig: {
-      responseFormat: {
-        text: {
-          mimeType: "APPLICATION_JSON",
-          schema
-        }
+  const makeBody =
+    (
+      includeSchema
+    ) => ({
+      systemInstruction: {
+        parts: [
+          {
+            text:
+              system
+          }
+        ]
       },
-      temperature: 0.2
-    }
-  };
+      contents: [
+        {
+          role:
+            "user",
+          parts: [
+            {
+              text:
+                prompt
+            }
+          ]
+        }
+      ],
+      generationConfig: {
+        responseFormat: {
+          text: {
+            mimeType:
+              "APPLICATION_JSON",
+            ...(
+              includeSchema
+                ? {
+                    schema
+                  }
+                : {}
+            )
+          }
+        },
+        temperature:
+          0.2
+      }
+    });
 
-  const r = await fetch(url, {
-    method: "POST",
-    headers: {"Content-Type": "application/json"},
-    body: JSON.stringify(body)
-  });
+  const request =
+    async (
+      includeSchema
+    ) => {
+      const r =
+        await fetch(
+          url,
+          {
+            method:
+              "POST",
+            headers: {
+              "Content-Type":
+                "application/json"
+            },
+            body:
+              JSON.stringify(
+                makeBody(
+                  includeSchema
+                )
+              )
+          }
+        );
 
-  const data = await r.json();
+      const data =
+        await r.json();
+
+      return {
+        r,
+        data
+      };
+    };
+
+  let {
+    r,
+    data
+  } =
+    await request(
+      true
+    );
+
+  let retriedWithoutSchema =
+    false;
+
+  if (
+    !r.ok &&
+    task ===
+      "false_positive" &&
+    (
+      data?.error?.status ===
+        "INVALID_ARGUMENT" ||
+      /invalid argument/i.test(
+        data?.error?.message ||
+        ""
+      )
+    )
+  ) {
+    ({
+      r,
+      data
+    } =
+      await request(
+        false
+      ));
+
+    retriedWithoutSchema =
+      true;
+  }
 
   if (!r.ok) {
     const baseMessage =
@@ -2826,15 +2920,28 @@ async function callGemini({system, prompt, schema, settings}) {
   }
 
   const text =
-    data?.candidates?.[0]?.content?.parts
-      ?.map(p => p.text || "")
-      .join("") || "";
+    data?.candidates?.[0]
+      ?.content?.parts
+      ?.map(
+        p =>
+          p.text ||
+          ""
+      )
+      .join("") ||
+    "";
 
   return {
-    parsed: parseJson(text),
-    raw: data,
+    parsed:
+      parseJson(
+        text
+      ),
+    raw:
+      data,
     meta: {
-      usage: data.usageMetadata || null
+      usage:
+        data.usageMetadata ||
+        null,
+      retriedWithoutSchema
     }
   };
 }
@@ -3143,70 +3250,75 @@ function simplifyGeminiTaskSchema(
     return schema;
   }
 
-  const simplified =
-    JSON.parse(
-      JSON.stringify(
-        schema
-      )
-    );
-
-  const properties =
-    simplified.properties ||
-    {};
-
-  for (
-    const key
-    of [
+  return {
+    type:
+      "object",
+    properties: {
+      judgement: {
+        type:
+          "string"
+      },
+      confidence: {
+        type:
+          "number"
+      },
+      rationale: {
+        type:
+          "string"
+      },
+      evidence_used: {
+        type:
+          "array",
+        items: {
+          type:
+            "string"
+        }
+      },
+      item_assessments: {
+        type:
+          "array",
+        items: {
+          type:
+            "object",
+          properties: {
+            item: {
+              type:
+                "string"
+            },
+            judgement: {
+              type:
+                "string"
+            },
+            rationale: {
+              type:
+                "string"
+            }
+          },
+          required: [
+            "item",
+            "judgement",
+            "rationale"
+          ]
+        }
+      },
+      useful_context: {
+        type:
+          "array",
+        items: {
+          type:
+            "string"
+        }
+      }
+    },
+    required: [
+      "judgement",
+      "confidence",
+      "rationale",
       "evidence_used",
       "item_assessments",
       "useful_context"
     ]
-  ) {
-    if (
-      properties[key]
-    ) {
-      delete properties[key]
-        .minItems;
-      delete properties[key]
-        .maxItems;
-    }
-  }
-
-  if (
-    properties.confidence
-  ) {
-    delete properties
-      .confidence
-      .minimum;
-    delete properties
-      .confidence
-      .maximum;
-  }
-
-  const item =
-    properties
-      .item_assessments
-      ?.items;
-
-  if (item) {
-    delete item.required;
-    delete item.additionalProperties;
-
-    if (
-      item.properties
-        ?.judgement
-    ) {
-      delete item
-        .properties
-        .judgement
-        .enum;
-    }
-  }
-
-  delete simplified.required;
-  delete simplified.additionalProperties;
-
-  return simplified;
+  };
 }
 
 function schemaForTaskPayload(
