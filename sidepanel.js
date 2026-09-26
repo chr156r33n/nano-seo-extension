@@ -5593,6 +5593,16 @@ async function analyseAll() {
       );
     }
 
+    const findingBatches =
+      cfg.triageFindings
+        ? findings.flatMap(
+            issue =>
+              findingReviewBatches(
+                issue
+              )
+          )
+        : [];
+
     const diffItems =
       cfg.domDiff
         ? (
@@ -5649,7 +5659,7 @@ async function analyseAll() {
       ) +
       (
         cfg.triageFindings
-          ? findings.length
+          ? findingBatches.length
           : 0
       ) +
       (
@@ -6135,8 +6145,8 @@ async function analyseAll() {
 
     if (cfg.triageFindings) {
       for (
-        const issue
-        of findings
+        const batch
+        of findingBatches
       ) {
         for (
           const provider
@@ -6147,10 +6157,11 @@ async function analyseAll() {
               "false_positive",
               provider,
               {
-                issue,
+                issue:
+                  batch.issue,
                 context:
                   pageContextForIssue(
-                    issue
+                    batch.issue
                   )
               }
             );
@@ -6158,10 +6169,20 @@ async function analyseAll() {
           report.falsePositives.push({
             issue: {
               code:
-                issue.code,
+                batch.issue.code,
               message:
-                issue.message
+                batch.issue.message
             },
+            batch:
+              batch.batch,
+            batchCount:
+              batch.batchCount,
+            itemStart:
+              batch.itemStart,
+            itemEnd:
+              batch.itemEnd,
+            totalItems:
+              batch.totalItems,
             provider,
             result:
               call.ok
@@ -6180,7 +6201,9 @@ async function analyseAll() {
               stage:
                 "false_positive",
               issue:
-                issue.code,
+                batch.issue.code,
+              batch:
+                batch.batch,
               provider,
               error:
                 call.error
@@ -6188,7 +6211,7 @@ async function analyseAll() {
           }
 
           bump(
-            `Finding · ${issue.code} · ${provider}`
+            `Finding · ${batch.issue.code}${batch.batchCount > 1 ? ` · batch ${batch.batch}/${batch.batchCount}` : ""} · ${provider}`
           );
         }
       }
