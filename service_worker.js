@@ -1587,6 +1587,20 @@ function compactNetEffectForModel(
           h1_level_change:
             true
         }
+      : {}),
+    ...(signals.heading_level_only !=
+      null
+      ? {
+          heading_level_only:
+            !!signals.heading_level_only
+        }
+      : {}),
+    ...(signals.topic_signal_changed !=
+      null
+      ? {
+          topic_signal_changed:
+            !!signals.topic_signal_changed
+        }
       : {})
   };
 
@@ -9595,11 +9609,32 @@ async function buildDomDiff() {
           "schema_type"
         );
 
+        const headingDiffKey = (
+          value
+        ) => {
+          const localContext =
+            value?._sourceNode
+              ? localIdentityContextFor(
+                  value._sourceNode
+                )
+              : null;
+
+          return [
+            value?.level || "",
+            String(
+              value?.text ||
+              ""
+            ).toLowerCase(),
+            localContext
+              ?.container_selector ||
+              ""
+          ].join("|");
+        };
+
         addSetDiff(
           raw.headings,
           rendered.headings,
-          x =>
-            `${x.level}|${x.text.toLowerCase()}`,
+          headingDiffKey,
           3,
           "heading"
         );
@@ -10544,10 +10579,88 @@ async function buildDomDiff() {
               rawText ===
                 renderedText
             ) {
+              if (
+                sameContextContainer
+              ) {
+                return {
+                  score: 1,
+                  reason:
+                    "same_heading_text_and_local_container",
+                  context_similarity:
+                    Number(
+                      contextSimilarity
+                        .toFixed(
+                          3
+                        )
+                    ),
+                  same_context_heading:
+                    sameContextHeading,
+                  same_context_container:
+                    true
+                };
+              }
+
+              if (
+                contextSimilarity >=
+                  0.8
+              ) {
+                return {
+                  score: 0.98,
+                  reason:
+                    "same_heading_text_and_context",
+                  context_similarity:
+                    Number(
+                      contextSimilarity
+                        .toFixed(
+                          3
+                        )
+                    ),
+                  same_context_heading:
+                    sameContextHeading,
+                  same_context_container:
+                    false
+                };
+              }
+
               return {
-                score: 1,
+                score: 0.92,
                 reason:
-                  "same_heading_text"
+                  "same_heading_text",
+                context_similarity:
+                  Number(
+                    contextSimilarity
+                      .toFixed(
+                        3
+                      )
+                  ),
+                same_context_heading:
+                  sameContextHeading,
+                same_context_container:
+                  false
+              };
+            }
+
+            if (
+              sameSelector &&
+              sameContextContainer &&
+              contextSimilarity >=
+                0.55
+            ) {
+              return {
+                score: 0.995,
+                reason:
+                  "same_heading_selector_and_local_identity",
+                context_similarity:
+                  Number(
+                    contextSimilarity
+                      .toFixed(
+                        3
+                      )
+                  ),
+                same_context_heading:
+                  sameContextHeading,
+                same_context_container:
+                  true
               };
             }
 
@@ -10592,7 +10705,18 @@ async function buildDomDiff() {
               return {
                 score: 0.9,
                 reason:
-                  "near_identical_heading_text"
+                  "near_identical_heading_text",
+                context_similarity:
+                  Number(
+                    contextSimilarity
+                      .toFixed(
+                        3
+                      )
+                  ),
+                same_context_heading:
+                  sameContextHeading,
+                same_context_container:
+                  sameContextContainer
               };
             }
           }
@@ -11337,6 +11461,19 @@ async function buildDomDiff() {
                 "h1"
             );
 
+          const headingLevelOnly =
+            levelChanged &&
+            !textChanged;
+
+          const topicSignalChanged =
+            textChanged &&
+            textSimilarity <
+              0.75 &&
+            (
+              uniqueTopicAdded ||
+              uniqueTopicRemoved
+            );
+
           let significance =
             "low";
 
@@ -11474,6 +11611,10 @@ async function buildDomDiff() {
                 levelChanged,
               h1_level_change:
                 h1LevelChange,
+              heading_level_only:
+                headingLevelOnly,
+              topic_signal_changed:
+                topicSignalChanged,
               text_similarity:
                 Number(
                   textSimilarity
