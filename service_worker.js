@@ -3456,10 +3456,7 @@ async function runTask({
     );
 
   const system =
-    `${MODEL_SECURITY_INSTRUCTION}
-
-TRUSTED TASK INSTRUCTIONS:
-${promptDef.system}`;
+    `${MODEL_SECURITY_INSTRUCTION}\n\nTRUSTED TASK INSTRUCTIONS:\n${promptDef.system}\n\nMANDATORY EVIDENCE GUIDANCE:\n${MODEL_EVIDENCE_GUIDANCE}`;
 
   const inputMode =
     payload?.inputMode || null;
