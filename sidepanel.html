@@ -72,11 +72,11 @@
             <input id="analyseLinkBatchSize" type="number" min="1" max="100" step="1">
           </label>
           <label>
-            <span>DOM batch</span>
-            <input id="analyseDomBatchSize" type="number" min="1" max="100" step="1">
+            <span>DOM review</span>
+            <input id="analyseDomBatchSize" type="number" min="1" max="1" step="1" value="1" disabled>
           </label>
           <div class="batch-help">
-            Nano: 6 recommended max · Gemini/OpenAI: 25 recommended
+            DOM triage runs one item per model call for isolated judgement.
           </div>
         </div>
 
@@ -189,12 +189,12 @@
           <button id="buildDomDiffBtn">Compare server vs rendered</button>
           <button id="assessDomDiffBtn" class="secondary">Review next exceptions</button>
           <label class="batch-inline">
-            <span>Batch</span>
-            <input id="domDiffBatchSize" type="number" min="1" max="100" step="1">
+            <span>Per call</span>
+            <input id="domDiffBatchSize" type="number" min="1" max="1" step="1" value="1" disabled>
           </label>
         </div>
         <div class="section-copy batch-guidance">
-          Recommended: Nano ≤ 6 · Gemini/OpenAI ≈ 25 per batch.
+          DOM triage uses one change per model call so Nano and API models see identical isolated evidence.
         </div>
 
         <div id="domDiffSummary" class="muted small"></div>
