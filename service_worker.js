@@ -6067,6 +6067,232 @@ async function captureActiveTab() {
           canonicals
         );
 
+        const canonicalRelationship =
+          canonicals[0]
+            ? (() => {
+                try {
+                  const current =
+                    new URL(
+                      location.href
+                    );
+
+                  const canonical =
+                    new URL(
+                      canonicals[0],
+                      location.href
+                    );
+
+                  const normalisedQuery =
+                    url => {
+                      const entries =
+                        [
+                          ...url
+                            .searchParams
+                            .entries()
+                        ]
+                          .map(
+                            ([key, value]) => [
+                              key,
+                              value
+                            ]
+                          )
+                          .sort(
+                            (a, b) =>
+                              a[0]
+                                .localeCompare(
+                                  b[0]
+                                ) ||
+                              a[1]
+                                .localeCompare(
+                                  b[1]
+                                )
+                          );
+
+                      return JSON.stringify(
+                        entries
+                      );
+                    };
+
+                  const currentQuery =
+                    normalisedQuery(
+                      current
+                    );
+
+                  const canonicalQuery =
+                    normalisedQuery(
+                      canonical
+                    );
+
+                  const sameOrigin =
+                    current.origin ===
+                    canonical.origin;
+
+                  const samePath =
+                    current.pathname ===
+                    canonical.pathname;
+
+                  const sameQuery =
+                    currentQuery ===
+                    canonicalQuery;
+
+                  const trimTrailingSlash =
+                    value =>
+                      value.length > 1
+                        ? value.replace(
+                            /\/+$/,
+                            ""
+                          )
+                        : value;
+
+                  const trailingSlashOnly =
+                    sameOrigin &&
+                    sameQuery &&
+                    !samePath &&
+                    trimTrailingSlash(
+                      current.pathname
+                    ) ===
+                      trimTrailingSlash(
+                        canonical.pathname
+                      );
+
+                  const currentParams =
+                    [
+                      ...current
+                        .searchParams
+                        .entries()
+                    ];
+
+                  const canonicalParams =
+                    [
+                      ...canonical
+                        .searchParams
+                        .entries()
+                    ];
+
+                  const relation =
+                    sameOrigin &&
+                    samePath &&
+                    sameQuery
+                      ? "self"
+                      : !sameOrigin
+                        ? "different_origin"
+                        : trailingSlashOnly
+                          ? "trailing_slash_only"
+                          : samePath &&
+                              !sameQuery
+                            ? currentParams.length &&
+                              !canonicalParams.length
+                              ? "query_removed"
+                              : !currentParams.length &&
+                                  canonicalParams.length
+                                ? "query_added"
+                                : "query_changed"
+                            : !samePath &&
+                                sameQuery
+                              ? "path_changed"
+                              : "path_and_query_changed";
+
+                  return {
+                    current_url:
+                      current.href,
+                    canonical_url:
+                      canonical.href,
+                    relation,
+                    self_canonical:
+                      relation ===
+                      "self",
+                    same_origin:
+                      sameOrigin,
+                    same_hostname:
+                      current.hostname ===
+                      canonical.hostname,
+                    same_scheme:
+                      current.protocol ===
+                      canonical.protocol,
+                    same_path:
+                      samePath,
+                    same_query:
+                      sameQuery,
+                    current_path:
+                      current.pathname,
+                    canonical_path:
+                      canonical.pathname,
+                    current_query:
+                      current.search,
+                    canonical_query:
+                      canonical.search,
+                    current_has_query:
+                      !!current.search,
+                    canonical_has_query:
+                      !!canonical.search,
+                    trailing_slash_only:
+                      trailingSlashOnly
+                  };
+                } catch {
+                  return {
+                    current_url:
+                      location.href,
+                    canonical_url:
+                      canonicals[0] ||
+                      "",
+                    relation:
+                      "unparseable",
+                    self_canonical:
+                      false,
+                    same_origin:
+                      null,
+                    same_hostname:
+                      null,
+                    same_scheme:
+                      null,
+                    same_path:
+                      null,
+                    same_query:
+                      null,
+                    current_path:
+                      "",
+                    canonical_path:
+                      "",
+                    current_query:
+                      "",
+                    canonical_query:
+                      "",
+                    current_has_query:
+                      null,
+                    canonical_has_query:
+                      null,
+                    trailing_slash_only:
+                      false
+                  };
+                }
+              })()
+            : null;
+
+        const sameOriginNonSelfCanonical =
+          canonicalRelationship &&
+          canonicalRelationship
+            .same_origin ===
+            true &&
+          canonicalRelationship
+            .self_canonical ===
+            false;
+
+        addCheck(
+          "canonical_relationship",
+          sameOriginNonSelfCanonical
+            ? "finding"
+            : "pass",
+          !canonicalRelationship
+            ? "No canonical available for self-canonical relationship check"
+            : sameOriginNonSelfCanonical
+              ? `Canonical points to a different URL on the same origin (${canonicalRelationship.relation})`
+              : canonicalRelationship
+                    .self_canonical
+                ? "Canonical matches the current URL"
+                : "Canonical relationship is handled by the cross-origin/protocol checks",
+          canonicalRelationship
+        );
+
         const crossOriginCanonical =
           canonicals[0] &&
           (() => {
