@@ -309,6 +309,10 @@ function render() {
             Alignment only runs when both Page type and Intent are enabled.
           </p>
 
+          <p class="muted small">
+            Saved settings are preserved across extension updates. New defaults only fill settings that do not already have a saved value. Use Restore defaults if you explicitly want to replace your configuration with the current bundled defaults.
+          </p>
+
           <div class="grid">
             ${[
               ["linkContext", "Understand link roles"],
