@@ -643,7 +643,11 @@ $("#assessDomDiffBtn").onclick =
       await runAcross(
         "dom_diff_triage",
         {
-          items: batch
+          items:
+            batch,
+          cmsContext:
+            domDiff?.cmsContext ||
+            null
         },
         target
       );
