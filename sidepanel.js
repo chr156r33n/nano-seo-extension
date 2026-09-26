@@ -3964,15 +3964,28 @@ function renderIssues() {
   const passes = checks.filter(x => x.status === "pass");
   const excluded = checks.filter(x => x.status === "excluded");
 
-  summary.textContent =
-    `${checks.length} automated checks run · ` +
-    `${passes.length} passed · ` +
-    `${findings.length} finding(s) need context review` +
-    (
-      excluded.length
-        ? ` · ${excluded.length} excluded by site profile`
-        : ""
-    );
+  summary.innerHTML = `
+    <div class="audit-summary-cards">
+      <div class="audit-summary-card">
+        <span class="audit-summary-value">${checks.length}</span>
+        <span class="audit-summary-label">Checks run</span>
+      </div>
+      <div class="audit-summary-card good">
+        <span class="audit-summary-value">${passes.length}</span>
+        <span class="audit-summary-label">Passed</span>
+      </div>
+      <div class="audit-summary-card ${findings.length ? "warn" : "good"}">
+        <span class="audit-summary-value">${findings.length}</span>
+        <span class="audit-summary-label">Findings to review</span>
+      </div>
+      ${excluded.length
+        ? `<div class="audit-summary-card">
+            <span class="audit-summary-value">${excluded.length}</span>
+            <span class="audit-summary-label">Excluded</span>
+          </div>`
+        : ""}
+    </div>
+  `;
 
   if (!findings.length) {
     box.innerHTML =
