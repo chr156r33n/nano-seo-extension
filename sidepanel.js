@@ -3283,6 +3283,15 @@ function pageContextForIssue(issue) {
       urlIdentity
     },
 
+    canonical_relationship: {
+      ...base,
+      pagePurpose,
+      urlIdentity,
+      canonicalRelationship:
+        issue?.deterministicValue ||
+        null
+    },
+
     canonical_fragment: {
       ...base,
       urlIdentity
@@ -3852,6 +3861,7 @@ function deterministicFindingEvidenceHtml(issue) {
     [
       "multiple_canonical",
       "canonical_cross_origin",
+      "canonical_relationship",
       "canonical_relative_href",
       "canonical_fragment",
       "canonical_protocol_downgrade",
