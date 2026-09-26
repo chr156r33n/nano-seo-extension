@@ -118,6 +118,16 @@
           "kind": "link",
           "case": "Chelmsford card anchor changes while destination stays the same",
           "expected": "reconciled_changed_in_rendered"
+        },
+        {
+          "kind": "link",
+          "case": "Ipswich anchor becomes less descriptive while destination stays the same",
+          "expected": "reconciled_changed_in_rendered"
+        },
+        {
+          "kind": "link",
+          "case": "Norwich anchor and destination change between two working URLs",
+          "expected": "reconciled_changed_in_rendered"
         }
       ],
       "expected_reconciliation": [
@@ -141,7 +151,9 @@
           "expected_status": 200,
           "urls": [
             "/locations/chelmsford",
-            "/locations/ipswich"
+            "/locations/ipswich",
+            "/locations/norwich",
+            "/services/emergency-drainage/norwich"
           ]
         }
       },
@@ -162,8 +174,44 @@
           "expected_reconciliation_reason": "same_link_selector_and_local_identity",
           "expected_same_context_heading": true,
           "expected_same_context_container": true
+        },
+        "ipswich": {
+          "destination_discovery_changed": false,
+          "anchor_only_same_destination": true,
+          "expected_anchor_context_specificity": "less_context_specific"
+        },
+        "norwich": {
+          "destination_discovery_changed": true,
+          "expected_destination_transition": "working_to_working",
+          "expected_compiler_code": "working_destination_replaced_after_rendering"
         }
-      }
+      },
+      "expected_model_stress_tests": [
+        {
+          "case": "Chelmsford",
+          "compiler_fact": "same working destination, anchor becomes more context-specific",
+          "residual_model_question": "Does the clearer anchor wording materially affect page understanding?",
+          "expected_value_of_model": "low but plausible"
+        },
+        {
+          "case": "Colchester",
+          "compiler_fact": "server HTML exposes a broken link; working replacement appears only after rendering",
+          "residual_model_question": "How consequential is that rendering dependency on this page?",
+          "expected_value_of_model": "high"
+        },
+        {
+          "case": "Ipswich",
+          "compiler_fact": "same working destination, anchor loses local/service specificity",
+          "residual_model_question": "Is the reduced descriptive context meaningful for users or SEO?",
+          "expected_value_of_model": "moderate"
+        },
+        {
+          "case": "Norwich",
+          "compiler_fact": "rendering swaps one working destination for another working destination and changes the anchor towards emergency-service intent",
+          "residual_model_question": "Does the apparent emergency-service emphasis materially change user intent or page understanding?",
+          "expected_value_of_model": "high"
+        }
+      ]
     },
     "dom-transformations.html": {
       "expected_rendered_changes": [

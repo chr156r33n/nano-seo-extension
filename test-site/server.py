@@ -75,6 +75,8 @@ class Handler(SimpleHTTPRequestHandler):
         working_locations = {
             "/locations/chelmsford": "Chelmsford drainage",
             "/locations/ipswich": "Ipswich drainage",
+            "/locations/norwich": "Norwich drainage",
+            "/services/emergency-drainage/norwich": "Emergency drainage in Norwich",
             "/areas/essex/colchester": "Colchester drainage",
         }
 
