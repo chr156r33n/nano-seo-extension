@@ -4158,6 +4158,17 @@ async function captureActiveTab() {
                     a.getAttribute("role") || "",
                   tabindex:
                     a.getAttribute("tabindex") || "",
+                  html:
+                    a.outerHTML
+                      .replace(
+                        /\s+/g,
+                        " "
+                      )
+                      .trim()
+                      .slice(
+                        0,
+                        320
+                      ),
                   visible_on_page:
                     visibleOnPage,
                   has_svg:
@@ -4816,39 +4827,53 @@ async function captureActiveTab() {
             )
           );
 
-        function suggestedHreflang(value) {
-          if (!agreed.length) return "";
-
-          const lower =
-            String(value || "").toLowerCase();
-
-          if (agreedMap.has(lower)) {
-            return agreedMap.get(lower);
+        function agreedHreflangContext(value) {
+          if (!agreed.length) {
+            return {
+              exact:
+                "",
+              related:
+                []
+            };
           }
 
+          const lower =
+            String(
+              value ||
+              ""
+            ).toLowerCase();
+
+          const exact =
+            agreedMap.get(
+              lower
+            ) || "";
+
           const language =
-            lower.split("-")[0];
+            lower ===
+              "x-default"
+              ? ""
+              : lower.split("-")[0];
 
-          const sameLanguage =
-            agreed.filter(
-              candidate =>
-                candidate
-                  .toLowerCase()
-                  .split("-")[0] ===
-                language
-            );
+          const related =
+            language
+              ? agreed
+                  .filter(
+                    candidate =>
+                      candidate
+                        .toLowerCase()
+                        .split("-")[0] ===
+                      language
+                  )
+                  .slice(
+                    0,
+                    8
+                  )
+              : [];
 
-          const pool =
-            sameLanguage.length
-              ? sameLanguage
-              : agreed;
-
-          return [...pool]
-            .sort(
-              (a, b) =>
-                levenshtein(lower, a) -
-                levenshtein(lower, b)
-            )[0] || "";
+          return {
+            exact,
+            related
+          };
         }
 
         const hreflangValidation =
@@ -4992,15 +5017,56 @@ async function captureActiveTab() {
                       .filter(Boolean)
                       .join("-");
 
+              const agreedContext =
+                agreedHreflangContext(
+                  item.value
+                );
+
               const agreedValue =
-                agreedMap.get(lower) || "";
+                agreedContext.exact;
+
+              const agreedLanguageFamily =
+                language &&
+                agreedMap.get(
+                  language.toLowerCase()
+                ) ||
+                "";
+
+              const allowedByLanguageFamily =
+                !agreedValue &&
+                !!agreedLanguageFamily &&
+                formatLooksValid;
 
               return {
                 ...item,
                 in_agreed_list:
                   agreed.length
-                    ? !!agreedValue
+                    ? (
+                        !!agreedValue ||
+                        allowedByLanguageFamily
+                      )
                     : null,
+                agreed_match:
+                  !agreed.length
+                    ? "not_configured"
+                    : agreedValue
+                      ? "exact"
+                      : allowedByLanguageFamily
+                        ? "language_family"
+                        : agreedContext
+                            .related
+                            .length
+                          ? "same_language_family_not_allowed"
+                          : "none",
+                agreed_basis:
+                  agreedValue ||
+                  (
+                    allowedByLanguageFamily
+                      ? agreedLanguageFamily
+                      : ""
+                  ),
+                agreed_related_values:
+                  agreedContext.related,
                 format_looks_valid:
                   formatLooksValid,
                 normalised_value:
@@ -5008,13 +5074,11 @@ async function captureActiveTab() {
                     ? normalisedValue
                     : "",
                 suggested_value:
-                  agreed.length &&
-                  !agreedValue
-                    ? suggestedHreflang(item.value)
-                    : agreedValue &&
-                      agreedValue !== item.value
-                      ? agreedValue
-                      : ""
+                  agreedValue &&
+                  agreedValue !==
+                    item.value
+                    ? agreedValue
+                    : ""
               };
             }
           );
@@ -5175,6 +5239,17 @@ async function captureActiveTab() {
                   i.loading ||
                   i.getAttribute("loading") ||
                   "",
+                html:
+                  i.outerHTML
+                    .replace(
+                      /\s+/g,
+                      " "
+                    )
+                    .trim()
+                    .slice(
+                      0,
+                      320
+                    ),
                 visible_on_page:
                   !i.hidden &&
                   i.getAttribute("aria-hidden") !== "true" &&
