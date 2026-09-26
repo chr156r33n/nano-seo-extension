@@ -3508,10 +3508,17 @@ function renderUrlSignals() {
         h => {
           const state =
             h.in_agreed_list === false
-              ? `not in agreed list${h.suggested_value ? ` → ${h.suggested_value}` : ""}`
-              : h.suggested_value
-                ? `preferred form → ${h.suggested_value}`
-                : "ok";
+              ? (
+                  h.format_looks_valid
+                    ? `valid syntax · outside project allow-list${h.agreed_related_values?.length ? ` · related: ${h.agreed_related_values.join(", ")}` : ""}`
+                    : "invalid syntax"
+                )
+              : h.agreed_match ===
+                  "language_family"
+                ? `allowed by language family → ${h.agreed_basis}`
+                : h.suggested_value
+                  ? `preferred form → ${h.suggested_value}`
+                  : "ok";
 
           return `${h.value || "(empty)"} → ${h.href || "(empty)"} [${state}]`;
         }
