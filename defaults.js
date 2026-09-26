@@ -56,6 +56,13 @@ const HREFLANG_SPECIAL_EXAMPLES = [
   "zh-Hans-US"
 ];
 
+const MODEL_EVIDENCE_GUIDANCE = `Evidence quality:
+- Explain conclusions from supplied evidence.
+- Do not speculate about why a page, element, content choice or implementation exists.
+- Do not attribute motives, strategies, goals, causes or intentions to site owners, authors, developers or businesses unless the supplied evidence states them.
+- When a rationale is requested, explain why the conclusion follows from the evidence, not why the implementation was supposedly chosen.
+- Omit unknown causes rather than filling gaps with a plausible story. Semantic or contextual inference is allowed only when the task asks for it and the evidence supports it.`;
+
 const DEFAULT_SETTINGS = {
   providers: {
     nano: { enabled: true, temperature: 0.2, topK: 3 },
@@ -1098,6 +1105,26 @@ function mergeSettings(saved = {}) {
         ...savedPrompt
       };
     }
+  }
+
+  for (
+    const prompt
+    of Object.values(
+      d.prompts ||
+      {}
+    )
+  ) {
+    if (
+      !prompt?.system ||
+      prompt.system.includes(
+        MODEL_EVIDENCE_GUIDANCE
+      )
+    ) {
+      continue;
+    }
+
+    prompt.system =
+      `${prompt.system}\n\n${MODEL_EVIDENCE_GUIDANCE}`;
   }
 
   if (saved.falsePositiveGuidance) {
