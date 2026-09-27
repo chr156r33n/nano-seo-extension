@@ -1279,8 +1279,17 @@ function rawJsonDetails(value) {
   return `<details class="raw-json"><summary>Raw JSON</summary><pre>${escapeHtml(JSON.stringify(value, null, 2))}</pre></details>`;
 }
 
-function metricHtml(label, value) {
-  return `<div class="metric"><span class="metric-value">${escapeHtml(value ?? 0)}</span><span class="metric-label">${escapeHtml(label)}</span></div>`;
+function metricHtml(
+  label,
+  value,
+  help = ""
+) {
+  const helpHtml =
+    help
+      ? `<span class="metric-help" title="${escapeHtml(help)}" aria-label="${escapeHtml(help)}">?</span>`
+      : "";
+
+  return `<div class="metric"${help ? ` title="${escapeHtml(help)}"` : ""}><span class="metric-value">${escapeHtml(value ?? 0)}</span><span class="metric-label">${escapeHtml(label)}${helpHtml}</span></div>`;
 }
 
 function genericResultHtml(result) {
@@ -4392,15 +4401,32 @@ function renderDomDiffSummary() {
       </div>
 
       <div class="metric-row" style="margin-top:8px">
-        ${metricHtml("Differences", summary.totalDiffItems ?? 0)}
-        ${metricHtml("For model review", reviewCount)}
-        ${metricHtml("Retained", summary.returnedDiffItems ?? 0)}
-        ${metricHtml("Dropped", summary.droppedByCap ?? 0)}
+        ${metricHtml(
+          "Differences",
+          summary.totalDiffItems ?? 0,
+          "All deterministic differences found between the server HTML and rendered DOM before review filtering or caps."
+        )}
+        ${metricHtml(
+          "For model review",
+          reviewCount,
+          "Differences that remain useful for contextual model review after deterministic filtering."
+        )}
+        ${metricHtml(
+          "Retained",
+          summary.returnedDiffItems ?? 0,
+          "Differences kept in the comparison evidence after prioritisation and the configured item cap."
+        )}
+        ${metricHtml(
+          "Dropped",
+          summary.droppedByCap ?? 0,
+          "Lower-priority differences omitted because the comparison exceeded the configured retained-item limit."
+        )}
         ${
           aggregate
             ? metricHtml(
                 "Est. inventory changed",
-                `${aggregate.estimated_inventory_change_percent ?? 0}%`
+                `${aggregate.estimated_inventory_change_percent ?? 0}%`,
+                "Approximate proportion of the weighted comparable page inventory affected by rendering changes."
               )
             : ""
         }
