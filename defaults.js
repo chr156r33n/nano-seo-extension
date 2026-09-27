@@ -290,6 +290,11 @@ Rules:
 - a different href that resolves to the same final URL can still be a link_destination change without being an important discovery problem
 - use anchor_context for anchor-text-only changes when the destination and availability are unchanged
 - if a working link is unavailable in server HTML but available after rendering, that rendering dependency is relevant when judging the destination change
+- for internal links, use the normalized target inventory when supplied: query parameters and fragments have been removed for this page-level discovery comparison
+- raw_count 0 -> rendered_count > 0 means rendering introduces a previously absent internal-link target; treat that as an established discovery change
+- raw_count > 0 -> rendered_count 0 means rendering removes that internal-link target from the page
+- a meaningful normalized target count change can matter even when the target exists in both versions; judge the consequence in page context
+- navigation placement is not by itself evidence that a link change is harmless. Main navigation and homepage destination-discovery links can be important internal discovery paths
 - semantic_weight is element importance, not change severity
 - uncertainty fields mean evidence is incomplete; do not silently resolve them
 
