@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Nano SEO Lab",
-  "version": "0.9.0",
-  "description": "Research harness for testing Chrome Gemini Nano against Gemini/OpenAI on browser-native SEO tasks.",
+  "version": "1.0.0",
+  "description": "Audit webpages with deterministic SEO checks, rendered-DOM comparison, and optional AI-assisted review.",
   "minimum_chrome_version": "138",
   "permissions": [
     "activeTab",
