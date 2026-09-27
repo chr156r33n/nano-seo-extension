@@ -169,6 +169,45 @@ if (
   );
 }
 
+const genericControlPanelIndex =
+  css.lastIndexOf(
+    "\n.control-panel {"
+  );
+
+const finalAdvancedPanelIndex =
+  css.lastIndexOf(
+    "\n.control-panel.analyse-all-advanced {"
+  );
+
+if (
+  genericControlPanelIndex < 0 ||
+  finalAdvancedPanelIndex <
+    genericControlPanelIndex
+) {
+  failures.push(
+    "Final advanced analysis panel rule must appear after the generic control-panel background rule."
+  );
+}
+
+const finalAdvancedBlock =
+  css.slice(
+    finalAdvancedPanelIndex,
+    css.indexOf(
+      ".radio-option",
+      finalAdvancedPanelIndex
+    )
+  );
+
+if (
+  !/\.control-panel\.analyse-all-advanced \.control-panel-body[\s\S]*background:\s*var\(--paper\)[\s\S]*color:\s*var\(--ink\)/i.test(
+    finalAdvancedBlock
+  )
+) {
+  failures.push(
+    "Expanded advanced analysis body must explicitly use a light background with dark text."
+  );
+}
+
 for (const contract of contracts) {
   const ratio =
     contrast(
