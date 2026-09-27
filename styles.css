@@ -718,23 +718,26 @@ th {
   text-transform: capitalize;
 }
 
-.copy-icon {
+button.copy-icon {
   width: 22px;
   min-width: 22px;
   height: 22px;
   padding: 0;
-  border: 1px solid var(--line-strong);
+  border: 1px solid #8f8a84;
   border-radius: 3px;
-  background: var(--paper);
-  color: var(--muted);
+  background: #fff;
+  color: #55514d;
+  -webkit-text-fill-color: #55514d;
   font-size: 11px;
   line-height: 20px;
   text-align: center;
   cursor: pointer;
 }
 
-.copy-icon:hover {
+button.copy-icon:hover,
+button.copy-icon:focus-visible {
   color: var(--ink);
+  -webkit-text-fill-color: var(--ink);
   border-color: var(--ink);
 }
 
@@ -2542,6 +2545,55 @@ h3 {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.link-role-table {
+  min-width: 720px;
+  table-layout: fixed;
+}
+
+.link-role-table th:nth-child(1),
+.link-role-table td:nth-child(1) {
+  width: 42px;
+}
+
+.link-role-table th:nth-child(2),
+.link-role-table td:nth-child(2) {
+  width: 94px;
+}
+
+.link-role-table th:nth-child(3),
+.link-role-table td:nth-child(3) {
+  width: 132px;
+}
+
+.link-role-table th:nth-child(4),
+.link-role-table td:nth-child(4) {
+  width: 82px;
+}
+
+.link-role-table th:nth-child(5),
+.link-role-table td:nth-child(5) {
+  width: 82px;
+}
+
+.link-role-table th:nth-child(6),
+.link-role-table td:nth-child(6) {
+  width: 104px;
+}
+
+.link-role-table th:nth-child(7),
+.link-role-table td:nth-child(7) {
+  width: 70px;
+}
+
+.link-role-table .link-role-anchor,
+.link-role-table .link-role-destination {
+  overflow-wrap: anywhere;
+}
+
+.link-role-table .link-role-destination code {
+  max-width: 100%;
 }
 
 .table-details {
