@@ -13434,49 +13434,125 @@ async function buildDomDiff() {
               renderedHref
             );
 
+          const targetInventory = (
+            target
+          ) => {
+            if (!target) {
+              return {
+                target: "",
+                raw_count: 0,
+                rendered_count: 0,
+                delta: 0,
+                introduced: false,
+                removed: false
+              };
+            }
+
+            const rawCount =
+              countNormalisedLinkTarget(
+                raw,
+                target
+              );
+
+            const renderedCount =
+              countNormalisedLinkTarget(
+                rendered,
+                target
+              );
+
+            return {
+              target,
+              raw_count:
+                rawCount,
+              rendered_count:
+                renderedCount,
+              delta:
+                renderedCount -
+                rawCount,
+              introduced:
+                rawCount === 0 &&
+                renderedCount > 0,
+              removed:
+                rawCount > 0 &&
+                renderedCount === 0
+            };
+          };
+
+          const rawTargetInventory =
+            targetInventory(
+              rawNormalisedTarget
+            );
+
+          const renderedTargetInventory =
+            targetInventory(
+              renderedNormalisedTarget
+            );
+
+          const sameNormalisedTarget =
+            !!rawNormalisedTarget &&
+            rawNormalisedTarget ===
+              renderedNormalisedTarget;
+
+          const comparisonInventory =
+            renderedNormalisedTarget
+              ? renderedTargetInventory
+              : rawTargetInventory;
+
           const comparisonTarget =
-            renderedNormalisedTarget ||
-            rawNormalisedTarget;
+            comparisonInventory
+              .target;
 
           const rawNormalisedTargetCount =
-            countNormalisedLinkTarget(
-              raw,
-              comparisonTarget
-            );
+            comparisonInventory
+              .raw_count;
 
           const renderedNormalisedTargetCount =
-            countNormalisedLinkTarget(
-              rendered,
-              comparisonTarget
-            );
+            comparisonInventory
+              .rendered_count;
 
           const normalisedTargetCountDelta =
-            renderedNormalisedTargetCount -
-            rawNormalisedTargetCount;
+            comparisonInventory
+              .delta;
 
           const normalisedTargetIntroduced =
-            !!comparisonTarget &&
-            rawNormalisedTargetCount ===
-              0 &&
-            renderedNormalisedTargetCount >
-              0;
+            renderedTargetInventory
+              .introduced;
 
           const normalisedTargetRemoved =
-            !!comparisonTarget &&
-            rawNormalisedTargetCount >
-              0 &&
-            renderedNormalisedTargetCount ===
-              0;
+            rawTargetInventory
+              .removed;
 
           const normalisedTargetCountChanged =
             !!comparisonTarget &&
             normalisedTargetCountDelta !==
               0;
 
-          const sameNormalisedTarget =
-            !!rawNormalisedTarget &&
-            rawNormalisedTarget ===
-              renderedNormalisedTarget;
+          const normalisedTargetCountChangeRatio =
+            rawNormalisedTargetCount > 0
+              ? Number(
+                  (
+                    Math.abs(
+                      normalisedTargetCountDelta
+                    ) /
+                    rawNormalisedTargetCount
+                  ).toFixed(
+                    3
+                  )
+                )
+              : normalisedTargetIntroduced
+                ? 1
+                : 0;
+
+          const meaningfulNormalisedTargetCountChange =
+            normalisedTargetIntroduced ||
+            normalisedTargetRemoved ||
+            (
+              Math.abs(
+                normalisedTargetCountDelta
+              ) >= 2 &&
+              normalisedTargetCountChangeRatio >=
+                0.5
+            );
 
           const destinationRemoved =
             normalisedTargetRemoved ||
@@ -13587,6 +13663,15 @@ async function buildDomDiff() {
                       ? "Rendered DOM makes a link destination discoverable that was absent from the server link inventory."
                       : "Rendered DOM removes the only observed link to a destination from the rendered link inventory.";
           } else if (
+            meaningfulNormalisedTargetCountChange &&
+            normalisedTargetCountChanged
+          ) {
+            significance =
+              "medium";
+
+            reason =
+              `The normalized internal-link target remains discoverable, but its page-level link count changes materially after rendering (${rawNormalisedTargetCount} → ${renderedNormalisedTargetCount}).`;
+          } else if (
             destinationChanged
           ) {
             significance =
@@ -13677,10 +13762,18 @@ async function buildDomDiff() {
                 normalisedTargetCountDelta,
               normalised_target_count_changed:
                 normalisedTargetCountChanged,
+              normalised_target_count_change_ratio:
+                normalisedTargetCountChangeRatio,
+              meaningful_normalised_target_count_change:
+                meaningfulNormalisedTargetCountChange,
               normalised_target_introduced:
                 normalisedTargetIntroduced,
               normalised_target_removed:
                 normalisedTargetRemoved,
+              raw_target_inventory:
+                rawTargetInventory,
+              rendered_target_inventory:
+                renderedTargetInventory,
               same_normalised_target:
                 sameNormalisedTarget,
               anchor_only_same_destination:
