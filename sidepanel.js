@@ -7533,9 +7533,20 @@ $("#alignmentBtn").onclick =
     const target =
       $("#intentResults");
 
+    const button =
+      $("#alignmentBtn");
+
     target.innerHTML = "";
 
-    for (
+    if (button) {
+      button.disabled =
+        true;
+      button.textContent =
+        "Reviewing…";
+    }
+
+    try {
+      for (
       const mode
       of modesToRun()
     ) {
@@ -7543,6 +7554,10 @@ $("#alignmentBtn").onclick =
         const provider
         of providers
       ) {
+        setStatus(
+          `Identifying page type · ${providerReviewLabel(provider, "page_type")}…`
+        );
+
         const pageType =
           await runTaskSilent(
             "page_type",
@@ -7572,6 +7587,10 @@ $("#alignmentBtn").onclick =
           continue;
         }
 
+        setStatus(
+          `Identifying intent · ${providerReviewLabel(provider, "intent")}…`
+        );
+
         const intent =
           await runTaskSilent(
             "intent",
@@ -7600,6 +7619,10 @@ $("#alignmentBtn").onclick =
 
           continue;
         }
+
+        setStatus(
+          `Reviewing page and intent alignment · ${providerReviewLabel(provider, "alignment")}…`
+        );
 
         const alignment =
           await runTaskSilent(
@@ -7685,8 +7708,16 @@ $("#alignmentBtn").onclick =
         );
       }
     }
+    } finally {
+      if (button) {
+        button.disabled =
+          false;
+        button.textContent =
+          "Review alignment";
+      }
 
-    setStatus("");
+      setStatus("");
+    }
   };
 
 $("#classifyLinksBtn").onclick =
