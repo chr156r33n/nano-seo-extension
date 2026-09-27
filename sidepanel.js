@@ -16,8 +16,9 @@ const taskResults = {
 };
 
 let linkCursor = 0;
-let domDiffCursor = 0;
 let domDiff = null;
+const domDiffBatchReviews =
+  new Map();
 let analyseAllRunning = false;
 let linkClassificationRunning = false;
 let lastAnalyseAllReport = null;
@@ -1164,6 +1165,25 @@ function initialiseBatchControls() {
     ],
     domDefault
   );
+
+  for (
+    const id
+    of [
+      "#analyseDomBatchSize",
+      "#domDiffBatchSize"
+    ]
+  ) {
+    document
+      .querySelector(id)
+      ?.addEventListener(
+        "input",
+        () => {
+          if (domDiff) {
+            renderDomDiffBatches();
+          }
+        }
+      );
+  }
 
   bindGroup(
     [
@@ -4167,6 +4187,155 @@ function renderIssues() {
   });
 }
 
+function domDiffReviewItems() {
+  return (
+    domDiff?.items ||
+    []
+  ).filter(
+    item =>
+      item.nano_review !==
+      false
+  );
+}
+
+function domDiffReviewBatches() {
+  const items =
+    domDiffReviewItems();
+
+  const size =
+    runtimeDomBatchSize();
+
+  const batches = [];
+
+  for (
+    let i = 0;
+    i < items.length;
+    i += size
+  ) {
+    const batchItems =
+      items.slice(
+        i,
+        i + size
+      );
+
+    batches.push({
+      number:
+        batches.length + 1,
+      start:
+        i + 1,
+      end:
+        i +
+        batchItems.length,
+      items:
+        batchItems,
+      itemIds:
+        batchItems.map(
+          item => item.id
+        )
+    });
+  }
+
+  return batches;
+}
+
+function domDiffBatchKey(
+  itemIds = []
+) {
+  return itemIds
+    .map(String)
+    .join(",");
+}
+
+function fullAnalysisDomAssessments(
+  batch
+) {
+  const expected =
+    new Set(
+      batch.itemIds.map(
+        String
+      )
+    );
+
+  return (
+    lastAnalyseAllReport
+      ?.domDiff
+      ?.assessments ||
+    []
+  ).filter(
+    assessment => {
+      const ids =
+        (
+          assessment.itemIds ||
+          []
+        ).map(String);
+
+      return (
+        ids.length ===
+          expected.size &&
+        ids.every(
+          id =>
+            expected.has(id)
+        )
+      );
+    }
+  );
+}
+
+function domDiffBatchAssessments(
+  batch
+) {
+  const key =
+    domDiffBatchKey(
+      batch.itemIds
+    );
+
+  const local =
+    domDiffBatchReviews
+      .get(key)
+      ?.assessments ||
+    [];
+
+  if (local.length) {
+    return local;
+  }
+
+  return fullAnalysisDomAssessments(
+    batch
+  );
+}
+
+function domDiffBatchSummary(
+  batch
+) {
+  const counts = {};
+
+  for (
+    const item
+    of batch.items
+  ) {
+    const label =
+      humanLabel(
+        item.kind ||
+        "other"
+      );
+
+    counts[label] =
+      (
+        counts[label] ||
+        0
+      ) + 1;
+  }
+
+  return Object.entries(
+    counts
+  )
+    .map(
+      ([label, count]) =>
+        `${label}: ${count}`
+    )
+    .join(" · ");
+}
+
 function renderDomDiffSummary() {
   const el =
     $("#domDiffSummary");
@@ -4174,8 +4343,11 @@ function renderDomDiffSummary() {
   if (!el) return;
 
   if (!domDiff) {
-    el.textContent =
-      "No server/rendered comparison has been run yet.";
+    el.innerHTML =
+      '<div class="card dom-comparison-summary-card"><strong>No comparison run yet.</strong><div class="muted small">Run comparison to compare server HTML with the rendered page.</div></div>';
+
+    renderDomDiffBatches();
+
     return;
   }
 
@@ -4186,77 +4358,505 @@ function renderDomDiffSummary() {
     summary.aggregateImpact ||
     null;
 
-  const kinds =
-    Object.entries(
-      summary.byKind || {}
-    )
-      .map(
-        ([k, v]) =>
-          `${humanLabel(k)}: ${v}`
-      )
-      .join(" · ");
-
-  if (!aggregate) {
-    el.textContent =
-      `${summary.totalDiffItems ?? 0} net semantic difference(s)` +
-      `${summary.nanoReviewItems != null ? ` · ${summary.nanoReviewItems} model-review exception(s)` : ""}` +
-      `${summary.deterministicLowImpactItems != null ? ` · ${summary.deterministicLowImpactItems} deterministic low-impact` : ""}` +
-      `${summary.sourceDiffItems != null ? ` · ${summary.sourceDiffItems} source-level add/remove item(s)` : ""}` +
-      `${summary.reconciledPairs ? ` · ${summary.reconciledPairs} pair(s) reconciled` : ""}` +
-      ` · ${summary.returnedDiffItems ?? 0} retained` +
-      `${summary.droppedByCap ? ` · ${summary.droppedByCap} dropped by cap` : ""}` +
-      `${kinds ? ` · ${kinds}` : ""}`;
-
-    return;
-  }
+  const reviewCount =
+    domDiffReviewItems()
+      .length;
 
   const significanceTone =
-    aggregate.significance ===
+    aggregate?.significance ===
       "meaningful"
       ? "bad"
-      : aggregate.significance ===
+      : aggregate?.significance ===
           "review"
         ? "warn"
         : "good";
 
   el.innerHTML = `
-    <div class="dom-impact-summary">
-      <div class="dom-impact-head">
+    <div class="card dom-comparison-summary-card">
+      <div class="result-card-head">
         <div>
-          <div class="section-kicker">Overall render divergence</div>
-          <div class="dom-impact-title">
-            ${escapeHtml(humanLabel(aggregate.divergence || "small"))} change
-            ·
-            ${escapeHtml(humanLabel(aggregate.significance || "low"))} significance
+          <h3>Comparison summary</h3>
+          <div class="muted small">
+            Deterministic comparison of server HTML and the rendered DOM.
           </div>
         </div>
-        <div class="row">
-          ${badgeHtml(aggregate.divergence || "small", "neutral")}
-          ${badgeHtml(aggregate.significance || "low", significanceTone)}
-        </div>
+        ${
+          aggregate
+            ? badgeHtml(
+                aggregate.significance ||
+                  "low",
+                significanceTone
+              )
+            : ""
+        }
       </div>
 
-      <div class="metric-row">
-        ${metricHtml("Net changes", summary.totalDiffItems ?? 0)}
-        ${metricHtml("Est. inventory changed", `${aggregate.estimated_inventory_change_percent ?? 0}%`)}
-        ${metricHtml("Main content", aggregate.main_content_changes ?? 0)}
-        ${metricHtml("High-weight", aggregate.high_weight_changes ?? 0)}
+      <div class="metric-row" style="margin-top:8px">
+        ${metricHtml("Differences", summary.totalDiffItems ?? 0)}
+        ${metricHtml("For model review", reviewCount)}
+        ${metricHtml("Retained", summary.returnedDiffItems ?? 0)}
+        ${metricHtml("Dropped", summary.droppedByCap ?? 0)}
+        ${
+          aggregate
+            ? metricHtml(
+                "Est. inventory changed",
+                `${aggregate.estimated_inventory_change_percent ?? 0}%`
+              )
+            : ""
+        }
       </div>
 
-      ${aggregate.reasons?.length
-        ? `<div class="dom-impact-reasons">${aggregate.reasons.map(reason => `<span class="mini-chip">${escapeHtml(reason)}</span>`).join("")}</div>`
-        : ""}
-
-      <div class="muted small dom-impact-detail">
-        Weighted change score ${escapeHtml(aggregate.size_score ?? 0)}/100
-        · ${escapeHtml(summary.returnedDiffItems ?? 0)} retained
-        ${summary.droppedByCap ? ` · ${escapeHtml(summary.droppedByCap)} dropped by cap` : ""}
-        ${kinds ? ` · ${escapeHtml(kinds)}` : ""}
-      </div>
+      ${
+        aggregate
+          ? `
+            <div class="dom-impact-inline">
+              <strong>${escapeHtml(humanLabel(aggregate.divergence || "small"))} render change</strong>
+              · ${escapeHtml(humanLabel(aggregate.significance || "low"))} significance
+              ${
+                aggregate.reasons?.length
+                  ? `<div class="muted small" style="margin-top:4px">${aggregate.reasons.map(reason => escapeHtml(reason)).join(" · ")}</div>`
+                  : ""
+              }
+            </div>
+          `
+          : ""
+      }
     </div>
   `;
+
+  renderDomDiffBatches();
 }
 
+function renderDomDiffBatchResults() {
+  const target =
+    $("#domDiffResults");
+
+  if (!target) return;
+
+  target.innerHTML = "";
+
+  if (!domDiff) {
+    return;
+  }
+
+  const reviewed =
+    domDiffReviewBatches()
+      .filter(
+        batch =>
+          domDiffBatchAssessments(
+            batch
+          ).length
+      );
+
+  if (!reviewed.length) {
+    target.innerHTML =
+      '<div class="empty-state">Reviewed batch details will appear here.</div>';
+
+    return;
+  }
+
+  for (
+    const batch
+    of reviewed
+  ) {
+    const assessments =
+      domDiffBatchAssessments(
+        batch
+      );
+
+    const judgementMap =
+      new Map(
+        batch.items.map(
+          item => [
+            item.id,
+            []
+          ]
+        )
+      );
+
+    for (
+      const assessment
+      of assessments
+    ) {
+      if (
+        assessment.error ||
+        !assessment.result
+      ) {
+        continue;
+      }
+
+      for (
+        const result
+        of assessment.result
+          ?.results ||
+        []
+      ) {
+        if (
+          !judgementMap.has(
+            result.id
+          )
+        ) {
+          judgementMap.set(
+            result.id,
+            []
+          );
+        }
+
+        judgementMap
+          .get(
+            result.id
+          )
+          .push({
+            provider:
+              assessment.provider,
+            ...result
+          });
+      }
+    }
+
+    const details =
+      document.createElement(
+        "details"
+      );
+
+    details.className =
+      "card analyse-result-group dom-batch-result";
+
+    details.innerHTML = `
+      <summary>
+        <span>Batch ${batch.number} · differences ${batch.start}–${batch.end}</span>
+        <span class="summary-count">${batch.items.length}</span>
+      </summary>
+      <div class="analyse-group-body">
+        <div class="muted small">
+          ${escapeHtml(domDiffBatchSummary(batch))}
+        </div>
+        <div data-dom-batch-table></div>
+      </div>
+    `;
+
+    details
+      .querySelector(
+        "[data-dom-batch-table]"
+      )
+      .appendChild(
+        domDiffTable(
+          batch.items,
+          judgementMap
+        )
+      );
+
+    target.appendChild(
+      details
+    );
+  }
+}
+
+async function reviewDomDiffBatch(
+  batch,
+  button
+) {
+  if (!snapshot) {
+    return setStatus(
+      "Read the page first.",
+      true
+    );
+  }
+
+  const providers =
+    enabledProviders();
+
+  if (!providers.length) {
+    return setStatus(
+      "Choose at least one model before reviewing this batch.",
+      true
+    );
+  }
+
+  try {
+    await ensureFullSnapshot();
+  } catch (e) {
+    return setStatus(
+      e?.message ||
+      String(e),
+      true
+    );
+  }
+
+  domDiff =
+    snapshot.domDiff ||
+    domDiff;
+
+  const key =
+    domDiffBatchKey(
+      batch.itemIds
+    );
+
+  const assessments = [];
+
+  if (button) {
+    button.disabled =
+      true;
+    button.textContent =
+      "Reviewing…";
+  }
+
+  try {
+    for (
+      const provider
+      of providers
+    ) {
+      const domTask =
+        provider ===
+          "nano"
+          ? "dom_diff_summary"
+          : "dom_diff_triage";
+
+      setStatus(
+        `Reviewing DOM batch ${batch.number} · ${providerReviewLabel(provider, domTask)}…`
+      );
+
+      try {
+        const result =
+          await sw({
+            type:
+              "RUN_TASK",
+            task:
+              domTask,
+            provider,
+            analysisRunId:
+              analysisRun.id,
+            payload: {
+              items:
+                batch.items,
+              cmsContext:
+                domDiff?.cmsContext ||
+                null
+            },
+            useCache:
+              $("#useCache")
+                .checked
+          });
+
+        taskResults[
+          domTask
+        ][
+          provider
+        ] = result;
+
+        assessments.push({
+          batch:
+            batch.number,
+          provider,
+          task:
+            domTask,
+          itemIds:
+            [...batch.itemIds],
+          result,
+          error:
+            null
+        });
+      } catch (e) {
+        assessments.push({
+          batch:
+            batch.number,
+          provider,
+          task:
+            domTask,
+          itemIds:
+            [...batch.itemIds],
+          result:
+            null,
+          error:
+            e?.message ||
+            String(e)
+        });
+      }
+    }
+
+    domDiffBatchReviews.set(
+      key,
+      {
+        assessments,
+        reviewedAt:
+          Date.now()
+      }
+    );
+
+    renderDomDiffBatches();
+    renderDomDiffBatchResults();
+
+    setStatus("");
+  } finally {
+    if (button) {
+      button.disabled =
+        false;
+      button.textContent =
+        "Review";
+    }
+  }
+}
+
+function renderDomDiffBatches() {
+  const target =
+    $("#domDiffBatches");
+
+  if (!target) return;
+
+  target.innerHTML = "";
+
+  if (!domDiff) {
+    return;
+  }
+
+  const batches =
+    domDiffReviewBatches();
+
+  const card =
+    document.createElement(
+      "div"
+    );
+
+  card.className =
+    "card dom-batch-card";
+
+  if (!batches.length) {
+    card.innerHTML =
+      '<h3>Model review batches</h3><div class="empty-state good-state">No differences need model review. The deterministic comparison resolved the retained changes.</div>';
+
+    target.appendChild(
+      card
+    );
+
+    renderDomDiffBatchResults();
+
+    return;
+  }
+
+  const reviewedCount =
+    batches.filter(
+      batch =>
+        domDiffBatchAssessments(
+          batch
+        ).length
+    ).length;
+
+  card.innerHTML = `
+    <div class="result-card-head">
+      <div>
+        <h3>Model review batches</h3>
+        <div class="muted small">
+          Review any batch in any order. A batch is only marked reviewed after a model call is attempted.
+        </div>
+      </div>
+      ${badgeHtml(
+        `${reviewedCount}/${batches.length} reviewed`,
+        reviewedCount ===
+          batches.length
+          ? "good"
+          : "neutral"
+      )}
+    </div>
+    <div class="data-table-wrap">
+      <table class="data-table dom-batch-table">
+        <thead>
+          <tr>
+            <th>Batch</th>
+            <th>Differences</th>
+            <th>Contents</th>
+            <th>Status</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  `;
+
+  const body =
+    card.querySelector(
+      "tbody"
+    );
+
+  for (
+    const batch
+    of batches
+  ) {
+    const assessments =
+      domDiffBatchAssessments(
+        batch
+      );
+
+    const errors =
+      assessments.filter(
+        assessment =>
+          assessment.error
+      );
+
+    const successful =
+      assessments.filter(
+        assessment =>
+          !assessment.error &&
+          assessment.result
+      );
+
+    const status =
+      assessments.length
+        ? errors.length &&
+          !successful.length
+          ? badgeHtml(
+              "error",
+              "bad"
+            )
+          : errors.length
+            ? badgeHtml(
+                "partial",
+                "warn"
+              )
+            : badgeHtml(
+                "reviewed",
+                "good"
+              )
+        : badgeHtml(
+            "not reviewed",
+            "neutral"
+          );
+
+    const row =
+      document.createElement(
+        "tr"
+      );
+
+    row.innerHTML = `
+      <td><strong>Batch ${batch.number}</strong></td>
+      <td>${batch.start}–${batch.end} <span class="muted">of ${domDiffReviewItems().length}</span></td>
+      <td>${escapeHtml(domDiffBatchSummary(batch))}</td>
+      <td>${status}</td>
+      <td><button class="secondary compact" data-review-dom-batch>${assessments.length ? "Review again" : "Review"}</button></td>
+    `;
+
+    row
+      .querySelector(
+        "[data-review-dom-batch]"
+      )
+      .onclick =
+        event =>
+          reviewDomDiffBatch(
+            batch,
+            event.currentTarget
+          );
+
+    body.appendChild(
+      row
+    );
+  }
+
+  target.appendChild(
+    card
+  );
+
+  renderDomDiffBatchResults();
+}
 
 
 function effectiveUrlSignals() {
@@ -5727,7 +6327,6 @@ async function analyseAll() {
       ctx.analysisRun;
 
     linkCursor = 0;
-    domDiffCursor = 0;
     domDiff = null;
 
     resetTaskResultState();
@@ -6575,6 +7174,8 @@ async function analyseAll() {
     lastAnalyseAllReport =
       report;
 
+    renderDomDiffBatches();
+
     renderAnalyseAllResults(
       report
     );
@@ -6622,7 +7223,6 @@ bindMainTabs();
   domDiff =
     snapshot?.domDiff ||
     null;
-  domDiffCursor = 0;
 
   updatePageMeta();
   renderIssues();
@@ -6662,8 +7262,8 @@ $("#captureBtn").onclick = async () => {
     snapshot = ctx.snapshot;
     analysisRun = ctx.analysisRun;
     linkCursor = 0;
-    domDiffCursor = 0;
     domDiff = null;
+    domDiffBatchReviews.clear();
     lastAnalyseAllReport =
       null;
 
@@ -6690,6 +7290,13 @@ $("#captureBtn").onclick = async () => {
 
     if (domResult) {
       domResult.innerHTML = "";
+    }
+
+    const domBatches =
+      $("#domDiffBatches");
+
+    if (domBatches) {
+      domBatches.innerHTML = "";
     }
 
     setStatus("");
@@ -7274,18 +7881,16 @@ $("#buildDomDiffBtn").onclick =
             "BUILD_DOM_DIFF"
         });
 
-      domDiffCursor = 0;
-
+  
       if (snapshot) {
         snapshot.domDiff =
           domDiff;
       }
 
+      domDiffBatchReviews.clear();
+
       renderDomDiffSummary();
 
-      $("#domDiffResults")
-        .innerHTML = "";
-
       setStatus("");
     } catch (e) {
       setStatus(
@@ -7295,190 +7900,7 @@ $("#buildDomDiffBtn").onclick =
     }
   };
 
-$("#assessDomDiffBtn").onclick =
-  async () => {
-    if (!snapshot) {
-      return setStatus(
-        "Read the page first.",
-        true
-      );
-    }
 
-    try {
-      await ensureFullSnapshot();
-    } catch (e) {
-      return setStatus(
-        e?.message || String(e),
-        true
-      );
-    }
-
-    domDiff =
-      snapshot.domDiff ||
-      domDiff;
-
-    if (!domDiff?.items?.length) {
-      return setStatus(
-        "Run the server/rendered comparison first.",
-        true
-      );
-    }
-
-    const reviewItems =
-      domDiff.items.filter(
-        item =>
-          item.nano_review !==
-          false
-      );
-
-    if (!reviewItems.length) {
-      return setStatus(
-        "All heading and link changes were resolved by the automated checks. There is nothing left for Nano to review.",
-        false
-      );
-    }
-
-    const batchSize =
-      runtimeDomBatchSize();
-
-    if (
-      domDiffCursor >=
-      reviewItems.length
-    ) {
-      domDiffCursor = 0;
-    }
-
-    const batch =
-      reviewItems.slice(
-        domDiffCursor,
-        domDiffCursor +
-          batchSize
-      );
-
-    domDiffCursor +=
-      batch.length;
-
-    const target =
-      $("#domDiffResults");
-
-    target.innerHTML = "";
-
-    const batchLabel =
-      document.createElement(
-        "div"
-      );
-
-    batchLabel.className =
-      "muted small";
-
-    batchLabel.textContent =
-      `Reviewing differences ${Math.max(1, domDiffCursor - batch.length + 1)}–${domDiffCursor} of ${reviewItems.length} (${domDiff.items.length} total changes found).`;
-
-    target.appendChild(
-      batchLabel
-    );
-
-    try {
-      const providers =
-        enabledProviders();
-
-      if (!providers.length) {
-        throw new Error(
-          "Choose at least one model."
-        );
-      }
-
-      const judgementMap =
-        new Map(
-          batch.map(
-            item => [
-              item.id,
-              []
-            ]
-          )
-        );
-
-      for (
-        const provider
-        of providers
-      ) {
-        setStatus(
-          `Reviewing DOM differences · ${provider}…`
-        );
-
-        const domTask =
-          provider === "nano"
-            ? "dom_diff_summary"
-            : "dom_diff_triage";
-
-        const result =
-          await sw({
-            type:
-              "RUN_TASK",
-            task:
-              domTask,
-            provider,
-            analysisRunId:
-              analysisRun.id,
-            payload: {
-              items:
-                batch,
-              cmsContext:
-                domDiff?.cmsContext ||
-                null
-            },
-            useCache:
-              $("#useCache")
-                .checked
-          });
-
-        taskResults[
-          domTask
-        ][
-          provider
-        ] = result;
-
-        for (
-          const judgement
-          of result.results || []
-        ) {
-          if (
-            !judgementMap.has(
-              judgement.id
-            )
-          ) {
-            judgementMap.set(
-              judgement.id,
-              []
-            );
-          }
-
-          judgementMap
-            .get(
-              judgement.id
-            )
-            .push({
-              provider,
-              ...judgement
-            });
-        }
-      }
-
-      target.appendChild(
-        domDiffTable(
-          batch,
-          judgementMap
-        )
-      );
-
-      setStatus("");
-    } catch (e) {
-      setStatus(
-        e?.message || String(e),
-        true
-      );
-    }
-  };
 
 
 $("#reviewUrlSignalsBtn").onclick =

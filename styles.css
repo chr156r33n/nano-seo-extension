@@ -451,6 +451,38 @@ th {
   color: var(--ink);
 }
 
+.dom-comparison-shell #domDiffSummary,
+.dom-comparison-shell #domDiffBatches,
+.dom-comparison-shell #domDiffResults {
+  color: var(--ink);
+}
+
+.dom-comparison-shell #domDiffSummary .card,
+.dom-comparison-shell #domDiffBatches .card,
+.dom-comparison-shell #domDiffResults .card,
+.dom-comparison-shell #domDiffBatches .data-table,
+.dom-comparison-shell #domDiffResults .data-table {
+  color: var(--ink);
+  background: var(--paper);
+}
+
+.dom-comparison-shell #domDiffSummary .muted,
+.dom-comparison-shell #domDiffBatches .muted,
+.dom-comparison-shell #domDiffResults .muted,
+.dom-comparison-shell #domDiffSummary .metric-label,
+.dom-comparison-shell #domDiffBatches .metric-label,
+.dom-comparison-shell #domDiffResults .metric-label {
+  color: var(--muted);
+}
+
+.dom-comparison-shell #domDiffSummary code,
+.dom-comparison-shell #domDiffBatches code,
+.dom-comparison-shell #domDiffResults code,
+.dom-comparison-shell #domDiffBatches td,
+.dom-comparison-shell #domDiffResults td {
+  color: var(--ink);
+}
+
 .analyse-all-shell #analyseAllResults th {
   color: var(--muted);
 }
@@ -2384,6 +2416,44 @@ h3 {
 
 .dom-diff-table td:nth-child(5) {
   min-width: 220px;
+}
+
+.dom-batch-table {
+  min-width: 620px;
+}
+
+.dom-batch-table th:nth-child(1),
+.dom-batch-table td:nth-child(1) {
+  width: 68px;
+}
+
+.dom-batch-table th:nth-child(2),
+.dom-batch-table td:nth-child(2) {
+  width: 110px;
+}
+
+.dom-batch-table th:nth-child(4),
+.dom-batch-table td:nth-child(4) {
+  width: 92px;
+}
+
+.dom-batch-table th:nth-child(5),
+.dom-batch-table td:nth-child(5) {
+  width: 96px;
+}
+
+.dom-batch-table button {
+  width: 100%;
+  white-space: nowrap;
+}
+
+.dom-comparison-summary-card,
+.dom-batch-card {
+  margin-top: 8px;
+}
+
+.dom-batch-result > summary {
+  align-items: center;
 }
 
 .dom-impact-summary {
