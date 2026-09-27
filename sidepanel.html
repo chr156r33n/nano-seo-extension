@@ -236,9 +236,10 @@
                 <span>DOM differences per model call</span>
                 <input id="domDiffBatchSize" type="number" min="1" max="100" step="1">
               </label>
+              <button id="downloadDomDiffDebugBtn" class="secondary">Download unfiltered diff</button>
             </div>
             <div class="section-copy batch-guidance">
-              This changes how reviewable differences are grouped. Each batch can be reviewed independently.
+              Batch size only changes how reviewable differences are grouped. Download unfiltered diff exports the raw detected differences, reconciled pre-noise differences and anything removed as deterministic noise.
             </div>
           </div>
         </details>
