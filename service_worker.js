@@ -20,11 +20,16 @@ chrome.runtime.onInstalled.addListener(async () => {
   await disableAutomaticSidePanelAction();
 
   const {settings} =
-    await chrome.storage.local.get("settings");
+    await chrome.storage.local.get(
+      "settings"
+    );
 
   if (!settings) {
     await chrome.storage.local.set({
-      settings: DEFAULT_SETTINGS
+      settings:
+        persistentSettings(
+          DEFAULT_SETTINGS
+        )
     });
   }
 });
@@ -137,8 +142,60 @@ async function getCurrentActiveTab() {
 }
 
 async function getSettings() {
-  const {settings} = await chrome.storage.local.get("settings");
-  return mergeSettings(settings);
+  const {settings} =
+    await chrome.storage.local.get(
+      "settings"
+    );
+
+  const stored =
+    mergeSettings(
+      settings
+    );
+
+  const legacySecrets =
+    providerSecretsFromSettings(
+      stored
+    );
+
+  const session =
+    await chrome.storage.session.get([
+      "geminiApiKey",
+      "openaiApiKey"
+    ]);
+
+  const secrets = {
+    geminiApiKey:
+      session.geminiApiKey ||
+      legacySecrets.geminiApiKey ||
+      "",
+    openaiApiKey:
+      session.openaiApiKey ||
+      legacySecrets.openaiApiKey ||
+      ""
+  };
+
+  if (
+    (
+      legacySecrets.geminiApiKey ||
+      legacySecrets.openaiApiKey
+    )
+  ) {
+    await chrome.storage.session.set(
+      secrets
+    );
+
+    await chrome.storage.local.set({
+      settings:
+        persistentSettings(
+          stored
+        )
+    });
+  }
+
+  return applyProviderSecrets(
+    stored,
+    secrets
+  );
 }
 
 function friendlyPageAccessError(error) {
@@ -14563,6 +14620,34 @@ chrome.runtime.onMessage.addListener(
         await dbClear(
           "runs"
         );
+        return true;
+      }
+
+      if (
+        msg.type ===
+        "CLEAR_LOCAL_ANALYSIS_DATA"
+      ) {
+        for (
+          const store
+          of [
+            "snapshots",
+            "cache",
+            "runs",
+            "analysisRuns"
+          ]
+        ) {
+          await dbClear(
+            store
+          );
+        }
+
+        await chrome.storage.local.remove([
+          "lastSnapshotFingerprint",
+          "lastSnapshotSummary",
+          "currentAnalysisRunId",
+          "currentAnalysisRunSummary"
+        ]);
+
         return true;
       }
 
