@@ -96,7 +96,7 @@
     <h2>Data and privacy</h2>
     <p>Page snapshots, analysis history, model-call logs and cached model results are stored locally in Chrome. They are not sent to a Nano SEO Lab developer-operated analytics service.</p>
     <p><strong>Chrome Nano stays local to Chrome.</strong> If you choose Gemini or OpenAI, only the evidence needed for that review task is sent directly from your browser to the selected provider using your own API key.</p>
-    <p><strong>Gemini and OpenAI API keys are session-only.</strong> They are not written to persistent extension settings and are cleared when the Chrome session ends. Existing saved keys from earlier builds are migrated out of persistent storage when detected.</p>
+    <p><strong>Gemini and OpenAI API keys are stored locally in Chrome.</strong> They are kept in local extension storage so you do not need to re-enter them each time Chrome starts. They are sent only to the selected API provider when that provider is used.</p>
     <p>Use <strong>Settings → Clear saved model results</strong> to clear the model cache, or <strong>Clear all local analysis data</strong> to remove saved page snapshots, analysis history, model-call logs and cached results.</p>
   </section>
 
