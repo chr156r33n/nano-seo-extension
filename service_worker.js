@@ -12752,121 +12752,6 @@ async function buildDomDiff() {
           ...reconciledItems
         ];
 
-        const volatileTokenPattern =
-          /(?:^|[-_:])(react|vue|ember|next|nuxt|hydr|hydrate|hydration|cache|cached|state|session|timestamp|nonce|random|generated|uid|uuid|instance)(?:[-_:]|$)|[a-f0-9]{8,}|\d{6,}/i;
-
-        const volatileSelectorOnlyChange = (
-          item
-        ) => {
-          if (
-            item.change_type !==
-              "changed_in_rendered" ||
-            !item.reconciliation
-          ) {
-            return false;
-          }
-
-          const rawSelector =
-            String(
-              item.raw
-                ?.element
-                ?.selector ||
-              ""
-            );
-
-          const renderedSelector =
-            String(
-              item.rendered
-                ?.element
-                ?.selector ||
-              ""
-            );
-
-          if (
-            !rawSelector ||
-            !renderedSelector ||
-            rawSelector ===
-              renderedSelector
-          ) {
-            return false;
-          }
-
-          const sameText =
-            comparableText(
-              item.raw
-            ) ===
-            comparableText(
-              item.rendered
-            );
-
-          const sameHref =
-            comparableHref(
-              item.raw
-            ) ===
-            comparableHref(
-              item.rendered
-            );
-
-          return (
-            sameText &&
-            (
-              item.kind !==
-                "link" ||
-              sameHref
-            ) &&
-            (
-              volatileTokenPattern.test(
-                rawSelector
-              ) ||
-              volatileTokenPattern.test(
-                renderedSelector
-              )
-            )
-          );
-        };
-
-        const obviousNoiseReason = (
-          item
-        ) => {
-          if (
-            volatileSelectorOnlyChange(
-              item
-            )
-          ) {
-            return "volatile selector/id state changed while the semantic value stayed the same";
-          }
-
-          return "";
-        };
-
-        const noiseRemoved = [];
-        const semanticNetItems = [];
-
-        for (
-          const item
-          of semanticNetItems
-        ) {
-          const noiseReason =
-            obviousNoiseReason(
-              item
-            );
-
-          if (noiseReason) {
-            noiseRemoved.push({
-              kind:
-                item.kind,
-              change_type:
-                item.change_type,
-              reason:
-                noiseReason
-            });
-          } else {
-            semanticNetItems.push(
-              item
-            );
-          }
-        }
-
         const countHeadingText = (
           inventory,
           text
@@ -13647,6 +13532,121 @@ async function buildDomDiff() {
           } else {
             item.nano_review =
               true;
+          }
+        }
+
+        const volatileTokenPattern =
+          /(?:^|[-_:])(react|vue|ember|next|nuxt|hydr|hydrate|hydration|cache|cached|state|session|timestamp|nonce|random|generated|uid|uuid|instance)(?:[-_:]|$)|[a-f0-9]{8,}|\d{6,}/i;
+
+        const volatileSelectorOnlyChange = (
+          item
+        ) => {
+          if (
+            item.change_type !==
+              "changed_in_rendered" ||
+            !item.reconciliation
+          ) {
+            return false;
+          }
+
+          const rawSelector =
+            String(
+              item.raw
+                ?.element
+                ?.selector ||
+              ""
+            );
+
+          const renderedSelector =
+            String(
+              item.rendered
+                ?.element
+                ?.selector ||
+              ""
+            );
+
+          if (
+            !rawSelector ||
+            !renderedSelector ||
+            rawSelector ===
+              renderedSelector
+          ) {
+            return false;
+          }
+
+          const sameText =
+            comparableText(
+              item.raw
+            ) ===
+            comparableText(
+              item.rendered
+            );
+
+          const sameHref =
+            comparableHref(
+              item.raw
+            ) ===
+            comparableHref(
+              item.rendered
+            );
+
+          return (
+            sameText &&
+            (
+              item.kind !==
+                "link" ||
+              sameHref
+            ) &&
+            (
+              volatileTokenPattern.test(
+                rawSelector
+              ) ||
+              volatileTokenPattern.test(
+                renderedSelector
+              )
+            )
+          );
+        };
+
+        const obviousNoiseReason = (
+          item
+        ) => {
+          if (
+            volatileSelectorOnlyChange(
+              item
+            )
+          ) {
+            return "volatile selector/id state changed while the semantic value stayed the same";
+          }
+
+          return "";
+        };
+
+        const noiseRemoved = [];
+        const semanticNetItems = [];
+
+        for (
+          const item
+          of netItems
+        ) {
+          const noiseReason =
+            obviousNoiseReason(
+              item
+            );
+
+          if (noiseReason) {
+            noiseRemoved.push({
+              kind:
+                item.kind,
+              change_type:
+                item.change_type,
+              reason:
+                noiseReason
+            });
+          } else {
+            semanticNetItems.push(
+              item
+            );
           }
         }
 
