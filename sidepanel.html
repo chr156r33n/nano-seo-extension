@@ -209,17 +209,18 @@
     </div>
 
     <div id="panel-technical" class="main-tab-panel" role="tabpanel" aria-labelledby="tab-technical" data-main-panel="technical" hidden>
-      <section class="tool-section tool-section-first">
-        <h2>Compare server HTML with the rendered page</h2>
-        <div class="section-copy">
-          Compare server HTML with the live DOM and review meaningful differences.
+      <section class="analyse-all-shell dom-comparison-shell">
+        <div class="analyse-all-head">
+          <div>
+            <h2>DOM comparison</h2>
+            <div class="section-copy">
+              Compare server HTML with the rendered page, then review only the batches that need model judgement.
+            </div>
+          </div>
+          <button id="buildDomDiffBtn">Run comparison</button>
         </div>
 
-        <div class="run-control-row">
-          <button id="buildDomDiffBtn">Compare server vs rendered</button>
-          <button id="assessDomDiffBtn" class="secondary">Review next differences</button>
-        </div>
-        <details class="control-panel advanced-run-settings">
+        <details class="control-panel advanced-run-settings analyse-all-advanced">
           <summary>Advanced review settings</summary>
           <div class="control-panel-body">
             <div class="run-control-row">
@@ -229,12 +230,13 @@
               </label>
             </div>
             <div class="section-copy batch-guidance">
-              Use smaller groups for Nano if summaries become muddled; hosted models can usually review larger groups.
+              This changes how reviewable differences are grouped. Each batch can be reviewed independently.
             </div>
           </div>
         </details>
 
-        <div id="domDiffSummary" class="muted small"></div>
+        <div id="domDiffSummary" class="results"></div>
+        <div id="domDiffBatches" class="results"></div>
         <div id="domDiffResults" class="results"></div>
       </section>
 
