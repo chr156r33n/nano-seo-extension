@@ -1510,12 +1510,16 @@ pre,
 }
 
 button {
+  max-width: 100%;
   min-height: 30px;
   padding: 6px 9px;
   border-radius: 3px;
-  font-size: 11px;
-  line-height: 1.2;
+  font-size: clamp(9px, 2.6vw, 11px);
+  line-height: 1.15;
   letter-spacing: 0;
+  overflow-wrap: anywhere;
+  white-space: normal;
+  text-align: center;
   box-shadow: none;
 }
 
@@ -1525,8 +1529,9 @@ button:hover:not(:disabled) {
 
 button.compact {
   min-height: 28px;
-  padding: 5px 8px;
-  font-size: 11px;
+  padding: 5px 7px;
+  font-size: clamp(8px, 2.3vw, 10px);
+  line-height: 1.1;
 }
 
 h2 {
@@ -1884,7 +1889,8 @@ h3 {
 .issue-head > div:last-child.row button,
 .issue-head > button {
   width: 100%;
-  white-space: nowrap;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .finding-followup-row .issue-head {
@@ -2147,6 +2153,47 @@ h3 {
   max-width: 420px;
 }
 
+.settings-action-bar {
+  position: sticky;
+  z-index: 50;
+  bottom: 0;
+  display: grid;
+  gap: 6px;
+  margin: 28px -24px -56px;
+  padding: 11px 24px 13px;
+  border-top: 1px solid var(--line-strong);
+  background: rgba(247,247,244,.97);
+  box-shadow: 0 -8px 20px rgba(31,20,18,.08);
+  backdrop-filter: blur(8px);
+}
+
+.settings-action-buttons {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex-wrap: wrap;
+}
+
+.settings-action-buttons #saveBtn {
+  min-width: 118px;
+}
+
+.options .settings-action-buttons button {
+  font-size: clamp(10px, 1.2vw, 12px);
+  line-height: 1.15;
+  white-space: normal;
+}
+
+.settings-action-status {
+  position: static;
+  max-width: none !important;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
 @media (max-width: 650px) {
   .grid {
     grid-template-columns: 1fr;
@@ -2155,6 +2202,25 @@ h3 {
   .options,
   .logs {
     padding: 24px 16px 40px;
+  }
+
+  .settings-action-bar {
+    margin-right: -16px;
+    margin-bottom: -40px;
+    margin-left: -16px;
+    padding-right: 16px;
+    padding-left: 16px;
+  }
+
+  .settings-action-buttons {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .settings-action-buttons button,
+  .settings-action-buttons #saveBtn {
+    width: 100%;
+    min-width: 0;
   }
 }
 
@@ -2532,7 +2598,11 @@ h3 {
 
 .dom-batch-table button {
   width: 100%;
-  white-space: nowrap;
+  padding-inline: 4px;
+  font-size: clamp(8px, 2.1vw, 9px);
+  line-height: 1.05;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .dom-comparison-summary-card,
