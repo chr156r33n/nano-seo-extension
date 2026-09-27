@@ -105,6 +105,16 @@ The model should receive these as deterministic observations. CMS confidence is 
 
 The local server has special `/verify/*` routes for these cases, so run the fixture through `python3 test-site/server.py` rather than opening the HTML file directly.
 
+### dom-link-target-inventory.html
+Controlled link-graph changes exercise normalized destination counting:
+- query strings and fragments collapse to the same internal target for inventory purposes
+- `/destinations` changes from 2 server links to 4 rendered links
+- `/privatejet/journeys/timeless-encounters` is introduced only after rendering (0 → 1)
+- `/legacy-offer` is removed entirely after rendering (1 → 0)
+- navigation placement must not cause a real target-introduction/removal signal to be dismissed as harmless
+
+Nano still only summarizes the supplied evidence; significance judgement remains in deterministic evidence + external model triage.
+
 ### page-purpose.html
 Clear expected classification:
 - page type: `location`
