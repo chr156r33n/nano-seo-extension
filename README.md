@@ -1,3 +1,32 @@
+# Nano SEO Lab 1.0
+
+Nano SEO Lab is a Chrome Side Panel extension for auditing the current webpage with deterministic SEO checks, server-versus-rendered DOM comparison, and optional AI-assisted review.
+
+## Chrome Web Store release
+
+The Store package is built from an explicit runtime-file allow-list rather than zipping the repository wholesale.
+
+Run:
+
+```bash
+node scripts/preflight-chrome-store.mjs
+bash scripts/package-chrome-store.sh
+```
+
+The package is written to:
+
+```text
+dist/nano-seo-lab-1.0.0.zip
+```
+
+The preflight checks the Manifest V3 metadata, required runtime files, JavaScript syntax, absence of obvious remotely executed code, session-only provider-secret handling, and exclusion of development-only files.
+
+Submission copy, permission justifications and reviewer instructions are in `CHROME_WEB_STORE.md`. The public privacy policy is in `PRIVACY.md`.
+
+For the first Store submission, test the generated ZIP as an unpacked extension before uploading it.
+
+---
+
 # Nano SEO Lab v0.9
 
 This update extends the deterministic page audit and makes **Analyse all** configurable.
