@@ -7501,85 +7501,193 @@ $("#intentBtn").onclick = async () => {
   }
 };
 
-$("#alignmentBtn").onclick = async () => {
-  if (!snapshot) {
-    return setStatus("Read the page first.", true);
-  }
-
-  try {
-    await ensureFullSnapshot();
-  } catch (e) {
-    return setStatus(
-      e?.message || String(e),
-      true
-    );
-  }
-
-  const target = $("#intentResults");
-  target.innerHTML = "";
-
-  const providers = enabledProviders();
-
-  for (const mode of modesToRun()) {
-    for (const provider of providers) {
-      const pageTypeResult =
-        taskResults.page_type?.[mode]?.[provider];
-
-      const intentResult =
-        taskResults.intent?.[mode]?.[provider];
-
-      if (!pageTypeResult || !intentResult) {
-        const d = document.createElement("div");
-        d.className = "card";
-
-        d.innerHTML =
-          `<h3>${mode} · ${provider}</h3>` +
-          `<pre>Run page type and intent for this model first, then check alignment.</pre>`;
-
-        target.appendChild(d);
-        continue;
-      }
-
-      setStatus(
-        `Checking page type ↔ intent alignment · ${mode} · ${provider}…`
+$("#alignmentBtn").onclick =
+  async () => {
+    if (!snapshot) {
+      return setStatus(
+        "Read the page first.",
+        true
       );
+    }
 
-      try {
-        const result = await sw({
-          type: "RUN_TASK",
-          task: "alignment",
-          provider,
-          analysisRunId: analysisRun.id,
-          payload: {
-            snapshot,
-            inputMode: mode,
-            pageTypeResult,
-            intentResult
-          },
-          useCache: $("#useCache").checked
-        });
+    try {
+      await ensureFullSnapshot();
+    } catch (e) {
+      return setStatus(
+        e?.message ||
+        String(e),
+        true
+      );
+    }
 
-        ensureModeStore("alignment", mode);
-        taskResults.alignment[mode][provider] = result;
+    const providers =
+      enabledProviders();
+
+    if (!providers.length) {
+      return setStatus(
+        "Choose at least one model.",
+        true
+      );
+    }
+
+    const target =
+      $("#intentResults");
+
+    target.innerHTML = "";
+
+    for (
+      const mode
+      of modesToRun()
+    ) {
+      for (
+        const provider
+        of providers
+      ) {
+        const pageType =
+          await runTaskSilent(
+            "page_type",
+            provider,
+            {
+              snapshot
+            },
+            mode
+          );
+
+        if (!pageType.ok) {
+          const error =
+            document.createElement(
+              "div"
+            );
+
+          error.className =
+            "card result-card error-card";
+
+          error.innerHTML =
+            `<div class="result-provider">${escapeHtml(providerReviewLabel(provider, "page_type"))}</div><div class="result-copy">Could not identify page type: ${escapeHtml(pageType.error)}</div>`;
+
+          target.appendChild(
+            error
+          );
+
+          continue;
+        }
+
+        const intent =
+          await runTaskSilent(
+            "intent",
+            provider,
+            {
+              snapshot
+            },
+            mode
+          );
+
+        if (!intent.ok) {
+          const error =
+            document.createElement(
+              "div"
+            );
+
+          error.className =
+            "card result-card error-card";
+
+          error.innerHTML =
+            `<div class="result-provider">${escapeHtml(providerReviewLabel(provider, "intent"))}</div><div class="result-copy">Could not identify intent: ${escapeHtml(intent.error)}</div>`;
+
+          target.appendChild(
+            error
+          );
+
+          continue;
+        }
+
+        const alignment =
+          await runTaskSilent(
+            "alignment",
+            provider,
+            {
+              snapshot,
+              pageTypeResult:
+                pageType.result,
+              intentResult:
+                intent.result
+            },
+            mode
+          );
+
+        if (!alignment.ok) {
+          const error =
+            document.createElement(
+              "div"
+            );
+
+          error.className =
+            "card result-card error-card";
+
+          error.innerHTML =
+            `<div class="result-provider">${escapeHtml(providerReviewLabel(provider, "alignment"))}</div><div class="result-copy">Could not review alignment: ${escapeHtml(alignment.error)}</div>`;
+
+          target.appendChild(
+            error
+          );
+
+          continue;
+        }
+
+        const group =
+          document.createElement(
+            "div"
+          );
+
+        group.className =
+          "alignment-workflow-group";
+
+        group.appendChild(
+          providerCard(
+            "alignment",
+            provider,
+            alignment.result,
+            mode
+          )
+        );
+
+        const inputs =
+          document.createElement(
+            "details"
+          );
+
+        inputs.className =
+          "card analyse-result-group alignment-inputs";
+
+        inputs.innerHTML = `
+          <summary>
+            <span>Inputs used for alignment</span>
+            <span class="summary-count">2</span>
+          </summary>
+          <div class="analyse-group-body">
+            <div class="result-subsection">
+              <div class="result-label">Page type</div>
+              ${taskResultHtml("page_type", pageType.result)}
+            </div>
+            <div class="result-subsection">
+              <div class="result-label">Intent</div>
+              ${taskResultHtml("intent", intent.result)}
+            </div>
+          </div>
+        `;
+
+        group.appendChild(
+          inputs
+        );
 
         target.appendChild(
-          providerCard("alignment", provider, result, mode)
+          group
         );
-      } catch (e) {
-        const d = document.createElement("div");
-        d.className = "card";
-
-        d.innerHTML =
-          `<h3>${mode} · ${provider} · error</h3>` +
-          `<pre>${escapeHtml(e?.message || String(e))}</pre>`;
-
-        target.appendChild(d);
       }
     }
-  }
 
-  setStatus("");
-};
+    setStatus("");
+  };
 
 $("#classifyLinksBtn").onclick = async () => {
   if (linkClassificationRunning) {
