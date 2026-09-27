@@ -86,9 +86,9 @@ const DEFAULT_SETTINGS = {
 
   semanticImportanceGuidance: `Judge semantic importance by an element's role in communicating the page's primary topic and user goal, not simply by its HTML tag.
 
-Generally prioritise primary/main content, product/category/service information, prominent hero content, headings closely related to the main topic, and information needed to understand, evaluate or act on the page.
+Generally prioritise primary/main content, product/category/service information, prominent hero content, main navigation, headings closely related to the main topic, and information needed to understand, evaluate or act on the page.
 
-Generally downweight cookie/consent UI, navigation, menus, footer content, legal boilerplate, account/utility controls, repeated sitewide content, unrelated recommendations, and modal/hidden interface content.
+Generally downweight cookie/consent UI, legal boilerplate, account/utility controls, repeated sitewide content, unrelated recommendations, and modal/hidden interface content.
 
 A heading is not important merely because it is an H1/H2/H3. Its importance depends on its relationship to the page's primary topic and purpose.`,
 
