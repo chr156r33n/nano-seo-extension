@@ -2584,3 +2584,44 @@ h3 {
   background: var(--soft);
   font-size: 11px;
 }
+
+
+/* Final contrast contract for advanced controls inside dark analysis shells.
+   Keep at end of stylesheet so later compact/control-panel rules cannot override it. */
+.control-panel.analyse-all-advanced {
+  border-color: rgba(255,255,255,.34);
+  background: rgba(31,20,18,.20);
+  color: #fff;
+}
+
+.control-panel.analyse-all-advanced > summary,
+.control-panel.analyse-all-advanced.advanced-run-settings > summary {
+  color: #fff;
+}
+
+.control-panel.analyse-all-advanced .control-panel-body {
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+  border-radius: 0 0 4px 4px;
+  background: var(--paper);
+  color: var(--ink);
+}
+
+.control-panel.analyse-all-advanced .control-panel-body label,
+.control-panel.analyse-all-advanced .control-panel-body span {
+  color: var(--ink);
+}
+
+.control-panel.analyse-all-advanced .control-panel-body .batch-help,
+.control-panel.analyse-all-advanced .control-panel-body .batch-guidance,
+.control-panel.analyse-all-advanced .control-panel-body .section-copy,
+.control-panel.analyse-all-advanced .control-panel-body .small,
+.control-panel.analyse-all-advanced .control-panel-body small {
+  color: var(--muted);
+}
+
+.control-panel.analyse-all-advanced input {
+  border-color: var(--line-strong);
+  background: #fff;
+  color: var(--ink);
+}
