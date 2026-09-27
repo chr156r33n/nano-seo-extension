@@ -92,6 +92,14 @@
     <p>For that reason, Nano SEO Lab does not treat a model answer as ground truth. Deterministic checks remain deterministic, model judgements retain their evidence, and the comparison tools make disagreement visible.</p>
   </section>
 
+  <section class="card" id="privacy">
+    <h2>Data and privacy</h2>
+    <p>Page snapshots, analysis history, model-call logs and cached model results are stored locally in Chrome. They are not sent to a Nano SEO Lab developer-operated analytics service.</p>
+    <p><strong>Chrome Nano stays local to Chrome.</strong> If you choose Gemini or OpenAI, only the evidence needed for that review task is sent directly from your browser to the selected provider using your own API key.</p>
+    <p><strong>Gemini and OpenAI API keys are session-only.</strong> They are not written to persistent extension settings and are cleared when the Chrome session ends. Existing saved keys from earlier builds are migrated out of persistent storage when detected.</p>
+    <p>Use <strong>Settings → Clear saved model results</strong> to clear the model cache, or <strong>Clear all local analysis data</strong> to remove saved page snapshots, analysis history, model-call logs and cached results.</p>
+  </section>
+
   <section class="card" id="security">
     <h2>Security and untrusted page content</h2>
     <p>A webpage is data, but it can contain text that looks like an instruction to an AI model. This creates a prompt-injection risk when page content is passed into model-powered analysis.</p>
