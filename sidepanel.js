@@ -8251,6 +8251,75 @@ $("#checkLinkResponsesBtn").onclick = async () => {
   }
 };
 
+$("#downloadDomDiffDebugBtn").onclick =
+  async () => {
+    try {
+      const debug =
+        await sw({
+          type:
+            "GET_DOM_DIFF_DEBUG"
+        });
+
+      if (!debug) {
+        return setStatus(
+          "Run DOM comparison first.",
+          true
+        );
+      }
+
+      const blob =
+        new Blob(
+          [
+            JSON.stringify(
+              debug,
+              null,
+              2
+            )
+          ],
+          {
+            type:
+              "application/json"
+          }
+        );
+
+      const url =
+        URL.createObjectURL(
+          blob
+        );
+
+      const a =
+        document.createElement(
+          "a"
+        );
+
+      a.href =
+        url;
+
+      a.download =
+        `nano-dom-diff-debug-${new Date().toISOString().replace(/[:.]/g, "-")}.json`;
+
+      a.click();
+
+      setTimeout(
+        () =>
+          URL.revokeObjectURL(
+            url
+          ),
+        1000
+      );
+
+      setStatus(
+        "Unfiltered DOM diff downloaded."
+      );
+    } catch (e) {
+      setStatus(
+        e?.message ||
+        String(e),
+        true
+      );
+    }
+  };
+
 $("#buildDomDiffBtn").onclick =
   async () => {
     if (!snapshot) {
