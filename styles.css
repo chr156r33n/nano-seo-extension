@@ -407,6 +407,16 @@ th {
   font-weight: 700;
 }
 
+.analyse-all-advanced.advanced-run-settings > summary {
+  color: #fff;
+}
+
+.analyse-all-advanced .control-panel-body .section-copy,
+.analyse-all-advanced .control-panel-body .small,
+.analyse-all-advanced .control-panel-body small {
+  color: #fff;
+}
+
 /* Full-analysis output sits inside the red shell but renders on light surfaces.
    Reset foreground colours at the output boundary so light cards never inherit white text. */
 .analyse-all-shell #analyseAllResults {
@@ -937,6 +947,22 @@ th {
   font-size: 8px;
   letter-spacing: .04em;
   text-transform: uppercase;
+}
+
+.metric-help {
+  display: inline-flex;
+  width: 12px;
+  height: 12px;
+  margin-left: 3px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+  font-size: 8px;
+  line-height: 1;
+  cursor: help;
+  vertical-align: 1px;
+  text-transform: none;
 }
 
 .audit-summary-cards {
@@ -2419,27 +2445,28 @@ h3 {
 }
 
 .dom-batch-table {
-  min-width: 620px;
+  min-width: 420px;
+  table-layout: fixed;
 }
 
 .dom-batch-table th:nth-child(1),
 .dom-batch-table td:nth-child(1) {
-  width: 68px;
+  width: 52px;
 }
 
 .dom-batch-table th:nth-child(2),
 .dom-batch-table td:nth-child(2) {
-  width: 110px;
+  width: 78px;
 }
 
 .dom-batch-table th:nth-child(4),
 .dom-batch-table td:nth-child(4) {
-  width: 92px;
+  width: 74px;
 }
 
 .dom-batch-table th:nth-child(5),
 .dom-batch-table td:nth-child(5) {
-  width: 96px;
+  width: 76px;
 }
 
 .dom-batch-table button {

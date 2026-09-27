@@ -59,7 +59,7 @@ The extension processes **website content**, including URLs, page text, rendered
 
 For a conservative Store disclosure, also disclose **web history** if the dashboard treats locally retained URLs of previously analysed pages as browsing-history data.
 
-If Gemini or OpenAI is used, the relevant page evidence is transmitted directly to the selected provider. The extension also handles **authentication information** in the form of a user-supplied API key, but provider API keys are kept in Chrome session storage rather than persistent extension settings.
+If Gemini or OpenAI is used, the relevant page evidence is transmitted directly to the selected provider. The extension also handles **authentication information** in the form of a user-supplied API key. Provider API keys are stored persistently in local Chrome extension storage so the user does not need to re-enter them, and are sent only to the selected API provider when that provider is used.
 
 Nano SEO Lab does not operate a developer-controlled analytics backend and does not sell or use data for advertising.
 
@@ -77,7 +77,7 @@ Used to read deterministic SEO evidence and rendered-DOM state from the active p
 
 ### storage
 
-Used for extension configuration, lightweight current-run state and session-only provider API keys. Larger page snapshots, history and model-call records are retained locally in IndexedDB.
+Used for extension configuration, lightweight current-run state and persistent local provider API keys. Larger page snapshots, history and model-call records are retained locally in IndexedDB.
 
 ### unlimitedStorage
 

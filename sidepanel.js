@@ -1279,8 +1279,17 @@ function rawJsonDetails(value) {
   return `<details class="raw-json"><summary>Raw JSON</summary><pre>${escapeHtml(JSON.stringify(value, null, 2))}</pre></details>`;
 }
 
-function metricHtml(label, value) {
-  return `<div class="metric"><span class="metric-value">${escapeHtml(value ?? 0)}</span><span class="metric-label">${escapeHtml(label)}</span></div>`;
+function metricHtml(
+  label,
+  value,
+  help = ""
+) {
+  const helpHtml =
+    help
+      ? `<span class="metric-help" title="${escapeHtml(help)}" aria-label="${escapeHtml(help)}">?</span>`
+      : "";
+
+  return `<div class="metric"${help ? ` title="${escapeHtml(help)}"` : ""}><span class="metric-value">${escapeHtml(value ?? 0)}</span><span class="metric-label">${escapeHtml(label)}${helpHtml}</span></div>`;
 }
 
 function genericResultHtml(result) {
@@ -1416,6 +1425,23 @@ function taskResultHtml(task, result, displayContext = null) {
         : displayContext?.links ||
           [];
 
+    const responseMap =
+      new Map(
+        (
+          displayContext
+            ?.linkResponses ||
+          []
+        ).map(
+          item => [
+            String(
+              item.requestedUrl ||
+              ""
+            ),
+            item
+          ]
+        )
+      );
+
     return `
       <div class="result-subsection">
         <div class="result-label">Categories in this batch</div>
@@ -1437,6 +1463,7 @@ function taskResultHtml(task, result, displayContext = null) {
               <th>ID</th>
               <th>Anchor</th>
               <th>Destination</th>
+              <th>Response</th>
               <th>Location</th>
               <th>Category</th>
               <th>Confidence</th>
@@ -1453,11 +1480,27 @@ function taskResultHtml(task, result, displayContext = null) {
                       inputLinks
                     );
 
+                  const response =
+                    responseMap.get(
+                      String(
+                        label.href ||
+                        ""
+                      )
+                    );
+
+                  const responseHtml =
+                    response
+                      ? response.error
+                        ? `${badgeHtml("error", "bad")}<div class="muted small">${escapeHtml(response.error)}</div>`
+                        : `${badgeHtml(response.status, response.ok ? "good" : "bad")}${response.redirected ? `<div class="muted small">→ ${escapeHtml(response.finalUrl || "")}</div>` : ""}`
+                      : '<span class="muted">Not checked</span>';
+
                   return `
                     <tr>
                       <td><code>#${escapeHtml(label.id)}</code></td>
                       <td>${escapeHtml(label.anchor || "(empty)")}</td>
                       <td class="table-url"><code title="${escapeHtml(label.href || "")}">${escapeHtml(label.href || "(none)")}</code></td>
+                      <td>${responseHtml}</td>
                       <td>${escapeHtml(label.location || "")}</td>
                       <td>${badgeHtml(label.category || row.category, "neutral")}</td>
                       <td>${row.confidence != null ? escapeHtml(Math.round(Number(row.confidence) * 100) + "%") : "—"}</td>
@@ -1467,7 +1510,7 @@ function taskResultHtml(task, result, displayContext = null) {
                 }
               )
               .join("") ||
-              '<tr><td colspan="7" class="muted">No links returned.</td></tr>'}
+              '<tr><td colspan="8" class="muted">No links returned.</td></tr>'}
           </tbody>
         </table>
       </div>
@@ -1670,6 +1713,9 @@ function analyseTaskDetails(title, entries, task, open = false) {
           ? {
               links:
                 entry.inputLinks ||
+                [],
+              linkResponses:
+                entry.linkResponses ||
                 []
             }
           : task ===
@@ -3053,7 +3099,13 @@ function domDiffResultDetails(data) {
   return details;
 }
 
-async function runAcross(task, payload, target, mode = null) {
+async function runAcross(
+  task,
+  payload,
+  target,
+  mode = null,
+  displayContextOverride = null
+) {
   const providers = enabledProviders();
   let successCount = 0;
   let errorCount = 0;
@@ -3116,11 +3168,14 @@ async function runAcross(task, payload, target, mode = null) {
           result,
           mode,
           task === "link_group"
-            ? {
-                links:
-                  payload.links ||
-                  []
-              }
+            ? (
+                displayContextOverride ||
+                {
+                  links:
+                    payload.links ||
+                    []
+                }
+              )
             : task ===
                 "false_positive"
               ? {
@@ -3200,6 +3255,100 @@ async function ensureFullSnapshot() {
     null;
 
   return snapshot;
+}
+
+async function checkLinkResponsesForUrls(
+  urls = [],
+  {
+    reset = false,
+    updateSummary = true
+  } = {}
+) {
+  const uniqueUrls =
+    [
+      ...new Set(
+        urls.filter(
+          href =>
+            /^https?:\/\//i.test(
+              href ||
+              ""
+            )
+        )
+      )
+    ];
+
+  if (!uniqueUrls.length) {
+    return null;
+  }
+
+  const origins =
+    [
+      ...new Set(
+        uniqueUrls
+          .map(
+            url => {
+              try {
+                return `${new URL(url).origin}/*`;
+              } catch {
+                return null;
+              }
+            }
+          )
+          .filter(Boolean)
+      )
+    ];
+
+  if (!origins.length) {
+    return null;
+  }
+
+  const granted =
+    await chrome.permissions
+      .request({
+        origins
+      });
+
+  if (!granted) {
+    return null;
+  }
+
+  const result =
+    await sw({
+      type:
+        "CHECK_LINK_RESPONSES",
+      urls:
+        uniqueUrls,
+      reset
+    });
+
+  snapshot.linkResponseChecks =
+    result;
+
+  if (updateSummary) {
+    const target =
+      $("#linkResponseResults");
+
+    if (target) {
+      target.innerHTML =
+        linkResponseResultsHtml(
+          result
+        );
+    }
+  }
+
+  if (
+    lastAnalyseAllReport
+  ) {
+    lastAnalyseAllReport
+      .linkResponses =
+        result;
+
+    renderAnalyseAllResults(
+      lastAnalyseAllReport
+    );
+  }
+
+  return result;
 }
 
 async function runModeTask(task) {
@@ -4392,15 +4541,32 @@ function renderDomDiffSummary() {
       </div>
 
       <div class="metric-row" style="margin-top:8px">
-        ${metricHtml("Differences", summary.totalDiffItems ?? 0)}
-        ${metricHtml("For model review", reviewCount)}
-        ${metricHtml("Retained", summary.returnedDiffItems ?? 0)}
-        ${metricHtml("Dropped", summary.droppedByCap ?? 0)}
+        ${metricHtml(
+          "Differences",
+          summary.totalDiffItems ?? 0,
+          "All deterministic differences found between the server HTML and rendered DOM before review filtering or caps."
+        )}
+        ${metricHtml(
+          "For model review",
+          reviewCount,
+          "Differences that remain useful for contextual model review after deterministic filtering."
+        )}
+        ${metricHtml(
+          "Retained",
+          summary.returnedDiffItems ?? 0,
+          "Differences kept in the comparison evidence after prioritisation and the configured item cap."
+        )}
+        ${metricHtml(
+          "Dropped",
+          summary.droppedByCap ?? 0,
+          "Lower-priority differences omitted because the comparison exceeded the configured retained-item limit."
+        )}
         ${
           aggregate
             ? metricHtml(
                 "Est. inventory changed",
-                `${aggregate.estimated_inventory_change_percent ?? 0}%`
+                `${aggregate.estimated_inventory_change_percent ?? 0}%`,
+                "Approximate proportion of the weighted comparable page inventory affected by rendering changes."
               )
             : ""
         }
@@ -5947,7 +6113,15 @@ function renderAnalyseAllResults(report) {
   target.appendChild(
     analyseTaskDetails(
       "Link review",
-      report.links,
+      (report.links || []).map(
+        entry => ({
+          ...entry,
+          linkResponses:
+            report.linkResponses
+              ?.results ||
+            []
+        })
+      ),
       "link_group"
     )
   );
@@ -7338,238 +7512,456 @@ $("#intentBtn").onclick = async () => {
   }
 };
 
-$("#alignmentBtn").onclick = async () => {
-  if (!snapshot) {
-    return setStatus("Read the page first.", true);
-  }
-
-  try {
-    await ensureFullSnapshot();
-  } catch (e) {
-    return setStatus(
-      e?.message || String(e),
-      true
-    );
-  }
-
-  const target = $("#intentResults");
-  target.innerHTML = "";
-
-  const providers = enabledProviders();
-
-  for (const mode of modesToRun()) {
-    for (const provider of providers) {
-      const pageTypeResult =
-        taskResults.page_type?.[mode]?.[provider];
-
-      const intentResult =
-        taskResults.intent?.[mode]?.[provider];
-
-      if (!pageTypeResult || !intentResult) {
-        const d = document.createElement("div");
-        d.className = "card";
-
-        d.innerHTML =
-          `<h3>${mode} · ${provider}</h3>` +
-          `<pre>Run page type and intent for this model first, then check alignment.</pre>`;
-
-        target.appendChild(d);
-        continue;
-      }
-
-      setStatus(
-        `Checking page type ↔ intent alignment · ${mode} · ${provider}…`
+$("#alignmentBtn").onclick =
+  async () => {
+    if (!snapshot) {
+      return setStatus(
+        "Read the page first.",
+        true
       );
-
-      try {
-        const result = await sw({
-          type: "RUN_TASK",
-          task: "alignment",
-          provider,
-          analysisRunId: analysisRun.id,
-          payload: {
-            snapshot,
-            inputMode: mode,
-            pageTypeResult,
-            intentResult
-          },
-          useCache: $("#useCache").checked
-        });
-
-        ensureModeStore("alignment", mode);
-        taskResults.alignment[mode][provider] = result;
-
-        target.appendChild(
-          providerCard("alignment", provider, result, mode)
-        );
-      } catch (e) {
-        const d = document.createElement("div");
-        d.className = "card";
-
-        d.innerHTML =
-          `<h3>${mode} · ${provider} · error</h3>` +
-          `<pre>${escapeHtml(e?.message || String(e))}</pre>`;
-
-        target.appendChild(d);
-      }
     }
-  }
 
-  setStatus("");
-};
+    try {
+      await ensureFullSnapshot();
+    } catch (e) {
+      return setStatus(
+        e?.message ||
+        String(e),
+        true
+      );
+    }
 
-$("#classifyLinksBtn").onclick = async () => {
-  if (linkClassificationRunning) {
-    return;
-  }
+    const providers =
+      enabledProviders();
 
-  if (!snapshot) {
-    return setStatus(
-      "Read the page first.",
-      true
-    );
-  }
+    if (!providers.length) {
+      return setStatus(
+        "Choose at least one model.",
+        true
+      );
+    }
 
-  const button =
-    $("#classifyLinksBtn");
+    const target =
+      $("#intentResults");
 
-  const originalLabel =
-    button?.textContent ||
-    "Classify next links";
+    const button =
+      $("#alignmentBtn");
 
-  try {
-    linkClassificationRunning =
-      true;
+    target.innerHTML = "";
 
     if (button) {
       button.disabled =
         true;
       button.textContent =
-        "Classifying…";
+        "Reviewing…";
     }
 
-    await ensureFullSnapshot();
-
-    const max =
-      settings.limits
-        .maxLinksForClassification;
-
-    const pool =
-      snapshot.links.slice(
-        0,
-        max
-      );
-
-    if (!pool.length) {
-      return setStatus(
-        "No HTTP(S) links found on this page.",
-        true
-      );
-    }
-
-    if (
-      linkCursor >=
-      pool.length
+    try {
+      for (
+      const mode
+      of modesToRun()
     ) {
-      linkCursor = 0;
-    }
-
-    const batchStart =
-      linkCursor;
-
-    const batchEnd =
-      Math.min(
-        batchStart +
-          runtimeLinkBatchSize(),
-        pool.length
-      );
-
-    const batch =
-      pool
-        .slice(
-          batchStart,
-          batchEnd
-        )
-        .map(
-          l => ({
-            id:
-              l.id,
-            href:
-              l.href,
-            internal:
-              l.internal,
-            anchor:
-              l.anchor,
-            rel:
-              l.rel,
-            zone:
-              l.zone,
-            context:
-              l.context
-          })
+      for (
+        const provider
+        of providers
+      ) {
+        setStatus(
+          `Identifying page type · ${providerReviewLabel(provider, "page_type")}…`
         );
 
-    $("#linkProgress")
-      .textContent =
-        `Classifying links ${batchStart + 1}–${batchEnd} of ${pool.length}…`;
+        const pageType =
+          await runTaskSilent(
+            "page_type",
+            provider,
+            {
+              snapshot
+            },
+            mode
+          );
 
-    $("#linkResults")
-      .innerHTML =
-        "";
+        if (!pageType.ok) {
+          const error =
+            document.createElement(
+              "div"
+            );
 
-    const runSummary =
-      await runAcross(
-        "link_group",
-        {
-          links:
-            batch
-        },
-        $("#linkResults")
-      );
+          error.className =
+            "card result-card error-card";
 
+          error.innerHTML =
+            `<div class="result-provider">${escapeHtml(providerReviewLabel(provider, "page_type"))}</div><div class="result-copy">Could not identify page type: ${escapeHtml(pageType.error)}</div>`;
+
+          target.appendChild(
+            error
+          );
+
+          continue;
+        }
+
+        setStatus(
+          `Identifying intent · ${providerReviewLabel(provider, "intent")}…`
+        );
+
+        const intent =
+          await runTaskSilent(
+            "intent",
+            provider,
+            {
+              snapshot
+            },
+            mode
+          );
+
+        if (!intent.ok) {
+          const error =
+            document.createElement(
+              "div"
+            );
+
+          error.className =
+            "card result-card error-card";
+
+          error.innerHTML =
+            `<div class="result-provider">${escapeHtml(providerReviewLabel(provider, "intent"))}</div><div class="result-copy">Could not identify intent: ${escapeHtml(intent.error)}</div>`;
+
+          target.appendChild(
+            error
+          );
+
+          continue;
+        }
+
+        setStatus(
+          `Reviewing page and intent alignment · ${providerReviewLabel(provider, "alignment")}…`
+        );
+
+        const alignment =
+          await runTaskSilent(
+            "alignment",
+            provider,
+            {
+              snapshot,
+              pageTypeResult:
+                pageType.result,
+              intentResult:
+                intent.result
+            },
+            mode
+          );
+
+        if (!alignment.ok) {
+          const error =
+            document.createElement(
+              "div"
+            );
+
+          error.className =
+            "card result-card error-card";
+
+          error.innerHTML =
+            `<div class="result-provider">${escapeHtml(providerReviewLabel(provider, "alignment"))}</div><div class="result-copy">Could not review alignment: ${escapeHtml(alignment.error)}</div>`;
+
+          target.appendChild(
+            error
+          );
+
+          continue;
+        }
+
+        const group =
+          document.createElement(
+            "div"
+          );
+
+        group.className =
+          "alignment-workflow-group";
+
+        group.appendChild(
+          providerCard(
+            "alignment",
+            provider,
+            alignment.result,
+            mode
+          )
+        );
+
+        const inputs =
+          document.createElement(
+            "details"
+          );
+
+        inputs.className =
+          "card analyse-result-group alignment-inputs";
+
+        inputs.innerHTML = `
+          <summary>
+            <span>Inputs used for alignment</span>
+            <span class="summary-count">2</span>
+          </summary>
+          <div class="analyse-group-body">
+            <div class="result-subsection">
+              <div class="result-label">Page type</div>
+              ${taskResultHtml("page_type", pageType.result)}
+            </div>
+            <div class="result-subsection">
+              <div class="result-label">Intent</div>
+              ${taskResultHtml("intent", intent.result)}
+            </div>
+          </div>
+        `;
+
+        group.appendChild(
+          inputs
+        );
+
+        target.appendChild(
+          group
+        );
+      }
+    }
+    } finally {
+      if (button) {
+        button.disabled =
+          false;
+        button.textContent =
+          "Review alignment";
+      }
+
+      setStatus("");
+    }
+  };
+
+$("#classifyLinksBtn").onclick =
+  async () => {
     if (
-      runSummary
-        ?.successCount >
-      0
+      linkClassificationRunning
     ) {
-      linkCursor =
-        batchEnd;
+      return;
+    }
 
-      $("#linkProgress")
-        .textContent =
-          linkCursor >=
-          pool.length
-            ? `Classified links ${batchStart + 1}–${batchEnd} of ${pool.length}. All links reviewed; the next click starts again from link 1.`
-            : `Classified links ${batchStart + 1}–${batchEnd} of ${pool.length}. Next batch starts at link ${linkCursor + 1}.`;
-    } else {
-      $("#linkProgress")
-        .textContent =
-          `Links ${batchStart + 1}–${batchEnd} were not completed. The same batch will be retried next time.`;
-
-      setStatus(
-        "Link classification did not complete for any selected model.",
+    if (!snapshot) {
+      return setStatus(
+        "Read the page first.",
         true
       );
     }
-  } catch (e) {
-    setStatus(
-      e?.message ||
-      String(e),
-      true
-    );
-  } finally {
-    linkClassificationRunning =
-      false;
 
-    if (button) {
-      button.disabled =
+    const button =
+      $("#classifyLinksBtn");
+
+    const originalLabel =
+      button?.textContent ||
+      "Review next links";
+
+    try {
+      linkClassificationRunning =
+        true;
+
+      if (button) {
+        button.disabled =
+          true;
+
+        button.textContent =
+          "Reviewing…";
+      }
+
+      await ensureFullSnapshot();
+
+      if (
+        !enabledProviders().length
+      ) {
+        return setStatus(
+          "Choose at least one model.",
+          true
+        );
+      }
+
+      const max =
+        settings.limits
+          .maxLinksForClassification;
+
+      const pool =
+        snapshot.links.slice(
+          0,
+          max
+        );
+
+      if (!pool.length) {
+        return setStatus(
+          "No HTTP(S) links found on this page.",
+          true
+        );
+      }
+
+      if (
+        linkCursor >=
+        pool.length
+      ) {
+        linkCursor = 0;
+      }
+
+      const batchStart =
+        linkCursor;
+
+      const batchEnd =
+        Math.min(
+          batchStart +
+            runtimeLinkBatchSize(),
+          pool.length
+        );
+
+      const batch =
+        pool
+          .slice(
+            batchStart,
+            batchEnd
+          )
+          .map(
+            link => ({
+              id:
+                link.id,
+              href:
+                link.href,
+              internal:
+                link.internal,
+              anchor:
+                link.anchor,
+              rel:
+                link.rel,
+              zone:
+                link.zone,
+              context:
+                link.context
+            })
+          );
+
+      const batchUrls =
+        [
+          ...new Set(
+            batch
+              .map(
+                link =>
+                  link.href
+              )
+              .filter(
+                href =>
+                  /^https?:\/\//i.test(
+                    href ||
+                    ""
+                  )
+              )
+          )
+        ];
+
+      $("#linkProgress")
+        .textContent =
+          `Checking responses and reviewing links ${batchStart + 1}–${batchEnd} of ${pool.length}…`;
+
+      let responseResult =
+        null;
+
+      try {
+        responseResult =
+          await checkLinkResponsesForUrls(
+            batchUrls,
+            {
+              reset:
+                false,
+              updateSummary:
+                true
+            }
+          );
+      } catch (e) {
+        responseResult =
+          null;
+      }
+
+      const batchUrlSet =
+        new Set(
+          batchUrls
+        );
+
+      const batchResponses =
+        (
+          responseResult
+            ?.results ||
+          []
+        ).filter(
+          result =>
+            batchUrlSet.has(
+              result.requestedUrl
+            )
+        );
+
+      $("#linkResults")
+        .innerHTML =
+          "";
+
+      const runSummary =
+        await runAcross(
+          "link_group",
+          {
+            links:
+              batch
+          },
+          $("#linkResults"),
+          null,
+          {
+            links:
+              batch,
+            linkResponses:
+              batchResponses
+          }
+        );
+
+      if (
+        runSummary
+          ?.successCount >
+        0
+      ) {
+        linkCursor =
+          batchEnd;
+
+        const responseNote =
+          responseResult
+            ? ` HTTP responses checked for ${batchResponses.length} unique destination${batchResponses.length === 1 ? "" : "s"}.`
+            : " HTTP response checks were skipped because destination access was not granted.";
+
+        $("#linkProgress")
+          .textContent =
+            linkCursor >=
+              pool.length
+              ? `Reviewed links ${batchStart + 1}–${batchEnd} of ${pool.length}.${responseNote} All links reviewed; the next click starts again from link 1.`
+              : `Reviewed links ${batchStart + 1}–${batchEnd} of ${pool.length}.${responseNote} Next batch starts at link ${linkCursor + 1}.`;
+      } else {
+        $("#linkProgress")
+          .textContent =
+            `Links ${batchStart + 1}–${batchEnd} were not completed. The same batch will be retried next time.`;
+
+        setStatus(
+          "Link review did not complete for any selected model.",
+          true
+        );
+      }
+    } catch (e) {
+      setStatus(
+        e?.message ||
+        String(e),
+        true
+      );
+    } finally {
+      linkClassificationRunning =
         false;
-      button.textContent =
-        originalLabel;
-    }
-  }
-};
 
+      if (button) {
+        button.disabled =
+          false;
+
+        button.textContent =
+          originalLabel;
+      }
+    }
+  };
 
 $("#checkIndexabilityBtn").onclick = async () => {
   if (!snapshot) {

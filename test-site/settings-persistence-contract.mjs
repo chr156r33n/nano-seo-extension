@@ -28,7 +28,9 @@ vm.runInContext(
   source +
   "\nthis.__mergeSettings = mergeSettings;" +
   "\nthis.__DEFAULT_SETTINGS = DEFAULT_SETTINGS;" +
-  "\nthis.__persistentSettings = persistentSettings;",
+  "\nthis.__persistentSettings = persistentSettings;" +
+  "\nthis.__providerSecretsFromSettings = providerSecretsFromSettings;" +
+  "\nthis.__applyProviderSecrets = applyProviderSecrets;",
   context
 );
 
@@ -40,6 +42,12 @@ const defaults =
 
 const persistentSettings =
   context.__persistentSettings;
+
+const providerSecretsFromSettings =
+  context.__providerSecretsFromSettings;
+
+const applyProviderSecrets =
+  context.__applyProviderSecrets;
 
 const saved = {
   providers: {
@@ -218,7 +226,47 @@ expect(
       .openai,
     "apiKey"
   ),
-  "OpenAI API key was retained in persistent settings."
+  "OpenAI API key was retained in general persistent settings."
+);
+
+const providerSecrets =
+  providerSecretsFromSettings({
+    ...merged,
+    providers: {
+      ...merged.providers,
+      gemini: {
+        ...merged.providers.gemini,
+        apiKey:
+          "GEMINI_SECRET"
+      },
+      openai: {
+        ...merged.providers.openai,
+        apiKey:
+          "OPENAI_SECRET"
+      }
+    }
+  });
+
+expect(
+  providerSecrets.geminiApiKey ===
+    "GEMINI_SECRET" &&
+  providerSecrets.openaiApiKey ===
+    "OPENAI_SECRET",
+  "Provider API keys were not extracted for persistent local secret storage."
+);
+
+const rehydrated =
+  applyProviderSecrets(
+    persistedSecrets,
+    providerSecrets
+  );
+
+expect(
+  rehydrated.providers.gemini.apiKey ===
+    "GEMINI_SECRET" &&
+  rehydrated.providers.openai.apiKey ===
+    "OPENAI_SECRET",
+  "Persisted provider API keys were not restored into runtime settings."
 );
 
 vm.runInContext(
@@ -260,7 +308,7 @@ console.log(
 );
 
 console.log(
-  "PASS provider API keys are excluded from persistent settings"
+  "PASS provider API keys are stored separately and restored into runtime settings"
 );
 
 console.log(

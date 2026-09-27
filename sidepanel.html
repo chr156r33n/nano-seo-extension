@@ -130,7 +130,7 @@
     <div id="panel-page-intent" class="main-tab-panel" role="tabpanel" aria-labelledby="tab-page-intent" data-main-panel="page-intent" hidden>
       <section class="tool-section tool-section-first">
         <h2>Review page type and intent</h2>
-        <div class="section-copy">Identify page type and user intent, then review how well they align.</div>
+        <div class="section-copy">Review alignment runs page type and intent first, then assesses how well they match. Individual steps remain available below for diagnostic use.</div>
 
         <details class="control-panel">
           <summary>Advanced: evidence sent to the reviewer</summary>
@@ -168,10 +168,18 @@
         </details>
 
         <div class="row section-actions">
-          <button id="pageTypeBtn">Identify page type</button>
-          <button id="intentBtn">Identify intent</button>
-          <button id="alignmentBtn" class="secondary">Review alignment</button>
+          <button id="alignmentBtn">Review alignment</button>
         </div>
+
+        <details class="control-panel individual-step-controls">
+          <summary>Run individual steps</summary>
+          <div class="control-panel-body">
+            <div class="row section-actions">
+              <button id="pageTypeBtn" class="secondary">Identify page type only</button>
+              <button id="intentBtn" class="secondary">Identify intent only</button>
+            </div>
+          </div>
+        </details>
 
         <div id="intentResults" class="results"></div>
       </section>
@@ -183,7 +191,7 @@
         <div class="section-copy">Classify links by what they do on the page: navigation, editorial, product/category, CTA, utility and more.</div>
         <div class="run-control-row">
           <button id="classifyLinksBtn">Review next links</button>
-          <button id="checkLinkResponsesBtn" class="secondary">Check link responses</button>
+          <button id="checkLinkResponsesBtn" class="secondary">Check link responses only</button>
         </div>
         <details class="control-panel advanced-run-settings">
           <summary>Advanced review settings</summary>
@@ -200,11 +208,11 @@
           </div>
         </details>
         <div class="section-copy" style="margin-top:8px">
-          Link response checking is manual only. It checks every unique HTTP(S) destination on the page in manageable batches, follows redirects to the final response, and may request temporary access to external origins.
+          Reviewing a link batch also checks the HTTP(S) destinations in that batch so response evidence appears beside the role review. Use <strong>Check link responses only</strong> when you want response data without model review.
         </div>
         <div id="linkProgress" class="muted small"></div>
-        <div id="linkResults" class="results"></div>
         <div id="linkResponseResults" class="results"></div>
+        <div id="linkResults" class="results"></div>
       </section>
     </div>
 

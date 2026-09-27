@@ -136,9 +136,9 @@ const contracts = [
 
 const requiredDeclarations = [
   {
-    selector: ".analyse-all-advanced > summary",
+    selector: ".analyse-all-advanced.advanced-run-settings > summary",
     pattern: /color:\s*#fff(?:fff)?\s*;/i,
-    reason: "Advanced settings summary must remain white on the brand surface."
+    reason: "The final advanced-settings summary rule must remain white on the brand surface."
   },
   {
     selector: ".analyse-all-advanced input",
@@ -148,6 +148,26 @@ const requiredDeclarations = [
 ];
 
 const failures = [];
+
+const genericAdvancedIndex =
+  css.lastIndexOf(
+    "\n.advanced-run-settings > summary {"
+  );
+
+const darkAdvancedIndex =
+  css.lastIndexOf(
+    "\n.analyse-all-advanced.advanced-run-settings > summary {"
+  );
+
+if (
+  genericAdvancedIndex < 0 ||
+  darkAdvancedIndex <
+    genericAdvancedIndex
+) {
+  failures.push(
+    "Dark advanced-settings contrast rule must appear after the generic advanced-settings rule so it wins the cascade."
+  );
+}
 
 for (const contract of contracts) {
   const ratio =

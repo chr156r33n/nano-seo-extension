@@ -19,7 +19,7 @@ The package is written to:
 dist/nano-seo-lab-1.0.0.zip
 ```
 
-The preflight checks the Manifest V3 metadata, required runtime files, JavaScript syntax, absence of obvious remotely executed code, session-only provider-secret handling, and exclusion of development-only files.
+The preflight checks the Manifest V3 metadata, required runtime files, JavaScript syntax, absence of obvious remotely executed code, persistent local provider-secret handling, and exclusion of development-only files.
 
 Submission copy, permission justifications and reviewer instructions are in `CHROME_WEB_STORE.md`. The public privacy policy is in `PRIVACY.md`.
 

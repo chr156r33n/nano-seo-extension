@@ -22,7 +22,7 @@ Page snapshots, analysis runs, model-call logs and cached model results are stor
 
 Configuration such as model choices, processing limits, prompts and audit preferences is stored locally in Chrome.
 
-Gemini and OpenAI API keys are not written to persistent extension settings. They are kept in Chrome session storage for the current browser session and are cleared when that session ends. Existing installations that previously stored provider keys persistently are migrated to session-only storage when the settings are next read.
+Gemini and OpenAI API keys are stored persistently in local Chrome extension storage so you do not need to re-enter them each time you open Chrome. They are kept separately from the extension's general settings and are not synced by Nano SEO Lab to any developer-operated service.
 
 You can clear cached model results separately or delete all locally stored analysis data from the extension's Settings page.
 
@@ -64,7 +64,7 @@ Local page snapshots, analysis history, model-call logs and cached model results
 
 Use **Settings → Clear all local analysis data** to delete local snapshots, analysis history, model-call logs and cached model results.
 
-API keys stored for Gemini or OpenAI last only for the current Chrome session. Restoring defaults also clears those session keys.
+API keys stored for Gemini or OpenAI remain in local Chrome extension storage until you replace them, restore defaults, clear extension storage, or uninstall the extension.
 
 Uninstalling the extension removes its extension storage according to Chrome's normal extension-data behaviour.
 
