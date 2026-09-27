@@ -3530,11 +3530,25 @@ async function runTask({
       ? ""
       : `\n\nMANDATORY EVIDENCE GUIDANCE:\n${MODEL_EVIDENCE_GUIDANCE}`;
 
+  const domLinkInventoryInstruction =
+    task ===
+      "dom_diff_triage"
+      ? `
+
+MANDATORY DOM LINK INVENTORY GUIDANCE:
+- When normalized internal-link target inventory evidence is supplied, treat its counts and transition flags as verified facts.
+- A normalized target changing from 0 server-HTML links to one or more rendered-DOM links is a real rendering-dependent discovery change.
+- A normalized target changing from one or more server-HTML links to 0 rendered-DOM links is a real removal from the rendered page link graph.
+- Do not dismiss either condition merely because the affected link is in navigation, repeated UI, or a destination selector. Main navigation and homepage destination-discovery links can be important.
+- If a target exists in both versions but the deterministic evidence marks its count change as meaningful, judge the consequence in page context rather than treating it as unchanged.
+- Query strings and fragments have intentionally been ignored only for this normalized page-level target inventory. Do not use that normalization to claim two full URLs are otherwise equivalent.`
+      : "";
+
   const system =
     `${MODEL_SECURITY_INSTRUCTION}
 
 TRUSTED TASK INSTRUCTIONS:
-${promptDef.system}${evidenceInstruction}`;
+${promptDef.system}${evidenceInstruction}${domLinkInventoryInstruction}`;
 
   const inputMode =
     payload?.inputMode || null;
