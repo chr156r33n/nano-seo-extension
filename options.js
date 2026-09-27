@@ -18,10 +18,14 @@ const esc = s =>
     .replace(/"/g, "&quot;");
 
 async function load() {
-  const {settings} =
-    await chrome.storage.local.get(
-      "settings"
-    );
+  const {
+    settings,
+    providerSecrets
+  } =
+    await chrome.storage.local.get([
+      "settings",
+      "providerSecrets"
+    ]);
 
   const merged =
     mergeSettings(
@@ -33,19 +37,15 @@ async function load() {
       merged
     );
 
-  const session =
-    await chrome.storage.session.get([
-      "geminiApiKey",
-      "openaiApiKey"
-    ]);
-
   const secrets = {
     geminiApiKey:
-      session.geminiApiKey ||
+      providerSecrets
+        ?.geminiApiKey ||
       legacySecrets.geminiApiKey ||
       "",
     openaiApiKey:
-      session.openaiApiKey ||
+      providerSecrets
+        ?.openaiApiKey ||
       legacySecrets.openaiApiKey ||
       ""
   };
@@ -54,11 +54,9 @@ async function load() {
     legacySecrets.geminiApiKey ||
     legacySecrets.openaiApiKey
   ) {
-    await chrome.storage.session.set(
-      secrets
-    );
-
     await chrome.storage.local.set({
+      providerSecrets:
+        secrets,
       settings:
         persistentSettings(
           merged
@@ -297,7 +295,7 @@ function render() {
               <label class="block">
                 Gemini API key
                 <input id="geminiKey" type="password" value="${esc(current.providers.gemini.apiKey)}" autocomplete="off">
-                <small>Kept only for the current Chrome session. Sent directly to Google only when Gemini is selected.</small>
+                <small>Stored locally in this Chrome profile so you do not need to re-enter it. Sent directly to Google only when Gemini is selected.</small>
               </label>
 
               <label class="block">
@@ -313,7 +311,7 @@ function render() {
               <label class="block">
                 OpenAI API key
                 <input id="openaiKey" type="password" value="${esc(current.providers.openai.apiKey)}" autocomplete="off">
-                <small>Kept only for the current Chrome session. Sent directly to OpenAI only when OpenAI is selected.</small>
+                <small>Stored locally in this Chrome profile so you do not need to re-enter it. Sent directly to OpenAI only when OpenAI is selected.</small>
               </label>
             </div>
           </div>
@@ -898,20 +896,18 @@ document
     async () => {
       collect();
 
-      await chrome.storage.session.set(
-        providerSecretsFromSettings(
-          current
-        )
-      );
-
       await chrome.storage.local.set({
         settings:
           persistentSettings(
             current
+          ),
+        providerSecrets:
+          providerSecretsFromSettings(
+            current
           )
       });
 
-      msg("Settings saved. API keys are session-only.");
+      msg("Settings saved.");
     };
 
 document
@@ -925,17 +921,16 @@ document
           DEFAULT_SETTINGS
         );
 
-      await chrome.storage.session.remove([
-        "geminiApiKey",
-        "openaiApiKey"
-      ]);
-
       await chrome.storage.local.set({
         settings:
           persistentSettings(
             current
           )
       });
+
+      await chrome.storage.local.remove(
+        "providerSecrets"
+      );
 
       render();
       bindHreflangReferenceActions();
