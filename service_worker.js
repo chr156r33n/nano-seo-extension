@@ -12783,6 +12783,47 @@ async function buildDomDiff() {
             .length;
         };
 
+        const normaliseInternalLinkTarget = (
+          href
+        ) => {
+          const value =
+            String(
+              href || ""
+            ).trim();
+
+          if (!value) return "";
+
+          try {
+            const target =
+              new URL(
+                value,
+                location.href
+              );
+
+            if (
+              target.origin !==
+              location.origin
+            ) {
+              return "";
+            }
+
+            const pathname =
+              target.pathname.length > 1
+                ? target.pathname.replace(
+                    /\/+$/,
+                    ""
+                  )
+                : target.pathname;
+
+            return (
+              target.origin +
+              pathname
+            );
+          } catch {
+            return "";
+          }
+        };
+
         const countLinkHref = (
           inventory,
           href
@@ -12799,6 +12840,24 @@ async function buildDomDiff() {
             .filter(
               link =>
                 link.href ===
+                target
+            )
+            .length;
+        };
+
+        const countNormalisedLinkTarget = (
+          inventory,
+          target
+        ) => {
+          if (!target) return 0;
+
+          return inventory
+            .links
+            .filter(
+              link =>
+                normaliseInternalLinkTarget(
+                  link.href
+                ) ===
                 target
             )
             .length;
@@ -13365,15 +13424,77 @@ async function buildDomDiff() {
               renderedHref
             );
 
-          const destinationRemoved =
-            !!rawHref &&
-            rawHrefInRendered ===
+          const rawNormalisedTarget =
+            normaliseInternalLinkTarget(
+              rawHref
+            );
+
+          const renderedNormalisedTarget =
+            normaliseInternalLinkTarget(
+              renderedHref
+            );
+
+          const comparisonTarget =
+            renderedNormalisedTarget ||
+            rawNormalisedTarget;
+
+          const rawNormalisedTargetCount =
+            countNormalisedLinkTarget(
+              raw,
+              comparisonTarget
+            );
+
+          const renderedNormalisedTargetCount =
+            countNormalisedLinkTarget(
+              rendered,
+              comparisonTarget
+            );
+
+          const normalisedTargetCountDelta =
+            renderedNormalisedTargetCount -
+            rawNormalisedTargetCount;
+
+          const normalisedTargetIntroduced =
+            !!comparisonTarget &&
+            rawNormalisedTargetCount ===
+              0 &&
+            renderedNormalisedTargetCount >
               0;
 
-          const destinationAdded =
-            !!renderedHref &&
-            renderedHrefInRaw ===
+          const normalisedTargetRemoved =
+            !!comparisonTarget &&
+            rawNormalisedTargetCount >
+              0 &&
+            renderedNormalisedTargetCount ===
               0;
+
+          const normalisedTargetCountChanged =
+            !!comparisonTarget &&
+            normalisedTargetCountDelta !==
+              0;
+
+          const sameNormalisedTarget =
+            !!rawNormalisedTarget &&
+            rawNormalisedTarget ===
+              renderedNormalisedTarget;
+
+          const destinationRemoved =
+            normalisedTargetRemoved ||
+            (
+              !rawNormalisedTarget &&
+              !!rawHref &&
+              rawHrefInRendered ===
+                0
+            );
+
+          const destinationAdded =
+            normalisedTargetIntroduced ||
+            (
+              !renderedNormalisedTarget &&
+              !!renderedHref &&
+              renderedHrefInRaw ===
+                0
+            );
 
           const destinationDiscoveryChanged =
             destinationAdded ||
@@ -13443,19 +13564,28 @@ async function buildDomDiff() {
             destinationRemoved
           ) {
             significance =
-              weight >= 1
+              (
+                normalisedTargetIntroduced ||
+                normalisedTargetRemoved
+              )
                 ? "high"
-                : weight >= 0.25
-                  ? "medium"
-                  : "low";
+                : weight >= 1
+                  ? "high"
+                  : weight >= 0.25
+                    ? "medium"
+                    : "low";
 
             reason =
-              destinationAdded &&
-              destinationRemoved
-                ? "Rendered DOM replaces one uniquely discoverable link destination with another."
-                : destinationAdded
-                  ? "Rendered DOM makes a link destination discoverable that was absent from the server link inventory."
-                  : "Rendered DOM removes the only observed link to a destination from the rendered link inventory.";
+              normalisedTargetIntroduced
+                ? `Rendered DOM introduces a previously absent internal-link target after normalising away query parameters and fragments (0 → ${renderedNormalisedTargetCount} links).`
+                : normalisedTargetRemoved
+                  ? `Rendered DOM removes an internal-link target that was present in server HTML after normalising away query parameters and fragments (${rawNormalisedTargetCount} → 0 links).`
+                  : destinationAdded &&
+                    destinationRemoved
+                    ? "Rendered DOM replaces one uniquely discoverable link destination with another."
+                    : destinationAdded
+                      ? "Rendered DOM makes a link destination discoverable that was absent from the server link inventory."
+                      : "Rendered DOM removes the only observed link to a destination from the rendered link inventory.";
           } else if (
             destinationChanged
           ) {
@@ -13537,6 +13667,22 @@ async function buildDomDiff() {
                 anchorSemanticsRemoved,
               destination_discovery_changed:
                 destinationDiscoveryChanged,
+              normalised_internal_target:
+                comparisonTarget,
+              raw_normalised_target_count:
+                rawNormalisedTargetCount,
+              rendered_normalised_target_count:
+                renderedNormalisedTargetCount,
+              normalised_target_count_delta:
+                normalisedTargetCountDelta,
+              normalised_target_count_changed:
+                normalisedTargetCountChanged,
+              normalised_target_introduced:
+                normalisedTargetIntroduced,
+              normalised_target_removed:
+                normalisedTargetRemoved,
+              same_normalised_target:
+                sameNormalisedTarget,
               anchor_only_same_destination:
                 anchorOnlySameDestination,
               local_context_terms_added:
