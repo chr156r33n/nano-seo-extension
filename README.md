@@ -27,7 +27,7 @@ For the first Store submission, test the generated ZIP as an unpacked extension 
 
 ---
 
-# Nano SEO Lab v0.9
+## v0.9 release notes
 
 This update extends the deterministic page audit and makes **Analyse all** configurable.
 
