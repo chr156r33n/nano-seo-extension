@@ -76,10 +76,34 @@ for (const file of runtimeFiles.filter(file => file.endsWith(".html"))) {
 try {
   const source = fs.readFileSync(path.join(root, "defaults.js"), "utf8");
   const context = vm.createContext({structuredClone});
-  vm.runInContext(source + "\nthis.__defaults = DEFAULT_SETTINGS;\nthis.__persistentSettings = persistentSettings;", context);
-  const persisted = context.__persistentSettings(context.__defaults);
+  vm.runInContext(
+    source +
+      "\nthis.__defaults = DEFAULT_SETTINGS;" +
+      "\nthis.__persistentSettings = persistentSettings;" +
+      "\nthis.__providerSecretsFromSettings = providerSecretsFromSettings;" +
+      "\nthis.__applyProviderSecrets = applyProviderSecrets;",
+    context
+  );
+
+  const withSecrets = structuredClone(context.__defaults);
+  withSecrets.providers.gemini.apiKey = "GEMINI_SECRET";
+  withSecrets.providers.openai.apiKey = "OPENAI_SECRET";
+
+  const persisted = context.__persistentSettings(withSecrets);
+  const secrets = context.__providerSecretsFromSettings(withSecrets);
+  const rehydrated = context.__applyProviderSecrets(persisted, secrets);
+
   if (Object.hasOwn(persisted.providers.gemini, "apiKey") || Object.hasOwn(persisted.providers.openai, "apiKey")) {
-    fail("Provider API keys are still present in persistent settings.");
+    fail("Provider API keys are mixed into the general settings object.");
+  }
+
+  if (
+    secrets.geminiApiKey !== "GEMINI_SECRET" ||
+    secrets.openaiApiKey !== "OPENAI_SECRET" ||
+    rehydrated.providers.gemini.apiKey !== "GEMINI_SECRET" ||
+    rehydrated.providers.openai.apiKey !== "OPENAI_SECRET"
+  ) {
+    fail("Persistent local provider-key separation/rehydration contract failed.");
   }
 } catch (error) {
   fail("Could not verify settings privacy contract: " + error.message);
@@ -99,5 +123,5 @@ if (failures.length) {
 
 console.log("PASS manifest and required runtime assets");
 console.log("PASS JavaScript syntax and remote-code checks");
-console.log("PASS provider secrets excluded from persistent settings");
+console.log("PASS provider secrets separated from general settings and rehydrated locally");
 console.log("PASS development-only files excluded from Store package list");
