@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Rendered H1 removal fixture</title>
+  <meta name="description" content="Server HTML contains an H1 that is removed from the rendered DOM.">
+  <link rel="canonical" href="http://localhost:8765/fixtures/dom-h1-removed.html">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <header>
+    <h1 id="page-heading">Emergency drainage services</h1>
+  </header>
+  <main>
+    <p>Drain clearance and emergency support for homes and businesses.</p>
+  </main>
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      document.querySelector("#page-heading")?.remove();
+    });
+  </script>
+</body>
+</html>
