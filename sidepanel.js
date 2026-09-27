@@ -7767,6 +7767,15 @@ $("#classifyLinksBtn").onclick =
 
       await ensureFullSnapshot();
 
+      if (
+        !enabledProviders().length
+      ) {
+        return setStatus(
+          "Choose at least one model.",
+          true
+        );
+      }
+
       const max =
         settings.limits
           .maxLinksForClassification;
