@@ -151,7 +151,7 @@ function renderRun(run) {
         tasks: ${esc(taskSummary(run))}<br>
         DOM diff: ${
           domSummary
-            ? `${domSummary.totalDiffItems ?? 0} total · ${domSummary.returnedDiffItems ?? 0} retained`
+            ? `${domSummary.totalDiffItems ?? 0} semantic · ${domSummary.noiseRemovedItems ?? 0} noise removed`
             : "not run"
         }
       </div>
