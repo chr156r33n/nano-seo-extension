@@ -23,8 +23,54 @@ async function load() {
       "settings"
     );
 
+  const merged =
+    mergeSettings(
+      settings
+    );
+
+  const legacySecrets =
+    providerSecretsFromSettings(
+      merged
+    );
+
+  const session =
+    await chrome.storage.session.get([
+      "geminiApiKey",
+      "openaiApiKey"
+    ]);
+
+  const secrets = {
+    geminiApiKey:
+      session.geminiApiKey ||
+      legacySecrets.geminiApiKey ||
+      "",
+    openaiApiKey:
+      session.openaiApiKey ||
+      legacySecrets.openaiApiKey ||
+      ""
+  };
+
+  if (
+    legacySecrets.geminiApiKey ||
+    legacySecrets.openaiApiKey
+  ) {
+    await chrome.storage.session.set(
+      secrets
+    );
+
+    await chrome.storage.local.set({
+      settings:
+        persistentSettings(
+          merged
+        )
+    });
+  }
+
   current =
-    mergeSettings(settings);
+    applyProviderSecrets(
+      merged,
+      secrets
+    );
 
   allowAllWebsites =
     await chrome.permissions
@@ -250,7 +296,8 @@ function render() {
 
               <label class="block">
                 Gemini API key
-                <input id="geminiKey" type="password" value="${esc(current.providers.gemini.apiKey)}">
+                <input id="geminiKey" type="password" value="${esc(current.providers.gemini.apiKey)}" autocomplete="off">
+                <small>Kept only for the current Chrome session. Sent directly to Google only when Gemini is selected.</small>
               </label>
 
               <label class="block">
@@ -265,7 +312,8 @@ function render() {
 
               <label class="block">
                 OpenAI API key
-                <input id="openaiKey" type="password" value="${esc(current.providers.openai.apiKey)}">
+                <input id="openaiKey" type="password" value="${esc(current.providers.openai.apiKey)}" autocomplete="off">
+                <small>Kept only for the current Chrome session. Sent directly to OpenAI only when OpenAI is selected.</small>
               </label>
             </div>
           </div>
@@ -850,11 +898,20 @@ document
     async () => {
       collect();
 
+      await chrome.storage.session.set(
+        providerSecretsFromSettings(
+          current
+        )
+      );
+
       await chrome.storage.local.set({
-        settings: current
+        settings:
+          persistentSettings(
+            current
+          )
       });
 
-      msg("Settings saved.");
+      msg("Settings saved. API keys are session-only.");
     };
 
 document
@@ -868,8 +925,16 @@ document
           DEFAULT_SETTINGS
         );
 
+      await chrome.storage.session.remove([
+        "geminiApiKey",
+        "openaiApiKey"
+      ]);
+
       await chrome.storage.local.set({
-        settings: current
+        settings:
+          persistentSettings(
+            current
+          )
       });
 
       render();
@@ -894,5 +959,24 @@ document
         msg("Saved model results cleared.");
       }
     };
+
+document
+  .querySelector(
+    "#clearLocalDataBtn"
+  )
+  ?.addEventListener(
+    "click",
+    async () => {
+      const r =
+        await chrome.runtime.sendMessage({
+          type:
+            "CLEAR_LOCAL_ANALYSIS_DATA"
+        });
+
+      if (r?.ok) {
+        msg("Local analysis data cleared.");
+      }
+    }
+  );
 
 load();
