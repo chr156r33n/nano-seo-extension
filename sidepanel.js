@@ -7689,158 +7689,228 @@ $("#alignmentBtn").onclick =
     setStatus("");
   };
 
-$("#classifyLinksBtn").onclick = async () => {
-  if (linkClassificationRunning) {
-    return;
-  }
-
-  if (!snapshot) {
-    return setStatus(
-      "Read the page first.",
-      true
-    );
-  }
-
-  const button =
-    $("#classifyLinksBtn");
-
-  const originalLabel =
-    button?.textContent ||
-    "Classify next links";
-
-  try {
-    linkClassificationRunning =
-      true;
-
-    if (button) {
-      button.disabled =
-        true;
-      button.textContent =
-        "Classifying…";
+$("#classifyLinksBtn").onclick =
+  async () => {
+    if (
+      linkClassificationRunning
+    ) {
+      return;
     }
 
-    await ensureFullSnapshot();
-
-    const max =
-      settings.limits
-        .maxLinksForClassification;
-
-    const pool =
-      snapshot.links.slice(
-        0,
-        max
-      );
-
-    if (!pool.length) {
+    if (!snapshot) {
       return setStatus(
-        "No HTTP(S) links found on this page.",
+        "Read the page first.",
         true
       );
     }
 
-    if (
-      linkCursor >=
-      pool.length
-    ) {
-      linkCursor = 0;
-    }
+    const button =
+      $("#classifyLinksBtn");
 
-    const batchStart =
-      linkCursor;
+    const originalLabel =
+      button?.textContent ||
+      "Review next links";
 
-    const batchEnd =
-      Math.min(
-        batchStart +
-          runtimeLinkBatchSize(),
-        pool.length
-      );
+    try {
+      linkClassificationRunning =
+        true;
 
-    const batch =
-      pool
-        .slice(
-          batchStart,
-          batchEnd
-        )
-        .map(
-          l => ({
-            id:
-              l.id,
-            href:
-              l.href,
-            internal:
-              l.internal,
-            anchor:
-              l.anchor,
-            rel:
-              l.rel,
-            zone:
-              l.zone,
-            context:
-              l.context
-          })
+      if (button) {
+        button.disabled =
+          true;
+
+        button.textContent =
+          "Reviewing…";
+      }
+
+      await ensureFullSnapshot();
+
+      const max =
+        settings.limits
+          .maxLinksForClassification;
+
+      const pool =
+        snapshot.links.slice(
+          0,
+          max
         );
 
-    $("#linkProgress")
-      .textContent =
-        `Classifying links ${batchStart + 1}–${batchEnd} of ${pool.length}…`;
+      if (!pool.length) {
+        return setStatus(
+          "No HTTP(S) links found on this page.",
+          true
+        );
+      }
 
-    $("#linkResults")
-      .innerHTML =
-        "";
+      if (
+        linkCursor >=
+        pool.length
+      ) {
+        linkCursor = 0;
+      }
 
-    const runSummary =
-      await runAcross(
-        "link_group",
-        {
-          links:
-            batch
-        },
-        $("#linkResults")
-      );
+      const batchStart =
+        linkCursor;
 
-    if (
-      runSummary
-        ?.successCount >
-      0
-    ) {
-      linkCursor =
-        batchEnd;
-
-      $("#linkProgress")
-        .textContent =
-          linkCursor >=
+      const batchEnd =
+        Math.min(
+          batchStart +
+            runtimeLinkBatchSize(),
           pool.length
-            ? `Classified links ${batchStart + 1}–${batchEnd} of ${pool.length}. All links reviewed; the next click starts again from link 1.`
-            : `Classified links ${batchStart + 1}–${batchEnd} of ${pool.length}. Next batch starts at link ${linkCursor + 1}.`;
-    } else {
+        );
+
+      const batch =
+        pool
+          .slice(
+            batchStart,
+            batchEnd
+          )
+          .map(
+            link => ({
+              id:
+                link.id,
+              href:
+                link.href,
+              internal:
+                link.internal,
+              anchor:
+                link.anchor,
+              rel:
+                link.rel,
+              zone:
+                link.zone,
+              context:
+                link.context
+            })
+          );
+
+      const batchUrls =
+        [
+          ...new Set(
+            batch
+              .map(
+                link =>
+                  link.href
+              )
+              .filter(
+                href =>
+                  /^https?:\/\//i.test(
+                    href ||
+                    ""
+                  )
+              )
+          )
+        ];
+
       $("#linkProgress")
         .textContent =
-          `Links ${batchStart + 1}–${batchEnd} were not completed. The same batch will be retried next time.`;
+          `Checking responses and reviewing links ${batchStart + 1}–${batchEnd} of ${pool.length}…`;
 
+      let responseResult =
+        null;
+
+      try {
+        responseResult =
+          await checkLinkResponsesForUrls(
+            batchUrls,
+            {
+              reset:
+                false,
+              updateSummary:
+                true
+            }
+          );
+      } catch (e) {
+        responseResult =
+          null;
+      }
+
+      const batchUrlSet =
+        new Set(
+          batchUrls
+        );
+
+      const batchResponses =
+        (
+          responseResult
+            ?.results ||
+          []
+        ).filter(
+          result =>
+            batchUrlSet.has(
+              result.requestedUrl
+            )
+        );
+
+      $("#linkResults")
+        .innerHTML =
+          "";
+
+      const runSummary =
+        await runAcross(
+          "link_group",
+          {
+            links:
+              batch
+          },
+          $("#linkResults"),
+          null,
+          {
+            links:
+              batch,
+            linkResponses:
+              batchResponses
+          }
+        );
+
+      if (
+        runSummary
+          ?.successCount >
+        0
+      ) {
+        linkCursor =
+          batchEnd;
+
+        const responseNote =
+          responseResult
+            ? ` HTTP responses checked for ${batchResponses.length} unique destination${batchResponses.length === 1 ? "" : "s"}.`
+            : " HTTP response checks were skipped because destination access was not granted.";
+
+        $("#linkProgress")
+          .textContent =
+            linkCursor >=
+              pool.length
+              ? `Reviewed links ${batchStart + 1}–${batchEnd} of ${pool.length}.${responseNote} All links reviewed; the next click starts again from link 1.`
+              : `Reviewed links ${batchStart + 1}–${batchEnd} of ${pool.length}.${responseNote} Next batch starts at link ${linkCursor + 1}.`;
+      } else {
+        $("#linkProgress")
+          .textContent =
+            `Links ${batchStart + 1}–${batchEnd} were not completed. The same batch will be retried next time.`;
+
+        setStatus(
+          "Link review did not complete for any selected model.",
+          true
+        );
+      }
+    } catch (e) {
       setStatus(
-        "Link classification did not complete for any selected model.",
+        e?.message ||
+        String(e),
         true
       );
-    }
-  } catch (e) {
-    setStatus(
-      e?.message ||
-      String(e),
-      true
-    );
-  } finally {
-    linkClassificationRunning =
-      false;
-
-    if (button) {
-      button.disabled =
+    } finally {
+      linkClassificationRunning =
         false;
-      button.textContent =
-        originalLabel;
-    }
-  }
-};
 
+      if (button) {
+        button.disabled =
+          false;
+
+        button.textContent =
+          originalLabel;
+      }
+    }
+  };
 
 $("#checkIndexabilityBtn").onclick = async () => {
   if (!snapshot) {
