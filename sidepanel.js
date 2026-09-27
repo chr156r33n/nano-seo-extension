@@ -1425,6 +1425,23 @@ function taskResultHtml(task, result, displayContext = null) {
         : displayContext?.links ||
           [];
 
+    const responseMap =
+      new Map(
+        (
+          displayContext
+            ?.linkResponses ||
+          []
+        ).map(
+          item => [
+            String(
+              item.requestedUrl ||
+              ""
+            ),
+            item
+          ]
+        )
+      );
+
     return `
       <div class="result-subsection">
         <div class="result-label">Categories in this batch</div>
@@ -1446,6 +1463,7 @@ function taskResultHtml(task, result, displayContext = null) {
               <th>ID</th>
               <th>Anchor</th>
               <th>Destination</th>
+              <th>Response</th>
               <th>Location</th>
               <th>Category</th>
               <th>Confidence</th>
@@ -1462,11 +1480,27 @@ function taskResultHtml(task, result, displayContext = null) {
                       inputLinks
                     );
 
+                  const response =
+                    responseMap.get(
+                      String(
+                        label.href ||
+                        ""
+                      )
+                    );
+
+                  const responseHtml =
+                    response
+                      ? response.error
+                        ? `${badgeHtml("error", "bad")}<div class="muted small">${escapeHtml(response.error)}</div>`
+                        : `${badgeHtml(response.status, response.ok ? "good" : "bad")}${response.redirected ? `<div class="muted small">→ ${escapeHtml(response.finalUrl || "")}</div>` : ""}`
+                      : '<span class="muted">Not checked</span>';
+
                   return `
                     <tr>
                       <td><code>#${escapeHtml(label.id)}</code></td>
                       <td>${escapeHtml(label.anchor || "(empty)")}</td>
                       <td class="table-url"><code title="${escapeHtml(label.href || "")}">${escapeHtml(label.href || "(none)")}</code></td>
+                      <td>${responseHtml}</td>
                       <td>${escapeHtml(label.location || "")}</td>
                       <td>${badgeHtml(label.category || row.category, "neutral")}</td>
                       <td>${row.confidence != null ? escapeHtml(Math.round(Number(row.confidence) * 100) + "%") : "—"}</td>
@@ -1476,7 +1510,7 @@ function taskResultHtml(task, result, displayContext = null) {
                 }
               )
               .join("") ||
-              '<tr><td colspan="7" class="muted">No links returned.</td></tr>'}
+              '<tr><td colspan="8" class="muted">No links returned.</td></tr>'}
           </tbody>
         </table>
       </div>
