@@ -1105,3 +1105,92 @@ function mergeSettings(saved = {}) {
     saved || {}
   );
 }
+
+
+function providerSecretsFromSettings(
+  settings = {}
+) {
+  return {
+    geminiApiKey:
+      String(
+        settings
+          ?.providers
+          ?.gemini
+          ?.apiKey ||
+        ""
+      ),
+    openaiApiKey:
+      String(
+        settings
+          ?.providers
+          ?.openai
+          ?.apiKey ||
+        ""
+      )
+  };
+}
+
+function persistentSettings(
+  settings = {}
+) {
+  const copy =
+    structuredClone(
+      settings
+    );
+
+  if (
+    copy.providers
+      ?.gemini
+  ) {
+    delete copy
+      .providers
+      .gemini
+      .apiKey;
+  }
+
+  if (
+    copy.providers
+      ?.openai
+  ) {
+    delete copy
+      .providers
+      .openai
+      .apiKey;
+  }
+
+  return copy;
+}
+
+function applyProviderSecrets(
+  settings = {},
+  secrets = {}
+) {
+  const copy =
+    structuredClone(
+      settings
+    );
+
+  copy.providers ||= {};
+  copy.providers.gemini ||= {};
+  copy.providers.openai ||= {};
+
+  copy.providers
+    .gemini
+    .apiKey =
+      String(
+        secrets
+          ?.geminiApiKey ||
+        ""
+      );
+
+  copy.providers
+    .openai
+    .apiKey =
+      String(
+        secrets
+          ?.openaiApiKey ||
+        ""
+      );
+
+  return copy;
+}
