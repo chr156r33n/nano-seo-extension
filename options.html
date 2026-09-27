@@ -26,14 +26,15 @@
 
   <div id="app"></div>
 
-  <div class="row" style="margin-top:28px">
-    <button id="saveBtn">Save settings</button>
-    <button id="resetBtn" class="secondary">Restore defaults</button>
-    <button id="clearCacheBtn" class="secondary">Clear saved model results</button>
-    <button id="clearLocalDataBtn" class="secondary">Clear all local analysis data</button>
+  <div class="settings-action-bar">
+    <div class="settings-action-buttons">
+      <button id="saveBtn">Save settings</button>
+      <button id="resetBtn" class="secondary">Restore defaults</button>
+      <button id="clearCacheBtn" class="secondary">Clear saved model results</button>
+      <button id="clearLocalDataBtn" class="secondary">Clear all local analysis data</button>
+    </div>
+    <div id="msg" class="status settings-action-status"></div>
   </div>
-
-  <div id="msg" class="status"></div>
 
   <script src="defaults.js"></script>
   <script src="options.js"></script>
