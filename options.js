@@ -37,22 +37,32 @@ async function load() {
       merged
     );
 
+  const sessionSecrets =
+    await chrome.storage.session.get([
+      "geminiApiKey",
+      "openaiApiKey"
+    ]);
+
   const secrets = {
     geminiApiKey:
       providerSecrets
         ?.geminiApiKey ||
+      sessionSecrets.geminiApiKey ||
       legacySecrets.geminiApiKey ||
       "",
     openaiApiKey:
       providerSecrets
         ?.openaiApiKey ||
+      sessionSecrets.openaiApiKey ||
       legacySecrets.openaiApiKey ||
       ""
   };
 
   if (
     legacySecrets.geminiApiKey ||
-    legacySecrets.openaiApiKey
+    legacySecrets.openaiApiKey ||
+    sessionSecrets.geminiApiKey ||
+    sessionSecrets.openaiApiKey
   ) {
     await chrome.storage.local.set({
       providerSecrets:
@@ -62,6 +72,11 @@ async function load() {
           merged
         )
     });
+
+    await chrome.storage.session.remove([
+      "geminiApiKey",
+      "openaiApiKey"
+    ]);
   }
 
   current =
