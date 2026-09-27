@@ -9819,10 +9819,10 @@ async function buildDomDiff() {
 
           if (el.closest?.("footer")) return "footer";
           if (el.closest?.("nav")) return "navigation";
-          if (el.closest?.("header")) return "header";
           if (el.closest?.("dialog,[role='dialog'],aside")) return "utility";
           if (el.closest?.("article")) return "article";
           if (el.closest?.("main")) return "main";
+          if (el.closest?.("header")) return "header";
 
           return "body";
         };
@@ -12742,6 +12742,14 @@ async function buildDomDiff() {
         const sourceDiffItems =
           items.length;
 
+        const rawDetectedItems =
+          items.map(
+            item =>
+              structuredClone(
+                item
+              )
+          );
+
         const netItems = [
           ...items.filter(
             item =>
@@ -13575,6 +13583,14 @@ async function buildDomDiff() {
           }
         }
 
+        const preNoiseItems =
+          netItems.map(
+            item =>
+              structuredClone(
+                item
+              )
+          );
+
         const volatileTokenPattern =
           /(?:^|[-_:])(react|vue|ember|next|nuxt|hydr|hydrate|hydration|cache|cached|state|session|timestamp|nonce|random|generated|uid|uuid|instance)(?:[-_:]|$)|[a-f0-9]{8,}|\d{6,}/i;
 
@@ -13681,7 +13697,11 @@ async function buildDomDiff() {
               change_type:
                 item.change_type,
               reason:
-                noiseReason
+                noiseReason,
+              item:
+                structuredClone(
+                  item
+                )
             });
           } else {
             semanticNetItems.push(
@@ -14443,7 +14463,21 @@ async function buildDomDiff() {
           },
 
           items:
-            kept
+            kept,
+
+          debug: {
+            rawDetectedItems,
+            preNoiseItems,
+            noiseRemovedItems:
+              noiseRemoved.map(
+                entry => ({
+                  reason:
+                    entry.reason,
+                  item:
+                    entry.item
+                })
+              )
+          }
         };
       },
 
@@ -14460,6 +14494,35 @@ async function buildDomDiff() {
 
   const [{result}] =
     execution;
+
+  const domDiffDebug =
+    result?.debug
+      ? {
+          capturedAt:
+            result.capturedAt ||
+            new Date()
+              .toISOString(),
+          source:
+            result.source ||
+            "",
+          rawDetectedItems:
+            result.debug
+              .rawDetectedItems ||
+            [],
+          preNoiseItems:
+            result.debug
+              .preNoiseItems ||
+            [],
+          noiseRemovedItems:
+            result.debug
+              .noiseRemovedItems ||
+            []
+        }
+      : null;
+
+  if (result?.debug) {
+    delete result.debug;
+  }
 
   if (result) {
     try {
@@ -14499,6 +14562,9 @@ async function buildDomDiff() {
       snapshot.domDiff =
         result;
 
+      snapshot.domDiffDebug =
+        domDiffDebug;
+
       await dbPut(
         "snapshots",
         snapshot
@@ -14523,6 +14589,9 @@ async function buildDomDiff() {
     if (run) {
       run.domDiff =
         result;
+
+      run.domDiffDebug =
+        domDiffDebug;
 
       run.updatedAt =
         new Date()
@@ -14678,6 +14747,32 @@ chrome.runtime.onMessage.addListener(
         "BUILD_DOM_DIFF"
       ) {
         return await buildDomDiff();
+      }
+
+      if (
+        msg.type ===
+        "GET_DOM_DIFF_DEBUG"
+      ) {
+        const {
+          lastSnapshotFingerprint
+        } =
+          await chrome.storage.local.get(
+            "lastSnapshotFingerprint"
+          );
+
+        if (!lastSnapshotFingerprint) {
+          return null;
+        }
+
+        const snapshot =
+          await dbGet(
+            "snapshots",
+            lastSnapshotFingerprint
+          );
+
+        return snapshot
+          ?.domDiffDebug ||
+          null;
       }
 
       if (
