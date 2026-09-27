@@ -289,8 +289,15 @@
       "expected_heading_signals": {
         "h1_removed": true,
         "h1_presence_changed": true,
-        "nano_review": true
-      }
+        "nano_review": true,
+        "zone": "article",
+        "weight_key": "main_h1"
+      },
+      "expected_debug": [
+        "rawDetectedItems contains the removed H1 before reconciliation",
+        "preNoiseItems contains the removed H1 before noise filtering",
+        "the H1 is absent from noiseRemovedItems"
+      ]
     },
     "dom-heading-reconciliation.html": {
       "expected_rendered_changes": [
