@@ -142,10 +142,14 @@ async function getCurrentActiveTab() {
 }
 
 async function getSettings() {
-  const {settings} =
-    await chrome.storage.local.get(
-      "settings"
-    );
+  const {
+    settings,
+    providerSecrets
+  } =
+    await chrome.storage.local.get([
+      "settings",
+      "providerSecrets"
+    ]);
 
   const stored =
     mergeSettings(
@@ -157,34 +161,26 @@ async function getSettings() {
       stored
     );
 
-  const session =
-    await chrome.storage.session.get([
-      "geminiApiKey",
-      "openaiApiKey"
-    ]);
-
   const secrets = {
     geminiApiKey:
-      session.geminiApiKey ||
+      providerSecrets
+        ?.geminiApiKey ||
       legacySecrets.geminiApiKey ||
       "",
     openaiApiKey:
-      session.openaiApiKey ||
+      providerSecrets
+        ?.openaiApiKey ||
       legacySecrets.openaiApiKey ||
       ""
   };
 
   if (
-    (
-      legacySecrets.geminiApiKey ||
-      legacySecrets.openaiApiKey
-    )
+    legacySecrets.geminiApiKey ||
+    legacySecrets.openaiApiKey
   ) {
-    await chrome.storage.session.set(
-      secrets
-    );
-
     await chrome.storage.local.set({
+      providerSecrets:
+        secrets,
       settings:
         persistentSettings(
           stored
