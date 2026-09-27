@@ -117,10 +117,15 @@ Used only when the user grants broader website access or explicitly runs network
 
 Repository packaging cannot supply the final Store listing media automatically. Before submission prepare:
 
-- at least one representative screenshot of the Side Panel in use;
+- at least one representative screenshot of the Side Panel in use (Chrome currently accepts 1280×800 or 640×400 screenshots, with up to five);
 - any promotional images you choose to use;
 - developer support/contact information;
 - distribution settings;
-- the public privacy-policy URL.
+- the public privacy-policy URL;
+- Chrome Web Store developer-account two-step verification and the required Store Listing / Privacy declarations.
 
 Keep screenshots focused on the real UI and do not imply functionality that is not present.
+
+## Pre-submission smoke test
+
+Before uploading the ZIP, load the packaged build unpacked and run the core workflow on a normal public webpage. In particular, verify Chrome Nano on a device where the built-in LanguageModel API is available, plus one manual network check that requests an additional origin. The release package intentionally retains the existing offscreen-document Nano runner because that is the architecture tested during development; changing the execution context during release hardening would introduce unnecessary regression risk.
