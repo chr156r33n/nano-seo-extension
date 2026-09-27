@@ -151,12 +151,12 @@ const failures = [];
 
 const genericAdvancedIndex =
   css.lastIndexOf(
-    ".advanced-run-settings > summary"
+    "\n.advanced-run-settings > summary {"
   );
 
 const darkAdvancedIndex =
   css.lastIndexOf(
-    ".analyse-all-advanced.advanced-run-settings > summary"
+    "\n.analyse-all-advanced.advanced-run-settings > summary {"
   );
 
 if (
