@@ -1713,6 +1713,9 @@ function analyseTaskDetails(title, entries, task, open = false) {
           ? {
               links:
                 entry.inputLinks ||
+                [],
+              linkResponses:
+                entry.linkResponses ||
                 []
             }
           : task ===
@@ -6110,7 +6113,15 @@ function renderAnalyseAllResults(report) {
   target.appendChild(
     analyseTaskDetails(
       "Link review",
-      report.links,
+      (report.links || []).map(
+        entry => ({
+          ...entry,
+          linkResponses:
+            report.linkResponses
+              ?.results ||
+            []
+        })
+      ),
       "link_group"
     )
   );
