@@ -4063,7 +4063,9 @@ async function captureActiveTab() {
                 .find(
                   c =>
                     c.length <= 35 &&
-                    !/^css-|^js-|^sc-|^_[a-z0-9]{6,}$/i.test(c)
+                    !/^css-|^js-|^sc-|^_[a-z0-9]{6,}$/i.test(c) &&
+                    !/(?:^|[-_:])(hydrated?|hydration|active|selected|open|closed|loaded|loading|ready|state|cache|cached|nonce|generated|uid|uuid|instance)(?:[-_:]|$)/i.test(c) &&
+                    !/[a-f0-9]{8,}/i.test(c)
                 );
 
             if (usefulClass) {
@@ -14388,8 +14390,8 @@ async function buildDomDiff() {
             returnedDiffItems:
               kept.length,
 
-            droppedByCap:
-              0,
+            retentionPolicy:
+              "all_semantic_changes_after_noise_filtering",
 
             byKind
           },
