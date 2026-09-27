@@ -387,16 +387,22 @@ th {
   border-top-color: rgba(255,255,255,.24);
 }
 
-.analyse-all-advanced .batch-controls,
-.analyse-all-advanced .batch-help,
-.analyse-all-advanced .batch-guidance,
-.analyse-all-advanced label,
-.analyse-all-advanced span {
-  color: #fff;
+.analyse-all-advanced .control-panel-body,
+.analyse-all-advanced .control-panel-body label,
+.analyse-all-advanced .control-panel-body span {
+  color: var(--ink);
+}
+
+.analyse-all-advanced .control-panel-body .batch-help,
+.analyse-all-advanced .control-panel-body .batch-guidance,
+.analyse-all-advanced .control-panel-body .section-copy,
+.analyse-all-advanced .control-panel-body .small,
+.analyse-all-advanced .control-panel-body small {
+  color: var(--muted);
 }
 
 .analyse-all-advanced input {
-  border-color: rgba(255,255,255,.62);
+  border-color: var(--line-strong);
   background: #fff;
   color: var(--ink);
 }
@@ -408,12 +414,6 @@ th {
 }
 
 .analyse-all-advanced.advanced-run-settings > summary {
-  color: #fff;
-}
-
-.analyse-all-advanced .control-panel-body .section-copy,
-.analyse-all-advanced .control-panel-body .small,
-.analyse-all-advanced .control-panel-body small {
   color: #fff;
 }
 
@@ -950,19 +950,63 @@ th {
 }
 
 .metric-help {
-  display: inline-flex;
-  width: 12px;
-  height: 12px;
+  position: relative;
+  display: inline-block;
   margin-left: 3px;
+  vertical-align: 1px;
+  text-transform: none;
+}
+
+.metric-help > summary {
+  display: inline-flex;
+  width: 13px;
+  height: 13px;
+  padding: 0;
   align-items: center;
   justify-content: center;
   border: 1px solid currentColor;
   border-radius: 50%;
+  background: transparent;
+  color: inherit;
   font-size: 8px;
+  font-weight: 800;
   line-height: 1;
   cursor: help;
-  vertical-align: 1px;
+  list-style: none;
+  user-select: none;
+}
+
+.metric-help > summary::-webkit-details-marker {
+  display: none;
+}
+
+.metric-tooltip {
+  position: absolute;
+  z-index: 40;
+  top: calc(100% + 6px);
+  left: 50%;
+  display: none;
+  width: min(220px, calc(100vw - 36px));
+  padding: 7px 8px;
+  transform: translateX(-50%);
+  border: 1px solid var(--line-strong);
+  border-radius: 4px;
+  background: var(--ink);
+  box-shadow: 0 4px 14px rgba(0,0,0,.18);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0;
+  line-height: 1.35;
+  text-align: left;
   text-transform: none;
+  white-space: normal;
+}
+
+.metric-help[open] .metric-tooltip,
+.metric-help:hover .metric-tooltip,
+.metric-help:focus-within .metric-tooltip {
+  display: block;
 }
 
 .audit-summary-cards {

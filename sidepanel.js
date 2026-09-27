@@ -1286,10 +1286,13 @@ function metricHtml(
 ) {
   const helpHtml =
     help
-      ? `<span class="metric-help" title="${escapeHtml(help)}" aria-label="${escapeHtml(help)}">?</span>`
+      ? `<details class="metric-help">
+          <summary aria-label="${escapeHtml(`About ${label}`)}">?</summary>
+          <div class="metric-tooltip">${escapeHtml(help)}</div>
+        </details>`
       : "";
 
-  return `<div class="metric"${help ? ` title="${escapeHtml(help)}"` : ""}><span class="metric-value">${escapeHtml(value ?? 0)}</span><span class="metric-label">${escapeHtml(label)}${helpHtml}</span></div>`;
+  return `<div class="metric"><span class="metric-value">${escapeHtml(value ?? 0)}</span><span class="metric-label">${escapeHtml(label)}${helpHtml}</span></div>`;
 }
 
 function genericResultHtml(result) {
