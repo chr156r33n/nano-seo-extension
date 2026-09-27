@@ -27,7 +27,8 @@ const context =
 vm.runInContext(
   source +
   "\nthis.__mergeSettings = mergeSettings;" +
-  "\nthis.__DEFAULT_SETTINGS = DEFAULT_SETTINGS;",
+  "\nthis.__DEFAULT_SETTINGS = DEFAULT_SETTINGS;" +
+  "\nthis.__persistentSettings = persistentSettings;",
   context
 );
 
@@ -36,6 +37,9 @@ const mergeSettings =
 
 const defaults =
   context.__DEFAULT_SETTINGS;
+
+const persistentSettings =
+  context.__persistentSettings;
 
 const saved = {
   providers: {
@@ -179,6 +183,44 @@ expect(
   "A missing saved provider field did not inherit the current default."
 );
 
+const persistedSecrets =
+  persistentSettings({
+    ...merged,
+    providers: {
+      ...merged.providers,
+      gemini: {
+        ...merged.providers.gemini,
+        apiKey:
+          "GEMINI_SECRET"
+      },
+      openai: {
+        ...merged.providers.openai,
+        apiKey:
+          "OPENAI_SECRET"
+      }
+    }
+  });
+
+expect(
+  !Object.hasOwn(
+    persistedSecrets
+      .providers
+      .gemini,
+    "apiKey"
+  ),
+  "Gemini API key was retained in persistent settings."
+);
+
+expect(
+  !Object.hasOwn(
+    persistedSecrets
+      .providers
+      .openai,
+    "apiKey"
+  ),
+  "OpenAI API key was retained in persistent settings."
+);
+
 vm.runInContext(
   "DEFAULT_SETTINGS.__contractProbe = { newDefault: 'available' };",
   context
@@ -215,6 +257,10 @@ console.log(
 
 console.log(
   "PASS missing fields inherit current defaults"
+);
+
+console.log(
+  "PASS provider API keys are excluded from persistent settings"
 );
 
 console.log(
