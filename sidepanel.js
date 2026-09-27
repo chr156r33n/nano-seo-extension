@@ -1166,6 +1166,25 @@ function initialiseBatchControls() {
     domDefault
   );
 
+  for (
+    const id
+    of [
+      "#analyseDomBatchSize",
+      "#domDiffBatchSize"
+    ]
+  ) {
+    document
+      .querySelector(id)
+      ?.addEventListener(
+        "input",
+        () => {
+          if (domDiff) {
+            renderDomDiffBatches();
+          }
+        }
+      );
+  }
+
   bindGroup(
     [
       "#analyseFindingBatchSize",
