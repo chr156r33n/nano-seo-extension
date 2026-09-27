@@ -23,18 +23,53 @@ async function load() {
       "settings"
     );
 
+  const merged =
+    mergeSettings(
+      settings
+    );
+
+  const legacySecrets =
+    providerSecretsFromSettings(
+      merged
+    );
+
   const session =
     await chrome.storage.session.get([
       "geminiApiKey",
       "openaiApiKey"
     ]);
 
+  const secrets = {
+    geminiApiKey:
+      session.geminiApiKey ||
+      legacySecrets.geminiApiKey ||
+      "",
+    openaiApiKey:
+      session.openaiApiKey ||
+      legacySecrets.openaiApiKey ||
+      ""
+  };
+
+  if (
+    legacySecrets.geminiApiKey ||
+    legacySecrets.openaiApiKey
+  ) {
+    await chrome.storage.session.set(
+      secrets
+    );
+
+    await chrome.storage.local.set({
+      settings:
+        persistentSettings(
+          merged
+        )
+    });
+  }
+
   current =
     applyProviderSecrets(
-      mergeSettings(
-        settings
-      ),
-      session
+      merged,
+      secrets
     );
 
   allowAllWebsites =
