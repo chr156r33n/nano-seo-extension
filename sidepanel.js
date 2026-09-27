@@ -3096,7 +3096,13 @@ function domDiffResultDetails(data) {
   return details;
 }
 
-async function runAcross(task, payload, target, mode = null) {
+async function runAcross(
+  task,
+  payload,
+  target,
+  mode = null,
+  displayContextOverride = null
+) {
   const providers = enabledProviders();
   let successCount = 0;
   let errorCount = 0;
@@ -3159,11 +3165,14 @@ async function runAcross(task, payload, target, mode = null) {
           result,
           mode,
           task === "link_group"
-            ? {
-                links:
-                  payload.links ||
-                  []
-              }
+            ? (
+                displayContextOverride ||
+                {
+                  links:
+                    payload.links ||
+                    []
+                }
+              )
             : task ===
                 "false_positive"
               ? {
@@ -3243,6 +3252,100 @@ async function ensureFullSnapshot() {
     null;
 
   return snapshot;
+}
+
+async function checkLinkResponsesForUrls(
+  urls = [],
+  {
+    reset = false,
+    updateSummary = true
+  } = {}
+) {
+  const uniqueUrls =
+    [
+      ...new Set(
+        urls.filter(
+          href =>
+            /^https?:\/\//i.test(
+              href ||
+              ""
+            )
+        )
+      )
+    ];
+
+  if (!uniqueUrls.length) {
+    return null;
+  }
+
+  const origins =
+    [
+      ...new Set(
+        uniqueUrls
+          .map(
+            url => {
+              try {
+                return `${new URL(url).origin}/*`;
+              } catch {
+                return null;
+              }
+            }
+          )
+          .filter(Boolean)
+      )
+    ];
+
+  if (!origins.length) {
+    return null;
+  }
+
+  const granted =
+    await chrome.permissions
+      .request({
+        origins
+      });
+
+  if (!granted) {
+    return null;
+  }
+
+  const result =
+    await sw({
+      type:
+        "CHECK_LINK_RESPONSES",
+      urls:
+        uniqueUrls,
+      reset
+    });
+
+  snapshot.linkResponseChecks =
+    result;
+
+  if (updateSummary) {
+    const target =
+      $("#linkResponseResults");
+
+    if (target) {
+      target.innerHTML =
+        linkResponseResultsHtml(
+          result
+        );
+    }
+  }
+
+  if (
+    lastAnalyseAllReport
+  ) {
+    lastAnalyseAllReport
+      .linkResponses =
+        result;
+
+    renderAnalyseAllResults(
+      lastAnalyseAllReport
+    );
+  }
+
+  return result;
 }
 
 async function runModeTask(task) {
