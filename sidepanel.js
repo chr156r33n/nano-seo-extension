@@ -3093,7 +3093,7 @@ function domDiffResultDetails(data) {
       </div>`
     : "";
 
-  details.innerHTML = `<summary><span>Server HTML ↔ rendered DOM</span>${data?.enabled ? badgeHtml("enabled","neutral") : badgeHtml("off","neutral")}</summary><div class="analyse-group-body">${!data?.enabled ? '<div class="empty-state">Skipped for this Analyse all run. Enable it in Config when you specifically want a rendering comparison.</div>' : `${impactSummary}<div class="metric-row">${metricHtml("Differences",summary.totalDiffItems ?? 0)}${metricHtml("Retained",summary.returnedDiffItems ?? 0)}${metricHtml("Dropped",summary.droppedByCap ?? 0)}</div>`}<div data-dom-assessments></div>${rawJsonDetails(data)}</div>`;
+  details.innerHTML = `<summary><span>Server HTML ↔ rendered DOM</span>${data?.enabled ? badgeHtml("enabled","neutral") : badgeHtml("off","neutral")}</summary><div class="analyse-group-body">${!data?.enabled ? '<div class="empty-state">Skipped for this Analyse all run. Enable it in Config when you specifically want a rendering comparison.</div>' : `${impactSummary}<div class="metric-row">${metricHtml("Differences",summary.totalDiffItems ?? 0,"Semantic changes retained after reconciliation and deterministic noise filtering. These are not capped by count.")}${metricHtml("For model review",summary.returnedNanoReviewItems ?? 0,"Retained differences where contextual model judgement may still be useful.")}${metricHtml("Noise removed",summary.noiseRemovedItems ?? 0,"Implementation-only churn removed deterministically before review.")}</div>`}<div data-dom-assessments></div>${rawJsonDetails(data)}</div>`;
   const target = details.querySelector("[data-dom-assessments]");
   for (const assessment of data?.assessments || []) {
     if (assessment.error) { const error = document.createElement("div"); error.className = "card result-card error-card"; error.innerHTML = `<div class="result-copy">${escapeHtml(assessment.error)}</div>`; target.appendChild(error); }
@@ -4547,22 +4547,17 @@ function renderDomDiffSummary() {
         ${metricHtml(
           "Differences",
           summary.totalDiffItems ?? 0,
-          "All deterministic differences found between the server HTML and rendered DOM before review filtering or caps."
+          "Semantic heading, link, content, metadata and related changes retained after reconciliation and deterministic noise filtering. These are not capped by count."
         )}
         ${metricHtml(
           "For model review",
           reviewCount,
-          "Differences that remain useful for contextual model review after deterministic filtering."
+          "Retained differences where contextual judgement may still be useful. Model batch size changes how these are grouped, not which differences are kept."
         )}
         ${metricHtml(
-          "Retained",
-          summary.returnedDiffItems ?? 0,
-          "Differences kept in the comparison evidence after prioritisation and the configured item cap."
-        )}
-        ${metricHtml(
-          "Dropped",
-          summary.droppedByCap ?? 0,
-          "Lower-priority differences omitted because the comparison exceeded the configured retained-item limit."
+          "Noise removed",
+          summary.noiseRemovedItems ?? 0,
+          "Implementation-only differences removed deterministically, such as volatile hydration/state/cache identifiers where the semantic value itself did not change."
         )}
         ${
           aggregate

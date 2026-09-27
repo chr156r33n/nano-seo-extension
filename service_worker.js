@@ -4034,7 +4034,20 @@ async function captureActiveTab() {
         function selectorFor(el) {
           if (!el || !el.tagName) return "";
 
-          if (el.id && el.id.length <= 80) {
+          const stableId =
+            el.id &&
+            el.id.length <= 80 &&
+            !/(?:^|[-_:])(react|vue|ember|next|nuxt|hydr|hydrate|hydration|cache|cached|state|session|timestamp|nonce|random|generated|uid|uuid|instance)(?:[-_:]|$)/i.test(
+              el.id
+            ) &&
+            !/[a-f0-9]{8,}/i.test(
+              el.id
+            ) &&
+            !/\d{6,}/.test(
+              el.id
+            );
+
+          if (stableId) {
             return `${el.tagName.toLowerCase()}#${el.id}`;
           }
 
@@ -4050,7 +4063,9 @@ async function captureActiveTab() {
                 .find(
                   c =>
                     c.length <= 35 &&
-                    !/^css-|^js-|^sc-|^_[a-z0-9]{6,}$/i.test(c)
+                    !/^css-|^js-|^sc-|^_[a-z0-9]{6,}$/i.test(c) &&
+                    !/(?:^|[-_:])(hydrated?|hydration|active|selected|open|closed|loaded|loading|ready|state|cache|cached|nonce|generated|uid|uuid|instance)(?:[-_:]|$)/i.test(c) &&
+                    !/[a-f0-9]{8,}/i.test(c)
                 );
 
             if (usefulClass) {
@@ -9756,7 +9771,7 @@ async function buildDomDiff() {
 
       world: "MAIN",
 
-      func: async (maxItems, semanticWeights) => {
+      func: async (semanticWeights) => {
         const normaliseText = (value) =>
           String(value || "")
             .replace(/\s+/g, " ")
@@ -13520,7 +13535,122 @@ async function buildDomDiff() {
           }
         }
 
-        netItems.sort(
+        const volatileTokenPattern =
+          /(?:^|[-_:])(react|vue|ember|next|nuxt|hydr|hydrate|hydration|cache|cached|state|session|timestamp|nonce|random|generated|uid|uuid|instance)(?:[-_:]|$)|[a-f0-9]{8,}|\d{6,}/i;
+
+        const volatileSelectorOnlyChange = (
+          item
+        ) => {
+          if (
+            item.change_type !==
+              "changed_in_rendered" ||
+            !item.reconciliation
+          ) {
+            return false;
+          }
+
+          const rawSelector =
+            String(
+              item.raw
+                ?.element
+                ?.selector ||
+              ""
+            );
+
+          const renderedSelector =
+            String(
+              item.rendered
+                ?.element
+                ?.selector ||
+              ""
+            );
+
+          if (
+            !rawSelector ||
+            !renderedSelector ||
+            rawSelector ===
+              renderedSelector
+          ) {
+            return false;
+          }
+
+          const sameText =
+            comparableText(
+              item.raw
+            ) ===
+            comparableText(
+              item.rendered
+            );
+
+          const sameHref =
+            comparableHref(
+              item.raw
+            ) ===
+            comparableHref(
+              item.rendered
+            );
+
+          return (
+            sameText &&
+            (
+              item.kind !==
+                "link" ||
+              sameHref
+            ) &&
+            (
+              volatileTokenPattern.test(
+                rawSelector
+              ) ||
+              volatileTokenPattern.test(
+                renderedSelector
+              )
+            )
+          );
+        };
+
+        const obviousNoiseReason = (
+          item
+        ) => {
+          if (
+            volatileSelectorOnlyChange(
+              item
+            )
+          ) {
+            return "volatile selector/id state changed while the semantic value stayed the same";
+          }
+
+          return "";
+        };
+
+        const noiseRemoved = [];
+        const semanticNetItems = [];
+
+        for (
+          const item
+          of netItems
+        ) {
+          const noiseReason =
+            obviousNoiseReason(
+              item
+            );
+
+          if (noiseReason) {
+            noiseRemoved.push({
+              kind:
+                item.kind,
+              change_type:
+                item.change_type,
+              reason:
+                noiseReason
+            });
+          } else {
+            semanticNetItems.push(
+              item
+            );
+          }
+        }
+
+        semanticNetItems.sort(
           (a, b) =>
             a.priority -
               b.priority ||
@@ -13528,7 +13658,7 @@ async function buildDomDiff() {
               b.id
         );
 
-        netItems.forEach(
+        semanticNetItems.forEach(
           (item, index) => {
             item.id =
               index + 1;
@@ -13537,7 +13667,7 @@ async function buildDomDiff() {
 
         items.length = 0;
         items.push(
-          ...netItems
+          ...semanticNetItems
         );
 
         items.sort(
@@ -14156,42 +14286,17 @@ async function buildDomDiff() {
               false
           );
 
-        const selected =
-          [
-            ...nanoReviewCandidates,
-            ...deterministicLowImpact
-          ]
-            .slice(
-              0,
-              maxItems
-            );
-
-        const selectedIds =
-          new Set(
-            selected.map(
-              item =>
-                item.id
-            )
-          );
-
         const kept =
-          items
-            .filter(
-              item =>
-                selectedIds.has(
-                  item.id
-                )
-            )
-            .map(
-              item => {
-                const {
-                  priority,
-                  ...clean
-                } = item;
+          items.map(
+            item => {
+              const {
+                priority,
+                ...clean
+              } = item;
 
-                return clean;
-              }
-            );
+              return clean;
+            }
+          );
 
         const byKind = {};
 
@@ -14240,6 +14345,30 @@ async function buildDomDiff() {
 
             reconciledPairs,
 
+            noiseRemovedItems:
+              noiseRemoved.length,
+
+            noiseRemovedByReason:
+              noiseRemoved.reduce(
+                (
+                  counts,
+                  item
+                ) => {
+                  counts[
+                    item.reason
+                  ] =
+                    (
+                      counts[
+                        item.reason
+                      ] ||
+                      0
+                    ) + 1;
+
+                  return counts;
+                },
+                {}
+              ),
+
             totalDiffItems:
               total,
 
@@ -14261,12 +14390,8 @@ async function buildDomDiff() {
             returnedDiffItems:
               kept.length,
 
-            droppedByCap:
-              Math.max(
-                0,
-                total -
-                  kept.length
-              ),
+            retentionPolicy:
+              "all_semantic_changes_after_noise_filtering",
 
             byKind
           },
@@ -14277,9 +14402,6 @@ async function buildDomDiff() {
       },
 
       args: [
-        settings
-          .limits
-          .maxDomDiffItems,
         settings
           .semanticWeights
       ]

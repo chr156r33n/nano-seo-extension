@@ -81,7 +81,6 @@ const DEFAULT_SETTINGS = {
     linkResponseTimeoutMs: 12000,
     contextChars: 320,
     domDiffBatchSize: 6,
-    maxDomDiffItems: 60,
     maxSchemaUrlRefs: 40
   },
 
