@@ -54,6 +54,120 @@ if (manifest) {
   if (manifest.background?.service_worker !== "service_worker.js") fail("Unexpected service worker entry.");
 }
 
+const crcTable = (() => {
+  const table = new Uint32Array(256);
+
+  for (let n = 0; n < 256; n += 1) {
+    let c = n;
+
+    for (let k = 0; k < 8; k += 1) {
+      c =
+        (c & 1)
+          ? 0xedb88320 ^ (c >>> 1)
+          : c >>> 1;
+    }
+
+    table[n] = c >>> 0;
+  }
+
+  return table;
+})();
+
+const crc32 = buffer => {
+  let c = 0xffffffff;
+
+  for (const byte of buffer) {
+    c =
+      crcTable[(c ^ byte) & 0xff] ^
+      (c >>> 8);
+  }
+
+  return (c ^ 0xffffffff) >>> 0;
+};
+
+for (const file of runtimeFiles.filter(file => file.endsWith(".png"))) {
+  const buffer =
+    fs.readFileSync(
+      path.join(root, file)
+    );
+
+  if (
+    buffer.length < 33 ||
+    buffer.subarray(0, 8).toString("hex") !==
+      "89504e470d0a1a0a"
+  ) {
+    fail(file + " is not a valid PNG file.");
+    continue;
+  }
+
+  let offset = 8;
+
+  while (
+    offset + 12 <=
+    buffer.length
+  ) {
+    const length =
+      buffer.readUInt32BE(
+        offset
+      );
+
+    const type =
+      buffer
+        .subarray(
+          offset + 4,
+          offset + 8
+        )
+        .toString(
+          "ascii"
+        );
+
+    const dataEnd =
+      offset +
+      8 +
+      length;
+
+    if (
+      dataEnd + 4 >
+      buffer.length
+    ) {
+      fail(file + " has a truncated " + type + " PNG chunk.");
+      break;
+    }
+
+    const expected =
+      buffer.readUInt32BE(
+        dataEnd
+      );
+
+    const actual =
+      crc32(
+        buffer.subarray(
+          offset + 4,
+          dataEnd
+        )
+      );
+
+    if (
+      expected !==
+      actual
+    ) {
+      fail(file + " has an invalid CRC in its " + type + " PNG chunk.");
+      break;
+    }
+
+    offset =
+      dataEnd +
+      4;
+
+    if (
+      type ===
+      "IEND"
+    ) {
+      break;
+    }
+  }
+}
+
 for (const file of runtimeFiles.filter(file => file.endsWith(".js"))) {
   const source = fs.readFileSync(path.join(root, file), "utf8");
   try {
@@ -121,7 +235,7 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log("PASS manifest and required runtime assets");
+console.log("PASS manifest, required runtime assets and PNG integrity");
 console.log("PASS JavaScript syntax and remote-code checks");
 console.log("PASS provider secrets separated from general settings and rehydrated locally");
 console.log("PASS development-only files excluded from Store package list");
