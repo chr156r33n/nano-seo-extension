@@ -2255,6 +2255,113 @@ function anchorContextDirectionForModel(
   return "wording_changed_without_local_context_overlap";
 }
 
+function compactDomTargetInventoryForModel(
+  inventory
+) {
+  if (
+    !inventory ||
+    !inventory.target
+  ) {
+    return null;
+  }
+
+  const compactLocation =
+    location => ({
+      ...(location.zone
+        ? {
+            zone:
+              location.zone
+          }
+        : {}),
+      ...(location.component
+        ? {
+            component:
+              location.component
+          }
+        : {}),
+      ...(location.selector
+        ? {
+            selector:
+              String(
+                location.selector
+              ).slice(
+                0,
+                180
+              )
+          }
+        : {}),
+      ...(location.container_selector
+        ? {
+            container_selector:
+              String(
+                location.container_selector
+              ).slice(
+                0,
+                180
+              )
+          }
+        : {}),
+      ...(location.anchor
+        ? {
+            anchor:
+              String(
+                location.anchor
+              ).slice(
+                0,
+                120
+              )
+          }
+        : {})
+    });
+
+  return {
+    target:
+      inventory.target,
+    raw_count:
+      inventory.raw_count ?? 0,
+    rendered_count:
+      inventory.rendered_count ?? 0,
+    delta:
+      inventory.delta ?? 0,
+    ...(inventory.removed === true
+      ? {
+          removed:
+            true
+        }
+      : {}),
+    ...(inventory.introduced === true
+      ? {
+          introduced:
+            true
+        }
+      : {}),
+    raw_locations:
+      (
+        inventory.raw_locations ||
+        []
+      )
+        .slice(
+          0,
+          4
+        )
+        .map(
+          compactLocation
+        ),
+    rendered_locations:
+      (
+        inventory.rendered_locations ||
+        []
+      )
+        .slice(
+          0,
+          4
+        )
+        .map(
+          compactLocation
+        )
+  };
+}
+
 function compactDomVerifiedFactsForModel(
   item
 ) {
@@ -2350,6 +2457,38 @@ function compactDomVerifiedFactsForModel(
     facts.destination_discovery_changed =
       !!signals
         .destination_discovery_changed;
+
+    const rawTargetInventory =
+      compactDomTargetInventoryForModel(
+        signals
+          .raw_target_inventory
+      );
+
+    const renderedTargetInventory =
+      compactDomTargetInventoryForModel(
+        signals
+          .rendered_target_inventory
+      );
+
+    if (
+      rawTargetInventory &&
+      renderedTargetInventory &&
+      rawTargetInventory.target ===
+        renderedTargetInventory.target
+    ) {
+      facts.target_inventory =
+        renderedTargetInventory;
+    } else {
+      if (rawTargetInventory) {
+        facts.before_target_inventory =
+          rawTargetInventory;
+      }
+
+      if (renderedTargetInventory) {
+        facts.after_target_inventory =
+          renderedTargetInventory;
+      }
+    }
 
     facts.server_html_link_present =
       !!(
@@ -13641,6 +13780,114 @@ async function buildDomDiff() {
             .length;
         };
 
+        const normalisedLinkTargetLocations = (
+          inventory,
+          target
+        ) => {
+          if (!target) return [];
+
+          const seen =
+            new Set();
+
+          const locations =
+            [];
+
+          for (
+            const link
+            of inventory.links ||
+              []
+          ) {
+            if (
+              normaliseInternalLinkTarget(
+                link.href
+              ) !== target
+            ) {
+              continue;
+            }
+
+            const local =
+              link._sourceNode
+                ? localIdentityContextFor(
+                    link._sourceNode
+                  )
+                : {};
+
+            const element =
+              link.element ||
+              {};
+
+            const location = {
+              zone:
+                element.zone ||
+                "",
+              component:
+                element.component ||
+                "",
+              selector:
+                String(
+                  element.selector ||
+                  ""
+                ).slice(
+                  0,
+                  240
+                ),
+              container_selector:
+                String(
+                  local
+                    ?.container_selector ||
+                  ""
+                ).slice(
+                  0,
+                  240
+                ),
+              anchor:
+                String(
+                  link.text ||
+                  ""
+                ).slice(
+                  0,
+                  140
+                )
+            };
+
+            const key =
+              [
+                location.zone,
+                location.component,
+                location.selector,
+                location.container_selector,
+                location.anchor
+              ].join(
+                "|"
+              );
+
+            if (
+              seen.has(
+                key
+              )
+            ) {
+              continue;
+            }
+
+            seen.add(
+              key
+            );
+
+            locations.push(
+              location
+            );
+
+            if (
+              locations.length >=
+              6
+            ) {
+              break;
+            }
+          }
+
+          return locations;
+        };
+
         const countLinkPair = (
           inventory,
           href,
@@ -14224,6 +14471,16 @@ async function buildDomDiff() {
               countNormalisedLinkTarget(
                 rendered,
                 rawNormalisedTarget
+              ),
+            raw_locations:
+              normalisedLinkTargetLocations(
+                raw,
+                rawNormalisedTarget
+              ),
+            rendered_locations:
+              normalisedLinkTargetLocations(
+                rendered,
+                rawNormalisedTarget
               )
           };
 
@@ -14237,6 +14494,16 @@ async function buildDomDiff() {
               ),
             rendered_count:
               countNormalisedLinkTarget(
+                rendered,
+                renderedNormalisedTarget
+              ),
+            raw_locations:
+              normalisedLinkTargetLocations(
+                raw,
+                renderedNormalisedTarget
+              ),
+            rendered_locations:
+              normalisedLinkTargetLocations(
                 rendered,
                 renderedNormalisedTarget
               )
