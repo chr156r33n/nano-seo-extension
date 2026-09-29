@@ -4176,6 +4176,83 @@ function deterministicFindingEvidenceHtml(issue) {
       : "";
   }
 
+  const prettifiedEvidenceHtml = (
+    input,
+    depth = 0
+  ) => {
+    if (
+      input === null ||
+      input === undefined
+    ) {
+      return "";
+    }
+
+    if (
+      typeof input !==
+        "object"
+    ) {
+      return `<span>${escapeHtml(humanLabel(input))}</span>`;
+    }
+
+    if (
+      Array.isArray(input)
+    ) {
+      if (!input.length) {
+        return '<span class="muted small">None</span>';
+      }
+
+      return `<div class="result-list">${input
+        .slice(0, 12)
+        .map(
+          (item, index) =>
+            `<div class="result-row static"><div class="result-label">#${index + 1}</div>${prettifiedEvidenceHtml(item, depth + 1)}</div>`
+        )
+        .join("")}</div>`;
+    }
+
+    const rows =
+      Object.entries(input)
+        .filter(
+          ([, value]) =>
+            value !== "" &&
+            value !== null &&
+            value !== undefined &&
+            !(
+              Array.isArray(value) &&
+              value.length === 0
+            )
+        )
+        .slice(0, 24)
+        .map(
+          ([key, value]) => {
+            const label =
+              humanLabel(key);
+
+            if (
+              value &&
+              typeof value ===
+                "object"
+            ) {
+              return `<div class="result-subsection"><div class="result-label">${escapeHtml(label)}</div>${prettifiedEvidenceHtml(value, depth + 1)}</div>`;
+            }
+
+            const text =
+              String(value);
+
+            const codeLike =
+              /^https?:\/\//i.test(text) ||
+              text.includes("<") ||
+              text.includes(">") ||
+              text.length > 120;
+
+            return `<div class="small"><strong>${escapeHtml(label)}:</strong> ${codeLike ? `<code>${escapeHtml(text)}</code>` : escapeHtml(humanLabel(text))}</div>`;
+          }
+        )
+        .join("");
+
+    return rows || '<span class="muted small">No additional evidence</span>';
+  };
+
   if (
     [
       "multiple_canonical",
@@ -4196,7 +4273,7 @@ function deterministicFindingEvidenceHtml(issue) {
       code
     )
   ) {
-    return `<details class="subdetails finding-evidence"><summary>Finding evidence</summary><pre>${escapeHtml(JSON.stringify(value, null, 2).slice(0, 4000))}</pre></details>`;
+    return `<details class="subdetails finding-evidence"><summary>Finding evidence</summary><div class="result-list">${prettifiedEvidenceHtml(value)}</div><details class="raw-json"><summary>Raw JSON</summary><pre>${escapeHtml(JSON.stringify(value, null, 2).slice(0, 4000))}</pre></details></details>`;
   }
 
   return "";
