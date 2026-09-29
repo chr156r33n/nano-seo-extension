@@ -3582,11 +3582,74 @@ async function runTask({
       provider
     );
 
+  const savedPromptHasFindingEvidence =
+    task ===
+      "false_positive" &&
+    String(
+      promptDef.user ||
+      ""
+    ).includes(
+      "{{evidence_json}}"
+    );
+
+  const nanoFindingPrompt =
+    task ===
+      "false_positive" &&
+    provider ===
+      "nano"
+      ? `Review this deterministic SEO finding.
+
+Return the required JSON using exactly these judgement values:
+likely_false_positive
+no_material_impact
+low_impact
+context_dependent
+meaningful_issue
+manual_review
+
+Rules:
+- First decide whether the detected condition is factually present.
+- If the evidence establishes it is present, do not use likely_false_positive.
+- Judge practical consequence only from the supplied evidence and compact page context.
+- Keep rationale concise.
+- Assess each supplied example in item_assessments.
+
+FINDING:
+${vars.issue_json}
+
+SPECIFIC EVIDENCE:
+${vars.evidence_json}
+
+RULE GUIDANCE:
+${vars.guidance}
+
+IMPACT PROFILE:
+${vars.impact_profile_json}
+
+COMPACT PAGE CONTEXT:
+${vars.context_json}`
+      : "";
+
   const basePrompt =
+    nanoFindingPrompt ||
     renderTemplate(
       promptDef.user,
       vars
     );
+
+  const findingEvidenceAppendix =
+    task ===
+      "false_positive" &&
+    provider !==
+      "nano" &&
+    !savedPromptHasFindingEvidence
+      ? `
+
+MANDATORY SPECIFIC AFFECTED EVIDENCE:
+${vars.evidence_json}
+
+This evidence is part of the finding and must be assessed directly. Do not claim that tag, markup, position, URL or other supplied values are missing when they are present above.`
+      : "";
 
   const domLinkInventoryEvidence =
     [
@@ -3607,6 +3670,7 @@ ${untrustedEvidence(
 
   const prompt =
     basePrompt +
+    findingEvidenceAppendix +
     domLinkInventoryEvidence;
 
   const evidenceInstruction =
@@ -3648,11 +3712,19 @@ MANDATORY FINDING REVIEW RULES:
 - For hreflang_unapproved_value, assess only project allow-list policy; malformed syntax belongs to hreflang_invalid_format.`
       : "";
 
+  const taskSystem =
+    task ===
+      "false_positive" &&
+    provider ===
+      "nano"
+      ? "Assess a deterministic SEO finding using only the supplied evidence. Distinguish whether the condition exists from whether it has practical impact. Never invent missing evidence."
+      : promptDef.system;
+
   const system =
     `${MODEL_SECURITY_INSTRUCTION}
 
 TRUSTED TASK INSTRUCTIONS:
-${promptDef.system}${evidenceInstruction}${domLinkInventoryInstruction}${findingReviewInstruction}`;
+${taskSystem}${evidenceInstruction}${domLinkInventoryInstruction}${findingReviewInstruction}`;
 
   const inputMode =
     payload?.inputMode || null;
