@@ -585,7 +585,9 @@ EXAMPLE URL:
 
     canonical_cross_origin: `A cross-domain canonical can be intentional for syndicated, duplicated, migrated, regional, or otherwise equivalent content. Judge whether the target plausibly represents the preferred equivalent page. It is more concerning when the canonical appears unrelated, mismatched, insecure, on an unexpected environment, or inconsistent with the visible page.`,
 
-    canonical_relationship: `This finding means the canonical target is on the same origin but is not the current URL. Do not treat non-self canonicalisation as automatically wrong. Query removal can be appropriate for tracking/duplicate parameters; query addition or a path change needs more scrutiny. Use the supplied relation fields and page context to judge whether the target plausibly represents an equivalent preferred URL. Do not invent the reason the canonical was chosen.`,
+    canonical_relationship: `This finding means the canonical target is on the same origin but is not the current URL. The detector's factual claim is only that the non-self same-origin relationship exists. If same_origin=true and self_canonical=false, do not call this a detector error. Query removal can be entirely expected for tracking, sorting, facet or pagination parameters when same_path=true and the canonical points to the clean preferred URL. Query addition or a path change needs more scrutiny. Use the supplied relation fields and page context to judge whether the target plausibly represents an equivalent preferred URL. Do not invent the reason the canonical was chosen.`,
+
+    rendered_head_invalid_element: `This check establishes only that a non-head-valid element is present as a child of the rendered DOM <head>. Use the supplied tag, markup, position, nearby elements, critical metadata after it, and possible_implication. Do not claim this proves source-HTML parser termination or displaced metadata because JavaScript may have inserted the element after parsing. Source-head parser disruption is a separate concern and requires source-head evidence.`,
 
     robots_noindex: `Noindex can be intentional for utility, search, filter, account, cart, duplicate, staging, temporary, or otherwise non-search-facing pages. It is more concerning when the page appears unique, useful, index-worthy, and clearly intended to attract organic search traffic.`,
 
@@ -607,7 +609,7 @@ EXAMPLE URL:
 
     hreflang_duplicate_value: `Multiple hreflang declarations for the same language/locale are suspicious when they point to different URLs. Exact duplicate declarations are redundant but less serious.`,
 
-    hreflang_unapproved_value: `This check is about project policy, not hreflang syntax. A syntactically valid locale should not be described as invalid or unsupported merely because it falls outside the configured project allow-list. Bare language entries in the allow-list permit valid language-family variants (for example es allows es-ES/es-MX; zh allows zh-Hans/zh-Hant). Specific locale entries remain specific. Treat an out-of-policy value as an implementation-consistency finding and use the supplied allow-list evidence rather than inventing a locale strategy.`,
+    hreflang_unapproved_value: `This check is about project policy, not hreflang syntax, and should contain only syntactically valid hreflang values. A malformed value belongs under hreflang_invalid_format instead. Bare language entries in the allow-list permit valid language-family variants (for example es allows es-ES/es-MX; zh allows zh-Hans/zh-Hant). Specific locale entries remain specific. Treat an out-of-policy value as an implementation-consistency finding and use the supplied allow-list evidence rather than inventing a locale strategy.`,
 
     hreflang_invalid_format: `Malformed hreflang values can prevent language/region targeting from being interpreted as intended. x-default is valid; language and optional region/script subtags should otherwise be plausible.`,
 
