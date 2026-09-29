@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Normalized DOM link inventory fixture</title>
+  <meta name="description" content="Exercises normalized internal-link target counts across server and rendered DOM.">
+  <link rel="canonical" href="http://localhost:8765/fixtures/dom-link-target-inventory.html">
+</head>
+<body>
+  <header>
+    <nav aria-label="Primary">
+      <a href="/destinations?source=server-a">Destinations</a>
+      <a href="/destinations?source=server-b">Explore destinations</a>
+      <a id="removed-link" href="/legacy-offer?tracking=server">Legacy offer</a>
+    </nav>
+  </header>
+
+  <main>
+    <h1>Link target inventory test</h1>
+    <div id="dynamic-links"></div>
+  </main>
+
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      document.querySelector("#removed-link")?.remove();
+
+      const target = document.querySelector("#dynamic-links");
+      target.insertAdjacentHTML(
+        "beforeend",
+        [
+          '<a href="/destinations?source=rendered-c#results">More destinations</a>',
+          '<a href="/destinations?source=rendered-d">Destination finder</a>',
+          '<a href="/privatejet/journeys/timeless-encounters?_s_sit=private%20jet%7Cheader%20search%20bar%7Ctimeless-encounters&c=t">Timeless Encounters</a>'
+        ].join("")
+      );
+    });
+  </script>
+</body>
+</html>

@@ -278,6 +278,36 @@
         "403/access-restricted evidence must not be silently converted into a negative or positive equivalence judgement."
       ]
     },
+    "dom-link-target-inventory.html": {
+      "expected_link_inventory": {
+        "introduced_target": {
+          "target": "http://localhost:8765/privatejet/journeys/timeless-encounters",
+          "raw_count": 0,
+          "rendered_count": 1,
+          "normalised_target_introduced": true,
+          "expected_significance": "high"
+        },
+        "meaningful_count_increase": {
+          "target": "http://localhost:8765/destinations",
+          "raw_count": 2,
+          "rendered_count": 4,
+          "delta": 2,
+          "meaningful_normalised_target_count_change": true
+        },
+        "removed_target": {
+          "target": "http://localhost:8765/legacy-offer",
+          "raw_count": 1,
+          "rendered_count": 0,
+          "normalised_target_removed": true,
+          "expected_significance": "high"
+        }
+      },
+      "notes": [
+        "Query strings and fragments must not split the page-level normalized target inventory.",
+        "A 0 -> 1 target transition must remain significant even when the link is in navigation or destination-discovery UI.",
+        "Nano summary behavior is unchanged; normalized inventory is deterministic evidence for triage."
+      ]
+    },
     "dom-h1-removed.html": {
       "expected_rendered_changes": [
         {

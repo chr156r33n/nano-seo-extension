@@ -3530,11 +3530,25 @@ async function runTask({
       ? ""
       : `\n\nMANDATORY EVIDENCE GUIDANCE:\n${MODEL_EVIDENCE_GUIDANCE}`;
 
+  const domLinkInventoryInstruction =
+    task ===
+      "dom_diff_triage"
+      ? `
+
+MANDATORY DOM LINK INVENTORY GUIDANCE:
+- When normalized internal-link target inventory evidence is supplied, treat its counts and transition flags as verified facts.
+- A normalized target changing from 0 server-HTML links to one or more rendered-DOM links is a real rendering-dependent discovery change.
+- A normalized target changing from one or more server-HTML links to 0 rendered-DOM links is a real removal from the rendered page link graph.
+- Do not dismiss either condition merely because the affected link is in navigation, repeated UI, or a destination selector. Main navigation and homepage destination-discovery links can be important.
+- If a target exists in both versions but the deterministic evidence marks its count change as meaningful, judge the consequence in page context rather than treating it as unchanged.
+- Query strings and fragments have intentionally been ignored only for this normalized page-level target inventory. Do not use that normalization to claim two full URLs are otherwise equivalent.`
+      : "";
+
   const system =
     `${MODEL_SECURITY_INSTRUCTION}
 
 TRUSTED TASK INSTRUCTIONS:
-${promptDef.system}${evidenceInstruction}`;
+${promptDef.system}${evidenceInstruction}${domLinkInventoryInstruction}`;
 
   const inputMode =
     payload?.inputMode || null;
@@ -12783,6 +12797,47 @@ async function buildDomDiff() {
             .length;
         };
 
+        const normaliseInternalLinkTarget = (
+          href
+        ) => {
+          const value =
+            String(
+              href || ""
+            ).trim();
+
+          if (!value) return "";
+
+          try {
+            const target =
+              new URL(
+                value,
+                location.href
+              );
+
+            if (
+              target.origin !==
+              location.origin
+            ) {
+              return "";
+            }
+
+            const pathname =
+              target.pathname.length > 1
+                ? target.pathname.replace(
+                    /\/+$/,
+                    ""
+                  )
+                : target.pathname;
+
+            return (
+              target.origin +
+              pathname
+            );
+          } catch {
+            return "";
+          }
+        };
+
         const countLinkHref = (
           inventory,
           href
@@ -12799,6 +12854,24 @@ async function buildDomDiff() {
             .filter(
               link =>
                 link.href ===
+                target
+            )
+            .length;
+        };
+
+        const countNormalisedLinkTarget = (
+          inventory,
+          target
+        ) => {
+          if (!target) return 0;
+
+          return inventory
+            .links
+            .filter(
+              link =>
+                normaliseInternalLinkTarget(
+                  link.href
+                ) ===
                 target
             )
             .length;
@@ -13365,15 +13438,153 @@ async function buildDomDiff() {
               renderedHref
             );
 
-          const destinationRemoved =
-            !!rawHref &&
-            rawHrefInRendered ===
+          const rawNormalisedTarget =
+            normaliseInternalLinkTarget(
+              rawHref
+            );
+
+          const renderedNormalisedTarget =
+            normaliseInternalLinkTarget(
+              renderedHref
+            );
+
+          const targetInventory = (
+            target
+          ) => {
+            if (!target) {
+              return {
+                target: "",
+                raw_count: 0,
+                rendered_count: 0,
+                delta: 0,
+                introduced: false,
+                removed: false
+              };
+            }
+
+            const rawCount =
+              countNormalisedLinkTarget(
+                raw,
+                target
+              );
+
+            const renderedCount =
+              countNormalisedLinkTarget(
+                rendered,
+                target
+              );
+
+            return {
+              target,
+              raw_count:
+                rawCount,
+              rendered_count:
+                renderedCount,
+              delta:
+                renderedCount -
+                rawCount,
+              introduced:
+                rawCount === 0 &&
+                renderedCount > 0,
+              removed:
+                rawCount > 0 &&
+                renderedCount === 0
+            };
+          };
+
+          const rawTargetInventory =
+            targetInventory(
+              rawNormalisedTarget
+            );
+
+          const renderedTargetInventory =
+            targetInventory(
+              renderedNormalisedTarget
+            );
+
+          const sameNormalisedTarget =
+            !!rawNormalisedTarget &&
+            rawNormalisedTarget ===
+              renderedNormalisedTarget;
+
+          const comparisonInventory =
+            renderedNormalisedTarget
+              ? renderedTargetInventory
+              : rawTargetInventory;
+
+          const comparisonTarget =
+            comparisonInventory
+              .target;
+
+          const rawNormalisedTargetCount =
+            comparisonInventory
+              .raw_count;
+
+          const renderedNormalisedTargetCount =
+            comparisonInventory
+              .rendered_count;
+
+          const normalisedTargetCountDelta =
+            comparisonInventory
+              .delta;
+
+          const normalisedTargetIntroduced =
+            renderedTargetInventory
+              .introduced;
+
+          const normalisedTargetRemoved =
+            rawTargetInventory
+              .removed;
+
+          const normalisedTargetCountChanged =
+            !!comparisonTarget &&
+            normalisedTargetCountDelta !==
               0;
 
+          const normalisedTargetCountChangeRatio =
+            rawNormalisedTargetCount > 0
+              ? Number(
+                  (
+                    Math.abs(
+                      normalisedTargetCountDelta
+                    ) /
+                    rawNormalisedTargetCount
+                  ).toFixed(
+                    3
+                  )
+                )
+              : normalisedTargetIntroduced
+                ? 1
+                : 0;
+
+          const meaningfulNormalisedTargetCountChange =
+            normalisedTargetIntroduced ||
+            normalisedTargetRemoved ||
+            (
+              Math.abs(
+                normalisedTargetCountDelta
+              ) >= 2 &&
+              normalisedTargetCountChangeRatio >=
+                0.5
+            );
+
+          const destinationRemoved =
+            normalisedTargetRemoved ||
+            (
+              !rawNormalisedTarget &&
+              !!rawHref &&
+              rawHrefInRendered ===
+                0
+            );
+
           const destinationAdded =
-            !!renderedHref &&
-            renderedHrefInRaw ===
-              0;
+            normalisedTargetIntroduced ||
+            (
+              !renderedNormalisedTarget &&
+              !!renderedHref &&
+              renderedHrefInRaw ===
+                0
+            );
 
           const destinationDiscoveryChanged =
             destinationAdded ||
@@ -13443,19 +13654,37 @@ async function buildDomDiff() {
             destinationRemoved
           ) {
             significance =
-              weight >= 1
+              (
+                normalisedTargetIntroduced ||
+                normalisedTargetRemoved
+              )
                 ? "high"
-                : weight >= 0.25
-                  ? "medium"
-                  : "low";
+                : weight >= 1
+                  ? "high"
+                  : weight >= 0.25
+                    ? "medium"
+                    : "low";
 
             reason =
-              destinationAdded &&
-              destinationRemoved
-                ? "Rendered DOM replaces one uniquely discoverable link destination with another."
-                : destinationAdded
-                  ? "Rendered DOM makes a link destination discoverable that was absent from the server link inventory."
-                  : "Rendered DOM removes the only observed link to a destination from the rendered link inventory.";
+              normalisedTargetIntroduced
+                ? `Rendered DOM introduces a previously absent internal-link target after normalising away query parameters and fragments (0 → ${renderedNormalisedTargetCount} links).`
+                : normalisedTargetRemoved
+                  ? `Rendered DOM removes an internal-link target that was present in server HTML after normalising away query parameters and fragments (${rawNormalisedTargetCount} → 0 links).`
+                  : destinationAdded &&
+                    destinationRemoved
+                    ? "Rendered DOM replaces one uniquely discoverable link destination with another."
+                    : destinationAdded
+                      ? "Rendered DOM makes a link destination discoverable that was absent from the server link inventory."
+                      : "Rendered DOM removes the only observed link to a destination from the rendered link inventory.";
+          } else if (
+            meaningfulNormalisedTargetCountChange &&
+            normalisedTargetCountChanged
+          ) {
+            significance =
+              "medium";
+
+            reason =
+              `The normalized internal-link target remains discoverable, but its page-level link count changes materially after rendering (${rawNormalisedTargetCount} → ${renderedNormalisedTargetCount}).`;
           } else if (
             destinationChanged
           ) {
@@ -13537,6 +13766,30 @@ async function buildDomDiff() {
                 anchorSemanticsRemoved,
               destination_discovery_changed:
                 destinationDiscoveryChanged,
+              normalised_internal_target:
+                comparisonTarget,
+              raw_normalised_target_count:
+                rawNormalisedTargetCount,
+              rendered_normalised_target_count:
+                renderedNormalisedTargetCount,
+              normalised_target_count_delta:
+                normalisedTargetCountDelta,
+              normalised_target_count_changed:
+                normalisedTargetCountChanged,
+              normalised_target_count_change_ratio:
+                normalisedTargetCountChangeRatio,
+              meaningful_normalised_target_count_change:
+                meaningfulNormalisedTargetCountChange,
+              normalised_target_introduced:
+                normalisedTargetIntroduced,
+              normalised_target_removed:
+                normalisedTargetRemoved,
+              raw_target_inventory:
+                rawTargetInventory,
+              rendered_target_inventory:
+                renderedTargetInventory,
+              same_normalised_target:
+                sameNormalisedTarget,
               anchor_only_same_destination:
                 anchorOnlySameDestination,
               local_context_terms_added:
