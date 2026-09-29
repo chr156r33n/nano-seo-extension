@@ -4560,6 +4560,24 @@ function renderDomDiffSummary() {
           "Implementation-only differences removed deterministically, such as volatile hydration/state/cache identifiers where the semantic value itself did not change."
         )}
         ${
+          summary.linkInventory
+            ? metricHtml(
+                "Internal links",
+                String(summary.linkInventory.internal_link_instances?.raw ?? 0) + " → " + String(summary.linkInventory.internal_link_instances?.rendered ?? 0),
+                "Page-level internal link instances in server HTML versus rendered DOM."
+              )
+            : ""
+        }
+        ${
+          summary.linkInventory
+            ? metricHtml(
+                "Unique targets",
+                String(summary.linkInventory.unique_internal_targets?.raw ?? 0) + " → " + String(summary.linkInventory.unique_internal_targets?.rendered ?? 0),
+                "Unique same-origin internal targets after normalising to origin + pathname for page-level comparison."
+              )
+            : ""
+        }
+        ${
           aggregate
             ? metricHtml(
                 "Est. inventory changed",
@@ -4795,6 +4813,10 @@ async function reviewDomDiffBatch(
                 batch.items,
               cmsContext:
                 domDiff?.cmsContext ||
+                null,
+              linkInventory:
+                domDiff?.summary
+                  ?.linkInventory ||
                 null
             },
             useCache:
@@ -7241,6 +7263,10 @@ async function analyseAll() {
                   batch,
                 cmsContext:
                   domDiff?.cmsContext ||
+                  null,
+                linkInventory:
+                  domDiff?.summary
+                    ?.linkInventory ||
                   null
               }
             );
