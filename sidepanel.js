@@ -4059,12 +4059,34 @@ function deterministicFindingEvidenceHtml(issue) {
                 : ""
             ) +
             (
+              item.format_error
+                ? textLine(
+                    "Syntax issue",
+                    humanLabel(
+                      item.format_error
+                    )
+                  )
+                : ""
+            ) +
+            (
+              item.suggested_value
+                ? textLine(
+                    "Suggested",
+                    item.suggested_value
+                  )
+                : ""
+            ) +
+            (
               item.agreed_match
                 ? textLine(
                     "Project policy",
-                    humanLabel(
-                      item.agreed_match
-                    )
+                    item.agreed_match === "not_configured"
+                      ? "No allow-list configured"
+                      : item.agreed_match === "none"
+                        ? "Not in configured allow-list"
+                        : humanLabel(
+                            item.agreed_match
+                          )
                   )
                 : ""
             ) +
@@ -4093,6 +4115,64 @@ function deterministicFindingEvidenceHtml(issue) {
 
     return rows
       ? `<details class="subdetails finding-evidence"><summary>Hreflang evidence</summary><div class="result-list">${rows}</div></details>`
+      : "";
+  }
+
+  if (
+    code ===
+      "rendered_head_invalid_element"
+  ) {
+    const rows =
+      examples
+        .slice(0, 6)
+        .map(
+          item =>
+            `<div class="result-row static">` +
+            textLine(
+              "Element",
+              `<${item.tag || "unknown"}>`
+            ) +
+            (
+              item.html
+                ? codeLine(
+                    "Markup",
+                    item.html
+                  )
+                : ""
+            ) +
+            (
+              item.child_index
+                ? textLine(
+                    "Head position",
+                    `${item.child_index} of ${item.total_head_children || "?"}`
+                  )
+                : ""
+            ) +
+            (
+              item.possible_implication
+                ? textLine(
+                    "Possible implication",
+                    item.possible_implication
+                  )
+                : ""
+            ) +
+            (
+              item.critical_elements_after
+                ?.length
+                ? textLine(
+                    "Critical metadata after it",
+                    item.critical_elements_after
+                      .map(x => x.tag)
+                      .join(", ")
+                  )
+                : ""
+            ) +
+            `</div>`
+        )
+        .join("");
+
+    return rows
+      ? `<details class="subdetails finding-evidence"><summary>Rendered head evidence</summary><div class="result-list">${rows}</div></details>`
       : "";
   }
 
