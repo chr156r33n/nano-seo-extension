@@ -2595,6 +2595,132 @@ function compactDomVerifiedFactsForModel(
 
   if (
     item?.kind ===
+      "content_block" &&
+    signals
+      .related_link_target_inventory
+  ) {
+    const related =
+      signals
+        .related_link_target_inventory;
+
+    facts.related_link_target = {
+      target:
+        related.target || "",
+      raw_count:
+        related.raw_count ?? 0,
+      rendered_count:
+        related.rendered_count ?? 0,
+      delta:
+        related.delta ?? 0,
+      target_retained:
+        !!related.target_retained,
+      source_text_exact_link_match:
+        !!related.source_text_exact_link_match,
+      source_text_link_similarity:
+        related.source_text_link_similarity ?? null,
+      source_text_link_length_ratio:
+        related.source_text_link_length_ratio ?? null,
+      opposite_anchor_similarity:
+        related.opposite_anchor_similarity ?? null,
+      raw_locations:
+        (
+          related.raw_locations ||
+          []
+        )
+          .slice(
+            0,
+            4
+          )
+          .map(
+            location => ({
+              ...(location.zone
+                ? {
+                    zone:
+                      location.zone
+                  }
+                : {}),
+              ...(location.component
+                ? {
+                    component:
+                      location.component
+                  }
+                : {}),
+              ...(location.selector
+                ? {
+                    selector:
+                      String(
+                        location.selector
+                      ).slice(
+                        0,
+                        180
+                      )
+                  }
+                : {}),
+              ...(location.container_selector
+                ? {
+                    container_selector:
+                      String(
+                        location.container_selector
+                      ).slice(
+                        0,
+                        180
+                      )
+                  }
+                : {})
+            })
+          ),
+      rendered_locations:
+        (
+          related.rendered_locations ||
+          []
+        )
+          .slice(
+            0,
+            4
+          )
+          .map(
+            location => ({
+              ...(location.zone
+                ? {
+                    zone:
+                      location.zone
+                  }
+                : {}),
+              ...(location.component
+                ? {
+                    component:
+                      location.component
+                  }
+                : {}),
+              ...(location.selector
+                ? {
+                    selector:
+                      String(
+                        location.selector
+                      ).slice(
+                        0,
+                        180
+                      )
+                  }
+                : {}),
+              ...(location.container_selector
+                ? {
+                    container_selector:
+                      String(
+                        location.container_selector
+                      ).slice(
+                        0,
+                        180
+                      )
+                  }
+                : {})
+            })
+          )
+    };
+  }
+
+  if (
+    item?.kind ===
     "heading"
   ) {
     facts.heading_level_only =
@@ -14969,6 +15095,255 @@ async function buildDomDiff() {
           return best;
         };
 
+        const bestLinkForContentText = (
+          inventory,
+          text
+        ) => {
+          const target =
+            normaliseText(
+              text
+            );
+
+          if (!target) {
+            return null;
+          }
+
+          let best = null;
+
+          for (
+            const link
+            of inventory.links ||
+              []
+          ) {
+            const linkText =
+              normaliseText(
+                link.text
+              );
+
+            if (!linkText) {
+              continue;
+            }
+
+            const exact =
+              linkText.toLowerCase() ===
+              target.toLowerCase();
+
+            const similarity =
+              exact
+                ? 1
+                : tokenSimilarity(
+                    target,
+                    linkText
+                  );
+
+            const lengthRatio =
+              Math.min(
+                target.length,
+                linkText.length
+              ) /
+              Math.max(
+                target.length,
+                linkText.length
+              );
+
+            if (
+              !exact &&
+              (
+                similarity < 0.82 ||
+                lengthRatio < 0.7
+              )
+            ) {
+              continue;
+            }
+
+            if (
+              !best ||
+              exact && !best.exact ||
+              (
+                exact ===
+                  best.exact &&
+                similarity >
+                  best.similarity
+              )
+            ) {
+              best = {
+                link,
+                exact,
+                similarity:
+                  Number(
+                    similarity
+                      .toFixed(3)
+                  ),
+                length_ratio:
+                  Number(
+                    lengthRatio
+                      .toFixed(3)
+                  )
+              };
+            }
+          }
+
+          return best;
+        };
+
+        const relatedLinkEvidenceForContent = (
+          item,
+          rawText,
+          renderedText
+        ) => {
+          const removed =
+            item.change_type ===
+              "removed_in_rendered";
+
+          const added =
+            item.change_type ===
+              "added_in_rendered";
+
+          if (
+            !removed &&
+            !added
+          ) {
+            return null;
+          }
+
+          const sourceInventory =
+            removed
+              ? raw
+              : rendered;
+
+          const sourceText =
+            removed
+              ? rawText
+              : renderedText;
+
+          const sourceMatch =
+            bestLinkForContentText(
+              sourceInventory,
+              sourceText
+            );
+
+          if (
+            !sourceMatch
+              ?.link
+              ?.href
+          ) {
+            return null;
+          }
+
+          const target =
+            normaliseInternalLinkTarget(
+              sourceMatch.link.href
+            );
+
+          if (!target) {
+            return null;
+          }
+
+          const rawCount =
+            countNormalisedLinkTarget(
+              raw,
+              target
+            );
+
+          const renderedCount =
+            countNormalisedLinkTarget(
+              rendered,
+              target
+            );
+
+          const oppositeInventory =
+            removed
+              ? rendered
+              : raw;
+
+          let oppositeBest = null;
+
+          for (
+            const link
+            of oppositeInventory.links ||
+              []
+          ) {
+            if (
+              normaliseInternalLinkTarget(
+                link.href
+              ) !== target
+            ) {
+              continue;
+            }
+
+            const similarity =
+              tokenSimilarity(
+                sourceText,
+                normaliseText(
+                  link.text
+                )
+              );
+
+            if (
+              !oppositeBest ||
+              similarity >
+                oppositeBest.similarity
+            ) {
+              oppositeBest = {
+                text:
+                  normaliseText(
+                    link.text
+                  ),
+                similarity:
+                  Number(
+                    similarity
+                      .toFixed(3)
+                  )
+              };
+            }
+          }
+
+          return {
+            target,
+            raw_count:
+              rawCount,
+            rendered_count:
+              renderedCount,
+            delta:
+              renderedCount -
+              rawCount,
+            target_retained:
+              removed
+                ? renderedCount > 0
+                : rawCount > 0,
+            source_text_exact_link_match:
+              sourceMatch.exact,
+            source_text_link_similarity:
+              sourceMatch.similarity,
+            source_text_link_length_ratio:
+              sourceMatch.length_ratio,
+            source_anchor:
+              normaliseText(
+                sourceMatch
+                  .link
+                  .text
+              ),
+            opposite_anchor:
+              oppositeBest
+                ?.text ||
+              "",
+            opposite_anchor_similarity:
+              oppositeBest
+                ?.similarity ??
+              null,
+            raw_locations:
+              normalisedLinkTargetLocations(
+                raw,
+                target
+              ),
+            rendered_locations:
+              normalisedLinkTargetLocations(
+                rendered,
+                target
+              )
+          };
+        };
+
         const assessContentNetEffect = (
           item
         ) => {
@@ -14995,6 +15370,49 @@ async function buildDomDiff() {
             normaliseText(
               renderedValue.text
             );
+
+          const relatedLinkEvidence =
+            relatedLinkEvidenceForContent(
+              item,
+              rawText,
+              renderedText
+            );
+
+          if (
+            relatedLinkEvidence
+              ?.target_retained
+          ) {
+            return {
+              type:
+                "content_block",
+              significance:
+                "low",
+              nano_review:
+                false,
+              reason:
+                `The apparent content-block ${item.change_type === "removed_in_rendered" ? "removal" : "addition"} is a representation change: the block maps to an internal link target that remains present across server and rendered inventories (${relatedLinkEvidence.raw_count} → ${relatedLinkEvidence.rendered_count}).`,
+              signals: {
+                semantic_weight:
+                  itemWeight(
+                    item
+                  ),
+                content_retained_across_representation:
+                  true,
+                retained_as:
+                  "link_target",
+                retained_direction:
+                  item.change_type ===
+                    "removed_in_rendered"
+                    ? "rendered"
+                    : "server_html",
+                retained_href:
+                  relatedLinkEvidence
+                    .target,
+                related_link_target_inventory:
+                  relatedLinkEvidence
+              }
+            };
+          }
 
           const retainedAfterRendering =
             item.change_type ===
@@ -15087,7 +15505,13 @@ async function buildDomDiff() {
                   item
                 ),
               content_retained_across_representation:
-                false
+                false,
+              ...(relatedLinkEvidence
+                ? {
+                    related_link_target_inventory:
+                      relatedLinkEvidence
+                  }
+                : {})
             }
           };
         };
