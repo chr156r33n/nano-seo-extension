@@ -2595,6 +2595,132 @@ function compactDomVerifiedFactsForModel(
 
   if (
     item?.kind ===
+      "content_block" &&
+    signals
+      .related_link_target_inventory
+  ) {
+    const related =
+      signals
+        .related_link_target_inventory;
+
+    facts.related_link_target = {
+      target:
+        related.target || "",
+      raw_count:
+        related.raw_count ?? 0,
+      rendered_count:
+        related.rendered_count ?? 0,
+      delta:
+        related.delta ?? 0,
+      target_retained:
+        !!related.target_retained,
+      source_text_exact_link_match:
+        !!related.source_text_exact_link_match,
+      source_text_link_similarity:
+        related.source_text_link_similarity ?? null,
+      source_text_link_length_ratio:
+        related.source_text_link_length_ratio ?? null,
+      opposite_anchor_similarity:
+        related.opposite_anchor_similarity ?? null,
+      raw_locations:
+        (
+          related.raw_locations ||
+          []
+        )
+          .slice(
+            0,
+            4
+          )
+          .map(
+            location => ({
+              ...(location.zone
+                ? {
+                    zone:
+                      location.zone
+                  }
+                : {}),
+              ...(location.component
+                ? {
+                    component:
+                      location.component
+                  }
+                : {}),
+              ...(location.selector
+                ? {
+                    selector:
+                      String(
+                        location.selector
+                      ).slice(
+                        0,
+                        180
+                      )
+                  }
+                : {}),
+              ...(location.container_selector
+                ? {
+                    container_selector:
+                      String(
+                        location.container_selector
+                      ).slice(
+                        0,
+                        180
+                      )
+                  }
+                : {})
+            })
+          ),
+      rendered_locations:
+        (
+          related.rendered_locations ||
+          []
+        )
+          .slice(
+            0,
+            4
+          )
+          .map(
+            location => ({
+              ...(location.zone
+                ? {
+                    zone:
+                      location.zone
+                  }
+                : {}),
+              ...(location.component
+                ? {
+                    component:
+                      location.component
+                  }
+                : {}),
+              ...(location.selector
+                ? {
+                    selector:
+                      String(
+                        location.selector
+                      ).slice(
+                        0,
+                        180
+                      )
+                  }
+                : {}),
+              ...(location.container_selector
+                ? {
+                    container_selector:
+                      String(
+                        location.container_selector
+                      ).slice(
+                        0,
+                        180
+                      )
+                  }
+                : {})
+            })
+          )
+    };
+  }
+
+  if (
+    item?.kind ===
     "heading"
   ) {
     facts.heading_level_only =
