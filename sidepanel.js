@@ -5420,6 +5420,153 @@ function domDiffValueDetails(item, value, label) {
   `;
 }
 
+
+function domLinkTargetInventoryHtml(item) {
+  if (
+    item?.kind !==
+      "link"
+  ) {
+    return "";
+  }
+
+  const signals =
+    item?.net_effect
+      ?.signals ||
+    {};
+
+  const beforeInventory =
+    signals
+      .raw_target_inventory ||
+    null;
+
+  const afterInventory =
+    signals
+      .rendered_target_inventory ||
+    null;
+
+  if (
+    !beforeInventory?.target &&
+    !afterInventory?.target
+  ) {
+    return "";
+  }
+
+  const renderLocationSet = (
+    label,
+    rows = []
+  ) => {
+    if (!rows.length) {
+      return "";
+    }
+
+    return (
+      '<div class="muted small" style="margin-top:4px">' +
+      '<strong>' +
+      escapeHtml(label) +
+      ':</strong> ' +
+      rows
+        .slice(0, 4)
+        .map(
+          loc =>
+            escapeHtml(
+              [
+                loc.zone,
+                loc.component,
+                loc.container_selector ||
+                  loc.selector
+              ]
+                .filter(Boolean)
+                .join(" · ")
+            )
+        )
+        .join(" | ") +
+      '</div>'
+    );
+  };
+
+  const renderInventory = (
+    label,
+    inventory
+  ) => {
+    if (
+      !inventory ||
+      !inventory.target
+    ) {
+      return "";
+    }
+
+    return (
+      '<div class="finding-row compact"><div>' +
+      '<div class="finding-title">' +
+      escapeHtml(label) +
+      '</div>' +
+      '<div class="muted small"><code>' +
+      escapeHtml(
+        inventory.target
+      ) +
+      '</code> · count ' +
+      escapeHtml(
+        inventory.raw_count ?? 0
+      ) +
+      ' → ' +
+      escapeHtml(
+        inventory.rendered_count ?? 0
+      ) +
+      ' · delta ' +
+      escapeHtml(
+        inventory.delta ?? 0
+      ) +
+      '</div>' +
+      renderLocationSet(
+        "Server locations",
+        inventory.raw_locations ||
+          []
+      ) +
+      renderLocationSet(
+        "Rendered locations",
+        inventory.rendered_locations ||
+          []
+      ) +
+      '</div></div>'
+    );
+  };
+
+  const sameTarget =
+    beforeInventory?.target &&
+    afterInventory?.target &&
+    beforeInventory.target ===
+      afterInventory.target;
+
+  const rows =
+    sameTarget
+      ? renderInventory(
+          "Target retained",
+          afterInventory
+        )
+      : (
+          renderInventory(
+            "Before target",
+            beforeInventory
+          ) +
+          renderInventory(
+            "After target",
+            afterInventory
+          )
+        );
+
+  if (!rows) {
+    return "";
+  }
+
+  return (
+    '<div class="result-subsection">' +
+    '<div class="result-label">Link target inventory</div>' +
+    '<div class="finding-list">' +
+    rows +
+    '</div></div>'
+  );
+}
+
 function domDiffItemCard(item) {
   const rawPacked =
     item.raw &&
@@ -5571,6 +5718,10 @@ function domDiffItemCard(item) {
         </div>
       `
       : ""}
+
+    ${domLinkTargetInventoryHtml(
+      item
+    )}
 
     ${item.nano_review === false
       ? '<div class="empty-state good-state" style="margin-top:8px">Resolved by the automated comparison · model review skipped</div>'
