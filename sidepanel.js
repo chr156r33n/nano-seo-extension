@@ -4795,6 +4795,10 @@ async function reviewDomDiffBatch(
                 batch.items,
               cmsContext:
                 domDiff?.cmsContext ||
+                null,
+              linkInventory:
+                domDiff?.summary
+                  ?.linkInventory ||
                 null
             },
             useCache:
@@ -7241,6 +7245,10 @@ async function analyseAll() {
                   batch,
                 cmsContext:
                   domDiff?.cmsContext ||
+                  null,
+                linkInventory:
+                  domDiff?.summary
+                    ?.linkInventory ||
                   null
               }
             );
