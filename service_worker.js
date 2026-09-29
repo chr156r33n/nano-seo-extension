@@ -981,7 +981,7 @@ function validateSchemaValue(
     )
   ) {
     fail(
-      "value is outside allowed enum"
+      `value ${JSON.stringify(value)} is outside allowed enum`
     );
   }
 
@@ -1014,6 +1014,270 @@ function validateSchemaValue(
   }
 
   return errors;
+}
+
+const FINDING_REVIEW_JUDGEMENTS =
+  new Set([
+    "likely_false_positive",
+    "no_material_impact",
+    "low_impact",
+    "context_dependent",
+    "meaningful_issue",
+    "manual_review"
+  ]);
+
+function normaliseFindingReviewJudgement(
+  value
+) {
+  const raw =
+    String(
+      value || ""
+    ).trim();
+
+  if (!raw) return raw;
+
+  if (
+    FINDING_REVIEW_JUDGEMENTS.has(
+      raw
+    )
+  ) {
+    return raw;
+  }
+
+  const key =
+    raw
+      .toLowerCase()
+      .replace(
+        /[^a-z0-9]+/g,
+        "_"
+      )
+      .replace(
+        /^_+|_+$/g,
+        ""
+      );
+
+  const aliases = {
+    false_positive:
+      "likely_false_positive",
+    likely_detector_error:
+      "likely_false_positive",
+    detector_error:
+      "likely_false_positive",
+    no_impact:
+      "no_material_impact",
+    no_issue:
+      "no_material_impact",
+    harmless:
+      "no_material_impact",
+    expected_behavior:
+      "no_material_impact",
+    expected_behaviour:
+      "no_material_impact",
+    acceptable:
+      "no_material_impact",
+    valid_implementation:
+      "no_material_impact",
+    minor:
+      "low_impact",
+    minor_issue:
+      "low_impact",
+    limited_impact:
+      "low_impact",
+    depends_on_context:
+      "context_dependent",
+    needs_context:
+      "context_dependent",
+    real_issue:
+      "meaningful_issue",
+    valid_issue:
+      "meaningful_issue",
+    actionable:
+      "meaningful_issue",
+    invalid:
+      "meaningful_issue",
+    invalid_format:
+      "meaningful_issue",
+    malformed:
+      "meaningful_issue",
+    likely_important:
+      "meaningful_issue",
+    manual:
+      "manual_review",
+    needs_review:
+      "manual_review",
+    review_required:
+      "manual_review",
+    insufficient_evidence:
+      "manual_review",
+    unclear:
+      "manual_review"
+  };
+
+  return (
+    aliases[key] ||
+    raw
+  );
+}
+
+function normaliseFalsePositiveOutput(
+  output,
+  payload
+) {
+  if (
+    !output ||
+    typeof output !==
+      "object"
+  ) {
+    return output;
+  }
+
+  output.judgement =
+    normaliseFindingReviewJudgement(
+      output.judgement
+    );
+
+  for (
+    const item
+    of output.item_assessments ||
+      []
+  ) {
+    item.judgement =
+      normaliseFindingReviewJudgement(
+        item.judgement
+      );
+  }
+
+  const code =
+    payload?.issue?.code ||
+    "";
+
+  const evidence =
+    payload?.issue
+      ?.deterministicValue;
+
+  const examples =
+    Array.isArray(
+      evidence?.examples
+    )
+      ? evidence.examples
+      : Array.isArray(
+          evidence
+        )
+        ? evidence
+        : [];
+
+  const established =
+    code ===
+      "hreflang_invalid_format"
+      ? (
+          examples.length > 0 &&
+          examples.every(
+            item =>
+              item
+                ?.format_looks_valid ===
+              false
+          )
+        )
+      : code ===
+          "rendered_head_invalid_element"
+        ? (
+            Number(
+              evidence?.count
+            ) > 0 ||
+            examples.length > 0
+          )
+        : code ===
+            "canonical_relationship"
+          ? !!(
+              evidence &&
+              typeof evidence ===
+                "object" &&
+              !Array.isArray(
+                evidence
+              ) &&
+              evidence.same_origin ===
+                true &&
+              evidence.self_canonical ===
+                false
+            )
+          : false;
+
+  if (!established) {
+    return output;
+  }
+
+  if (
+    code ===
+      "hreflang_invalid_format"
+  ) {
+    if (
+      !FINDING_REVIEW_JUDGEMENTS.has(
+        output.judgement
+      )
+    ) {
+      output.judgement =
+        "meaningful_issue";
+    }
+
+    for (
+      const item
+      of output.item_assessments ||
+        []
+    ) {
+      if (
+        !FINDING_REVIEW_JUDGEMENTS.has(
+          item.judgement
+        )
+      ) {
+        item.judgement =
+          "meaningful_issue";
+      }
+    }
+  }
+
+  const canonicalExpected =
+    code ===
+      "canonical_relationship" &&
+    evidence.relation ===
+      "query_removed" &&
+    evidence.same_path ===
+      true &&
+    evidence.current_has_query ===
+      true &&
+    evidence.canonical_has_query ===
+      false;
+
+  const replacement =
+    code ===
+      "hreflang_invalid_format"
+      ? "meaningful_issue"
+      : canonicalExpected
+        ? "no_material_impact"
+        : "context_dependent";
+
+  if (
+    output.judgement ===
+      "likely_false_positive"
+  ) {
+    output.judgement =
+      replacement;
+  }
+
+  for (
+    const item
+    of output.item_assessments ||
+      []
+  ) {
+    if (
+      item.judgement ===
+        "likely_false_positive"
+    ) {
+      item.judgement =
+        replacement;
+    }
+  }
+
+  return output;
 }
 
 function validateTaskResult(
@@ -3774,6 +4038,16 @@ ${taskSystem}${evidenceInstruction}${domLinkInventoryInstruction}${findingReview
       );
 
     if (cached) {
+      if (
+        task ===
+          "false_positive"
+      ) {
+        normaliseFalsePositiveOutput(
+          cached.output,
+          payload
+        );
+      }
+
       const validation =
         validateTaskResult(
           task,
@@ -3952,6 +4226,16 @@ ${taskSystem}${evidenceInstruction}${domLinkInventoryInstruction}${findingReview
         result.parsed.evidence_used =
           result.parsed.evidence_used.slice(0, evidenceMaxItems);
       }
+    }
+
+    if (
+      task ===
+        "false_positive"
+    ) {
+      normaliseFalsePositiveOutput(
+        result.parsed,
+        payload
+      );
     }
 
     outputValidation =
@@ -14285,6 +14569,262 @@ async function buildDomDiff() {
           };
         };
 
+        const semanticTextCandidates = (
+          inventory
+        ) => [
+          ...(
+            inventory.links ||
+            []
+          ).map(
+            value => ({
+              kind:
+                "link",
+              text:
+                value.text || "",
+              href:
+                value.href || "",
+              element:
+                value.element || null
+            })
+          ),
+          ...(
+            inventory.textBlocks ||
+            []
+          ).map(
+            value => ({
+              kind:
+                "content_block",
+              text:
+                value.text || "",
+              href:
+                "",
+              element:
+                value.element || null
+            })
+          )
+        ];
+
+        const bestCrossRepresentationTextMatch = (
+          inventory,
+          text
+        ) => {
+          const target =
+            normaliseText(
+              text
+            );
+
+          if (
+            target.length <
+            35
+          ) {
+            return null;
+          }
+
+          let best = null;
+
+          for (
+            const candidate
+            of semanticTextCandidates(
+              inventory
+            )
+          ) {
+            const candidateText =
+              normaliseText(
+                candidate.text
+              );
+
+            if (
+              candidateText.length <
+              20
+            ) {
+              continue;
+            }
+
+            const similarity =
+              tokenSimilarity(
+                target,
+                candidateText
+              );
+
+            if (
+              similarity <
+              0.9
+            ) {
+              continue;
+            }
+
+            const lengthRatio =
+              Math.min(
+                target.length,
+                candidateText.length
+              ) /
+              Math.max(
+                target.length,
+                candidateText.length
+              );
+
+            if (
+              lengthRatio <
+              0.7
+            ) {
+              continue;
+            }
+
+            if (
+              !best ||
+              similarity >
+                best.similarity ||
+              (
+                similarity ===
+                  best.similarity &&
+                candidate.kind ===
+                  "link" &&
+                best.kind !==
+                  "link"
+              )
+            ) {
+              best = {
+                ...candidate,
+                similarity:
+                  Number(
+                    similarity
+                      .toFixed(3)
+                  ),
+                length_ratio:
+                  Number(
+                    lengthRatio
+                      .toFixed(3)
+                  )
+              };
+            }
+          }
+
+          return best;
+        };
+
+        const assessContentNetEffect = (
+          item
+        ) => {
+          const rawValue =
+            item.raw &&
+            typeof item.raw ===
+              "object"
+              ? item.raw
+              : {};
+
+          const renderedValue =
+            item.rendered &&
+            typeof item.rendered ===
+              "object"
+              ? item.rendered
+              : {};
+
+          const rawText =
+            normaliseText(
+              rawValue.text
+            );
+
+          const renderedText =
+            normaliseText(
+              renderedValue.text
+            );
+
+          const retainedAfterRendering =
+            item.change_type ===
+              "removed_in_rendered"
+              ? bestCrossRepresentationTextMatch(
+                  rendered,
+                  rawText
+                )
+              : null;
+
+          const representedInServerHtml =
+            item.change_type ===
+              "added_in_rendered"
+              ? bestCrossRepresentationTextMatch(
+                  raw,
+                  renderedText
+                )
+              : null;
+
+          const representationMatch =
+            retainedAfterRendering ||
+            representedInServerHtml;
+
+          if (
+            representationMatch
+          ) {
+            const direction =
+              retainedAfterRendering
+                ? "after rendering"
+                : "in server HTML";
+
+            return {
+              type:
+                "content_block",
+              significance:
+                "low",
+              nano_review:
+                false,
+              reason:
+                `The apparent content-block ${item.change_type === "removed_in_rendered" ? "removal" : "addition"} is a representation change: materially equivalent text remains present ${direction} as a ${representationMatch.kind.replace("_"," ")}.`,
+              signals: {
+                semantic_weight:
+                  itemWeight(
+                    item
+                  ),
+                content_retained_across_representation:
+                  true,
+                retained_direction:
+                  retainedAfterRendering
+                    ? "rendered"
+                    : "server_html",
+                retained_as:
+                  representationMatch.kind,
+                text_similarity:
+                  representationMatch.similarity,
+                length_ratio:
+                  representationMatch.length_ratio,
+                ...(representationMatch.href
+                  ? {
+                      retained_href:
+                        representationMatch.href
+                    }
+                  : {})
+              }
+            };
+          }
+
+          return {
+            type:
+              "content_block",
+            significance:
+              significanceFromWeight(
+                itemWeight(
+                  item
+                )
+              ),
+            nano_review:
+              true,
+            reason:
+              item.change_type ===
+                "removed_in_rendered"
+                ? "Content present in server HTML was not found as materially equivalent text in the rendered content/link inventories."
+                : item.change_type ===
+                    "added_in_rendered"
+                  ? "Rendered content was not found as materially equivalent text in the server content/link inventories."
+                  : "Content changed after rendering and remains eligible for contextual review.",
+            signals: {
+              semantic_weight:
+                itemWeight(
+                  item
+                ),
+              content_retained_across_representation:
+                false
+            }
+          };
+        };
+
         for (
           const item
           of netItems
@@ -14307,6 +14847,18 @@ async function buildDomDiff() {
           ) {
             item.net_effect =
               assessLinkNetEffect(
+                item
+              );
+
+            item.nano_review =
+              item.net_effect
+                .nano_review;
+          } else if (
+            item.kind ===
+            "content_block"
+          ) {
+            item.net_effect =
+              assessContentNetEffect(
                 item
               );
 
