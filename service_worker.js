@@ -14285,6 +14285,262 @@ async function buildDomDiff() {
           };
         };
 
+        const semanticTextCandidates = (
+          inventory
+        ) => [
+          ...(
+            inventory.links ||
+            []
+          ).map(
+            value => ({
+              kind:
+                "link",
+              text:
+                value.text || "",
+              href:
+                value.href || "",
+              element:
+                value.element || null
+            })
+          ),
+          ...(
+            inventory.textBlocks ||
+            []
+          ).map(
+            value => ({
+              kind:
+                "content_block",
+              text:
+                value.text || "",
+              href:
+                "",
+              element:
+                value.element || null
+            })
+          )
+        ];
+
+        const bestCrossRepresentationTextMatch = (
+          inventory,
+          text
+        ) => {
+          const target =
+            normaliseText(
+              text
+            );
+
+          if (
+            target.length <
+            35
+          ) {
+            return null;
+          }
+
+          let best = null;
+
+          for (
+            const candidate
+            of semanticTextCandidates(
+              inventory
+            )
+          ) {
+            const candidateText =
+              normaliseText(
+                candidate.text
+              );
+
+            if (
+              candidateText.length <
+              20
+            ) {
+              continue;
+            }
+
+            const similarity =
+              tokenSimilarity(
+                target,
+                candidateText
+              );
+
+            if (
+              similarity <
+              0.9
+            ) {
+              continue;
+            }
+
+            const lengthRatio =
+              Math.min(
+                target.length,
+                candidateText.length
+              ) /
+              Math.max(
+                target.length,
+                candidateText.length
+              );
+
+            if (
+              lengthRatio <
+              0.7
+            ) {
+              continue;
+            }
+
+            if (
+              !best ||
+              similarity >
+                best.similarity ||
+              (
+                similarity ===
+                  best.similarity &&
+                candidate.kind ===
+                  "link" &&
+                best.kind !==
+                  "link"
+              )
+            ) {
+              best = {
+                ...candidate,
+                similarity:
+                  Number(
+                    similarity
+                      .toFixed(3)
+                  ),
+                length_ratio:
+                  Number(
+                    lengthRatio
+                      .toFixed(3)
+                  )
+              };
+            }
+          }
+
+          return best;
+        };
+
+        const assessContentNetEffect = (
+          item
+        ) => {
+          const rawValue =
+            item.raw &&
+            typeof item.raw ===
+              "object"
+              ? item.raw
+              : {};
+
+          const renderedValue =
+            item.rendered &&
+            typeof item.rendered ===
+              "object"
+              ? item.rendered
+              : {};
+
+          const rawText =
+            normaliseText(
+              rawValue.text
+            );
+
+          const renderedText =
+            normaliseText(
+              renderedValue.text
+            );
+
+          const retainedAfterRendering =
+            item.change_type ===
+              "removed_in_rendered"
+              ? bestCrossRepresentationTextMatch(
+                  rendered,
+                  rawText
+                )
+              : null;
+
+          const representedInServerHtml =
+            item.change_type ===
+              "added_in_rendered"
+              ? bestCrossRepresentationTextMatch(
+                  raw,
+                  renderedText
+                )
+              : null;
+
+          const representationMatch =
+            retainedAfterRendering ||
+            representedInServerHtml;
+
+          if (
+            representationMatch
+          ) {
+            const direction =
+              retainedAfterRendering
+                ? "after rendering"
+                : "in server HTML";
+
+            return {
+              type:
+                "content_block",
+              significance:
+                "low",
+              nano_review:
+                false,
+              reason:
+                `The apparent content-block ${item.change_type === "removed_in_rendered" ? "removal" : "addition"} is a representation change: materially equivalent text remains present ${direction} as a ${representationMatch.kind.replace("_"," ")}.`,
+              signals: {
+                semantic_weight:
+                  itemWeight(
+                    item
+                  ),
+                content_retained_across_representation:
+                  true,
+                retained_direction:
+                  retainedAfterRendering
+                    ? "rendered"
+                    : "server_html",
+                retained_as:
+                  representationMatch.kind,
+                text_similarity:
+                  representationMatch.similarity,
+                length_ratio:
+                  representationMatch.length_ratio,
+                ...(representationMatch.href
+                  ? {
+                      retained_href:
+                        representationMatch.href
+                    }
+                  : {})
+              }
+            };
+          }
+
+          return {
+            type:
+              "content_block",
+            significance:
+              significanceFromWeight(
+                itemWeight(
+                  item
+                )
+              ),
+            nano_review:
+              true,
+            reason:
+              item.change_type ===
+                "removed_in_rendered"
+                ? "Content present in server HTML was not found as materially equivalent text in the rendered content/link inventories."
+                : item.change_type ===
+                    "added_in_rendered"
+                  ? "Rendered content was not found as materially equivalent text in the server content/link inventories."
+                  : "Content changed after rendering and remains eligible for contextual review.",
+            signals: {
+              semantic_weight:
+                itemWeight(
+                  item
+                ),
+              content_retained_across_representation:
+                false
+            }
+          };
+        };
+
         for (
           const item
           of netItems
@@ -14307,6 +14563,18 @@ async function buildDomDiff() {
           ) {
             item.net_effect =
               assessLinkNetEffect(
+                item
+              );
+
+            item.nano_review =
+              item.net_effect
+                .nano_review;
+          } else if (
+            item.kind ===
+            "content_block"
+          ) {
+            item.net_effect =
+              assessContentNetEffect(
                 item
               );
 
