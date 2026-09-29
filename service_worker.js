@@ -2477,6 +2477,71 @@ function taskVars(task, payload, settings, provider = null) {
         payload.context || {}
       );
 
+    if (
+      provider === "nano"
+    ) {
+      const compactContext = {
+        url:
+          context.url || "",
+        title:
+          context.title || "",
+        canonical:
+          context.canonical || "",
+        robots:
+          context.robots || "",
+        htmlLang:
+          context.htmlLang || ""
+      };
+
+      if (
+        payload.issue?.code ===
+          "canonical_relationship"
+      ) {
+        compactContext.canonicalRelationship =
+          context.canonicalRelationship ||
+          null;
+      }
+
+      if (
+        payload.issue?.code ===
+          "rendered_head_invalid_element"
+      ) {
+        compactContext.headContext = {
+          canonical:
+            context.canonical || "",
+          robots:
+            context.robots || "",
+          title:
+            context.title || ""
+        };
+      }
+
+      if (
+        String(
+          payload.issue?.code || ""
+        ).startsWith("hreflang_")
+      ) {
+        compactContext.hreflangContext = {
+          htmlLang:
+            context.htmlLang || ""
+        };
+      }
+
+      for (
+        const key
+        of Object.keys(
+          context
+        )
+      ) {
+        delete context[key];
+      }
+
+      Object.assign(
+        context,
+        compactContext
+      );
+    }
+
     // The affected evidence gets its own prominent prompt section.
     // Remove duplicated nested copies so a small local model does not
     // spend most of its context window rereading the same examples.
@@ -3570,11 +3635,24 @@ PAGE-LINK-INVENTORY CONTEXT:
 Use page-level raw/rendered link counts only to make the factual summary easier to understand. Do not turn them into severity or recommendation judgements.`
         : "";
 
+  const findingReviewInstruction =
+    task ===
+      "false_positive"
+      ? `
+
+MANDATORY FINDING REVIEW RULES:
+- The specific deterministic evidence is authoritative unless it explicitly says evidence is incomplete.
+- For rendered_head_invalid_element, use the supplied tag, markup, position and possible_implication. Do not claim rendered DOM alone proves source-HTML parser termination.
+- For canonical_relationship, a same-origin non-self relationship is a real detected condition. A same-path query_removed canonical can be expected behaviour rather than a detector error.
+- For hreflang_invalid_format, format_looks_valid=false establishes malformed syntax. Use format_error and suggested_value when supplied.
+- For hreflang_unapproved_value, assess only project allow-list policy; malformed syntax belongs to hreflang_invalid_format.`
+      : "";
+
   const system =
     `${MODEL_SECURITY_INSTRUCTION}
 
 TRUSTED TASK INSTRUCTIONS:
-${promptDef.system}${evidenceInstruction}${domLinkInventoryInstruction}`;
+${promptDef.system}${evidenceInstruction}${domLinkInventoryInstruction}${findingReviewInstruction}`;
 
   const inputMode =
     payload?.inputMode || null;
@@ -4908,37 +4986,143 @@ async function captureActiveTab() {
             "template"
           ]);
 
-        const renderedHeadInvalidElements =
+        const renderedHeadChildren =
           [
             ...(
               document.head
                 ?.children ||
               []
             )
-          ]
+          ];
+
+        const describeHeadElement = (
+          el
+        ) => {
+          if (!el) return null;
+
+          const tag =
+            el.tagName
+              .toLowerCase();
+
+          const name =
+            String(
+              el.getAttribute("name") ||
+              el.getAttribute("property") ||
+              el.getAttribute("http-equiv") ||
+              ""
+            )
+              .trim()
+              .toLowerCase();
+
+          const rel =
+            String(
+              el.getAttribute("rel") ||
+              ""
+            )
+              .trim()
+              .toLowerCase();
+
+          const type =
+            String(
+              el.getAttribute("type") ||
+              ""
+            )
+              .trim()
+              .toLowerCase();
+
+          const critical =
+            tag === "title" ||
+            (
+              tag === "meta" &&
+              ["description","robots","googlebot"].includes(name)
+            ) ||
+            (
+              tag === "link" &&
+              rel.split(/\s+/).includes("canonical")
+            ) ||
+            (
+              tag === "script" &&
+              type === "application/ld+json"
+            );
+
+          return {
+            tag,
+            critical,
+            html:
+              el.outerHTML
+                .replace(/\s+/g," ")
+                .slice(0,240)
+          };
+        };
+
+        const implicationForInvalidHeadTag = (
+          tag
+        ) => {
+          const known = {
+            iframe:
+              "An iframe is not valid metadata content for <head>. If it was present in source HTML before parsing, it could force parser recovery and move later metadata into <body>; if JavaScript inserted it after parsing, that parser-side risk does not apply. Either way, its presence in rendered <head> is non-conforming and worth tracing to the responsible script/component.",
+            div:
+              "A div is not valid metadata content for <head>. In source HTML it can trigger parser recovery and displace later metadata; if injected later by JavaScript, it is primarily a DOM-conformance/implementation issue.",
+            p:
+              "A paragraph is not valid metadata content for <head>. In source HTML it can trigger parser recovery and displace later metadata; if injected later by JavaScript, it is primarily a DOM-conformance/implementation issue."
+          };
+
+          return (
+            known[tag] ||
+            "This element is not valid metadata content for <head>. If it originated in source HTML before parsing, it could alter parser state and displace later metadata; if JavaScript inserted it after parsing, that parser-side risk is not established by this check."
+          );
+        };
+
+        const renderedHeadInvalidElements =
+          renderedHeadChildren
+            .map((el,index) => ({el,index}))
             .filter(
-              el =>
+              ({el}) =>
                 !validHeadTags.has(
-                  el.tagName
-                    .toLowerCase()
+                  el.tagName.toLowerCase()
                 )
             )
             .map(
-              el => ({
-                tag:
-                  el.tagName
-                    .toLowerCase(),
-                html:
-                  el.outerHTML
-                    .replace(
-                      /\s+/g,
-                      " "
-                    )
-                    .slice(
-                      0,
-                      240
-                    )
-              })
+              ({el,index}) => {
+                const described =
+                  describeHeadElement(el);
+
+                return {
+                  tag:
+                    described.tag,
+                  html:
+                    described.html,
+                  child_index:
+                    index + 1,
+                  total_head_children:
+                    renderedHeadChildren.length,
+                  previous_element:
+                    describeHeadElement(
+                      renderedHeadChildren[index - 1]
+                    ),
+                  next_element:
+                    describeHeadElement(
+                      renderedHeadChildren[index + 1]
+                    ),
+                  critical_elements_after:
+                    renderedHeadChildren
+                      .slice(index + 1)
+                      .map(describeHeadElement)
+                      .filter(
+                        item =>
+                          item?.critical
+                      )
+                      .slice(0,8),
+                  possible_implication:
+                    implicationForInvalidHeadTag(
+                      described.tag
+                    ),
+                  observation_scope:
+                    "rendered_dom_head",
+                  source_html_parser_effect:
+                    "not_established_by_this_check"
+                };
+              }
             );
 
         const robotsMetaValues =
@@ -5387,6 +5571,36 @@ async function captureActiveTab() {
                   noExtraParts
                 );
 
+              const reversedLanguageRegion =
+                lower !== "x-default" &&
+                parts.length === 2 &&
+                regionCodes.has(
+                  String(parts[0] || "").toUpperCase()
+                ) &&
+                languageCodes.has(
+                  String(parts[1] || "").toLowerCase()
+                );
+
+              const formatError =
+                formatLooksValid
+                  ? ""
+                  : reversedLanguageRegion
+                    ? "language_region_order_reversed"
+                    : !languageValid
+                      ? "invalid_language_subtag"
+                      : !scriptValid
+                        ? "invalid_script_subtag"
+                        : !regionValid
+                          ? "invalid_region_subtag"
+                          : !noExtraParts
+                            ? "unsupported_subtag_structure"
+                            : "invalid_hreflang_format";
+
+              const formatSuggestedValue =
+                reversedLanguageRegion
+                  ? `${String(parts[1]).toLowerCase()}-${String(parts[0]).toUpperCase()}`
+                  : "";
+
               const normalisedValue =
                 lower ===
                   "x-default"
@@ -5462,16 +5676,20 @@ async function captureActiveTab() {
                   agreedContext.related,
                 format_looks_valid:
                   formatLooksValid,
+                format_error:
+                  formatError,
                 normalised_value:
                   formatLooksValid
                     ? normalisedValue
                     : "",
                 suggested_value:
-                  agreedValue &&
-                  agreedValue !==
-                    item.value
-                    ? agreedValue
-                    : ""
+                  formatSuggestedValue ||
+                  (
+                    agreedValue &&
+                    agreedValue !== item.value
+                      ? agreedValue
+                      : ""
+                  )
               };
             }
           );
@@ -5514,6 +5732,7 @@ async function captureActiveTab() {
         const unapprovedHreflangs =
           hreflangValidation.filter(
             h =>
+              h.format_looks_valid === true &&
               h.in_agreed_list === false
           );
 
@@ -6770,9 +6989,24 @@ async function captureActiveTab() {
             ? "finding"
             : "pass",
           renderedHeadInvalidElements.length
-            ? `${renderedHeadInvalidElements.length} invalid element(s) are present in the rendered head`
+            ? `${renderedHeadInvalidElements.length} invalid element(s) are present as children of the rendered head`
             : "Rendered head contains only valid metadata elements",
-          renderedHeadInvalidElements
+          {
+            count:
+              renderedHeadInvalidElements.length,
+            observation_scope:
+              "rendered_dom_head",
+            source_html_parser_effect:
+              "not_established_by_this_check",
+            examples:
+              renderedHeadInvalidElements.slice(
+                0,
+                maxFindingReviewItems
+              ),
+            examples_capped:
+              renderedHeadInvalidElements.length >
+              maxFindingReviewItems
+          }
         );
 
         addCheck(
