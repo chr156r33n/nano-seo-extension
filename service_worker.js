@@ -1206,6 +1206,35 @@ function normaliseFalsePositiveOutput(
     return output;
   }
 
+  if (
+    code ===
+      "hreflang_invalid_format"
+  ) {
+    if (
+      !FINDING_REVIEW_JUDGEMENTS.has(
+        output.judgement
+      )
+    ) {
+      output.judgement =
+        "meaningful_issue";
+    }
+
+    for (
+      const item
+      of output.item_assessments ||
+        []
+    ) {
+      if (
+        !FINDING_REVIEW_JUDGEMENTS.has(
+          item.judgement
+        )
+      ) {
+        item.judgement =
+          "meaningful_issue";
+      }
+    }
+  }
+
   const canonicalExpected =
     code ===
       "canonical_relationship" &&
