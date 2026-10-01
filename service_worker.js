@@ -5797,6 +5797,128 @@ async function captureActiveTab() {
                   .filter(Boolean)
             );
 
+        const renderedRobotsDirectiveValues = [
+          ...robotsMetaValues.map(
+            value => ({
+              source:
+                "meta_robots",
+              value
+            })
+          ),
+          ...googlebotMetaValues.map(
+            value => ({
+              source:
+                "meta_googlebot",
+              value
+            })
+          )
+        ];
+
+        const renderedDirectiveText =
+          renderedRobotsDirectiveValues
+            .map(
+              item =>
+                String(
+                  item.value || ""
+                ).toLowerCase()
+            )
+            .join(", ");
+
+        const hasRenderedDirective = (
+          directive
+        ) =>
+          new RegExp(
+            "(?:^|[\\s,])" +
+            directive.replace(
+              /[-/\\^$*+?.()|[\]{}]/g,
+              "\\        const robotsConflict =
+          (
+            robotsTokens.includes("index") &&
+            robotsTokens.includes("noindex")
+          ) ||"
+            ) +
+            "(?=$|[\\s,])",
+            "i"
+          ).test(
+            renderedDirectiveText
+          );
+
+        const renderedValueDirective = (
+          directive
+        ) => {
+          const match =
+            new RegExp(
+              "(?:^|[\\s,])" +
+              directive.replace(
+                /[-/\\^$*+?.()|[\]{}]/g,
+                "\\        const robotsConflict =
+          (
+            robotsTokens.includes("index") &&
+            robotsTokens.includes("noindex")
+          ) ||"
+              ) +
+              "\\s*:\\s*([^,\\s]+)",
+              "i"
+            ).exec(
+              renderedDirectiveText
+            );
+
+          return match
+            ? match[1]
+            : "";
+        };
+
+        const renderedUnavailableAfter =
+          (() => {
+            const match =
+              /(?:^|[\s,])unavailable_after\s*:\s*([^,]+)/i.exec(
+                renderedDirectiveText
+              );
+
+            return match
+              ? match[1].trim()
+              : "";
+          })();
+
+        const renderedRobotsInventory = {
+          sources:
+            renderedRobotsDirectiveValues,
+          noindex:
+            hasRenderedDirective(
+              "noindex"
+            ),
+          nofollow:
+            hasRenderedDirective(
+              "nofollow"
+            ),
+          noarchive:
+            hasRenderedDirective(
+              "noarchive"
+            ),
+          nosnippet:
+            hasRenderedDirective(
+              "nosnippet"
+            ),
+          noimageindex:
+            hasRenderedDirective(
+              "noimageindex"
+            ),
+          max_snippet:
+            renderedValueDirective(
+              "max-snippet"
+            ),
+          max_image_preview:
+            renderedValueDirective(
+              "max-image-preview"
+            ),
+          max_video_preview:
+            renderedValueDirective(
+              "max-video-preview"
+            ),
+          unavailable_after:
+            renderedUnavailableAfter
+        };
+
         const robotsConflict =
           (
             robotsTokens.includes("index") &&
@@ -7632,17 +7754,65 @@ async function captureActiveTab() {
 
         addCheck(
           "robots_noindex",
-          /noindex/i.test(
-            robots
-          )
+          renderedRobotsInventory
+            .noindex
             ? "finding"
             : "pass",
-          /noindex/i.test(
-            robots
-          )
-            ? "Robots meta contains noindex"
-            : "No noindex directive detected in robots meta",
-          robots
+          renderedRobotsInventory
+            .noindex
+            ? "Rendered robots directives contain noindex"
+            : "No noindex directive detected in rendered robots or Googlebot meta",
+          renderedRobotsInventory
+        );
+
+        addCheck(
+          "robots_nofollow",
+          renderedRobotsInventory
+            .nofollow
+            ? "finding"
+            : "pass",
+          renderedRobotsInventory
+            .nofollow
+            ? "Rendered robots directives contain nofollow"
+            : "No nofollow directive detected in rendered robots or Googlebot meta",
+          renderedRobotsInventory
+        );
+
+        const renderedPreviewRestrictions = {
+          noarchive:
+            renderedRobotsInventory.noarchive,
+          nosnippet:
+            renderedRobotsInventory.nosnippet,
+          noimageindex:
+            renderedRobotsInventory.noimageindex,
+          max_snippet:
+            renderedRobotsInventory.max_snippet,
+          max_image_preview:
+            renderedRobotsInventory.max_image_preview,
+          max_video_preview:
+            renderedRobotsInventory.max_video_preview,
+          unavailable_after:
+            renderedRobotsInventory.unavailable_after
+        };
+
+        const hasRenderedPreviewRestriction =
+          Object.values(
+            renderedPreviewRestrictions
+          ).some(Boolean);
+
+        addCheck(
+          "robots_preview_restrictions",
+          hasRenderedPreviewRestriction
+            ? "finding"
+            : "pass",
+          hasRenderedPreviewRestriction
+            ? "Rendered robots directives restrict caching, snippets, previews, images or availability"
+            : "No additional snippet/preview/availability restrictions detected",
+          {
+            ...renderedPreviewRestrictions,
+            sources:
+              renderedRobotsInventory.sources
+          }
         );
 
         addCheck(
@@ -8096,6 +8266,9 @@ async function captureActiveTab() {
           robotsMetaValues,
 
           googlebotMetaValues,
+
+          robotsDirectiveInventory:
+            renderedRobotsInventory,
 
           viewport,
 
