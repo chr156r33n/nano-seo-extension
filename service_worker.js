@@ -9520,6 +9520,109 @@ function sameUrl(a, b) {
   }
 }
 
+function robotsDirectiveInventory(
+  sources = []
+) {
+  const values =
+    sources
+      .flatMap(
+        source =>
+          (
+            source?.values ||
+            []
+          ).map(
+            value => ({
+              source:
+                source.source,
+              value:
+                String(
+                  value || ""
+                )
+            })
+          )
+      );
+
+  const joined =
+    values
+      .map(
+        item =>
+          item.value
+            .toLowerCase()
+      )
+      .join(", ");
+
+  const has =
+    directive =>
+      new RegExp(
+        "(?:^|[\\s,])" +
+        directive.replace(
+          /[-/\\^$*+?.()|[\]{}]/g,
+          "\\function buildIndexabilitySignalFindings({rendered, current, robotsTxt, canonicalTarget}) {
+  const findings = [];"
+        ) +
+        "(?=$|[\\s,])",
+        "i"
+      ).test(
+        joined
+      );
+
+  const valueFor =
+    directive => {
+      const match =
+        new RegExp(
+          "(?:^|[\\s,])" +
+          directive.replace(
+            /[-/\\^$*+?.()|[\]{}]/g,
+            "\\function buildIndexabilitySignalFindings({rendered, current, robotsTxt, canonicalTarget}) {
+  const findings = [];"
+          ) +
+          "\\s*:\\s*([^,\\s]+)",
+          "i"
+        ).exec(
+          joined
+        );
+
+      return match
+        ? match[1]
+        : "";
+    };
+
+  const unavailableAfter =
+    (() => {
+      const match =
+        /(?:^|[\s,])unavailable_after\s*:\s*([^,]+)/i.exec(
+          joined
+        );
+
+      return match
+        ? match[1].trim()
+        : "";
+    })();
+
+  return {
+    sources:
+      values,
+    noindex:
+      has("noindex"),
+    nofollow:
+      has("nofollow"),
+    noarchive:
+      has("noarchive"),
+    nosnippet:
+      has("nosnippet"),
+    noimageindex:
+      has("noimageindex"),
+    max_snippet:
+      valueFor("max-snippet"),
+    max_image_preview:
+      valueFor("max-image-preview"),
+    max_video_preview:
+      valueFor("max-video-preview"),
+    unavailable_after:
+      unavailableAfter
+  };
+}
+
 function buildIndexabilitySignalFindings({rendered, current, robotsTxt, canonicalTarget}) {
   const findings = [];
   const add = (code, severity, message, evidence) =>
@@ -9534,6 +9637,40 @@ function buildIndexabilitySignalFindings({rendered, current, robotsTxt, canonica
   const rawGooglebot = raw.googlebotMetaValues || [];
   const httpCanonicals = current?.headerCanonicals || [];
   const xRobots = current?.xRobotsTag ? [current.xRobotsTag] : [];
+
+  const directiveInventory =
+    robotsDirectiveInventory([
+      {
+        source:
+          "http_x_robots_tag",
+        values:
+          xRobots
+      },
+      {
+        source:
+          "server_meta_robots",
+        values:
+          rawRobots
+      },
+      {
+        source:
+          "server_meta_googlebot",
+        values:
+          rawGooglebot
+      },
+      {
+        source:
+          "rendered_meta_robots",
+        values:
+          renderedRobots
+      },
+      {
+        source:
+          "rendered_meta_googlebot",
+        values:
+          renderedGooglebot
+      }
+    ]);
 
   if (rawCanonicals[0] && renderedCanonicals[0] && !sameUrl(rawCanonicals[0], renderedCanonicals[0])) {
     add("raw_rendered_canonical_conflict", "high", "Server HTML and rendered DOM declare different canonical URLs", {raw: rawCanonicals[0], rendered: renderedCanonicals[0]});
@@ -9600,6 +9737,45 @@ function buildIndexabilitySignalFindings({rendered, current, robotsTxt, canonica
       "high",
       "X-Robots-Tag contains noindex",
       current?.xRobotsTag || ""
+    );
+  }
+
+  if (
+    directiveInventory
+      .nofollow
+  ) {
+    add(
+      "effective_robots_nofollow",
+      "medium",
+      "Effective robots directives contain nofollow",
+      directiveInventory
+    );
+  }
+
+  const hasPreviewRestriction =
+    directiveInventory
+      .noarchive ||
+    directiveInventory
+      .nosnippet ||
+    directiveInventory
+      .noimageindex ||
+    !!directiveInventory
+      .max_snippet ||
+    !!directiveInventory
+      .max_image_preview ||
+    !!directiveInventory
+      .max_video_preview ||
+    !!directiveInventory
+      .unavailable_after;
+
+  if (
+    hasPreviewRestriction
+  ) {
+    add(
+      "effective_robots_preview_restrictions",
+      "review",
+      "Effective robots directives restrict caching, snippets, previews, images or availability",
+      directiveInventory
     );
   }
 
@@ -9993,6 +10169,45 @@ async function checkIndexabilitySignals(payload) {
     robotsTxt,
     headIntegrity,
     canonicalTarget,
+    robotsDirectiveInventory:
+      robotsDirectiveInventory([
+        {
+          source:
+            "http_x_robots_tag",
+          values:
+            current?.xRobotsTag
+              ? [current.xRobotsTag]
+              : []
+        },
+        {
+          source:
+            "server_meta_robots",
+          values:
+            current?.html?.robotsMetaValues ||
+            []
+        },
+        {
+          source:
+            "server_meta_googlebot",
+          values:
+            current?.html?.googlebotMetaValues ||
+            []
+        },
+        {
+          source:
+            "rendered_meta_robots",
+          values:
+            rendered.robotsMetaValues ||
+            []
+        },
+        {
+          source:
+            "rendered_meta_googlebot",
+          values:
+            rendered.googlebotMetaValues ||
+            []
+        }
+      ]),
     findings,
     summary: {
       findings:
