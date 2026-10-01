@@ -1796,6 +1796,8 @@ const DETERMINISTIC_PRIORITY = {
   robots_googlebot_conflict: "high",
   rendered_head_invalid_element: "high",
   robots_noindex: "high",
+  robots_nofollow: "medium",
+  robots_preview_restrictions: "low",
   canonical_protocol_downgrade: "high",
   multiple_canonical: "high",
   canonical_fragment: "high",

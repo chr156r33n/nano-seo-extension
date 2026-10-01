@@ -439,6 +439,16 @@ EXAMPLE URL:
       baselinePriority: "high",
       consequence: "Noindex directly prevents eligible pages from remaining indexed when the directive is discovered and honoured."
     },
+    robots_nofollow: {
+      impacts: ["Crawling", "Link discovery"],
+      baselinePriority: "medium",
+      consequence: "Nofollow asks compliant crawlers not to follow links from the page, which can reduce link discovery and internal-link signal flow."
+    },
+    robots_preview_restrictions: {
+      impacts: ["Search appearance", "Preview eligibility"],
+      baselinePriority: "low",
+      consequence: "Snippet, archive, image-indexing, preview or availability directives can deliberately limit how a page or its media appears in search without preventing indexing."
+    },
     robots_conflict: {
       impacts: ["Indexing", "Crawling"],
       baselinePriority: "high",
@@ -590,6 +600,10 @@ EXAMPLE URL:
     rendered_head_invalid_element: `This check establishes only that a non-head-valid element is present as a child of the rendered DOM <head>. Use the supplied tag, markup, position, nearby elements, critical metadata after it, and possible_implication. Do not claim this proves source-HTML parser termination or displaced metadata because JavaScript may have inserted the element after parsing. Source-head parser disruption is a separate concern and requires source-head evidence.`,
 
     robots_noindex: `Noindex can be intentional for utility, search, filter, account, cart, duplicate, staging, temporary, or otherwise non-search-facing pages. It is more concerning when the page appears unique, useful, index-worthy, and clearly intended to attract organic search traffic.`,
+
+    robots_nofollow: `Nofollow can be intentional on utility, untrusted or transitional pages. Assess whether links on this page are intended to support crawl discovery or internal linking; do not treat nofollow as equivalent to noindex.`,
+
+    robots_preview_restrictions: `Directives such as nosnippet, noarchive, noimageindex, max-snippet, max-image-preview, max-video-preview and unavailable_after can be deliberate presentation controls. Judge whether the restriction conflicts with the page's intended search appearance rather than assuming every restriction is an SEO defect.`,
 
     images_missing_alt: `Missing alt text is only problematic when an image conveys meaningful information that is not otherwise available. Decorative images do not need descriptive alt text. Linked or functional images require more scrutiny because they may need an accessible text alternative.`,
 
