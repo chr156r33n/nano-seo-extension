@@ -5829,14 +5829,7 @@ async function captureActiveTab() {
         ) =>
           new RegExp(
             "(?:^|[\\s,])" +
-            directive.replace(
-              /[-/\\^$*+?.()|[\]{}]/g,
-              "\\        const robotsConflict =
-          (
-            robotsTokens.includes("index") &&
-            robotsTokens.includes("noindex")
-          ) ||"
-            ) +
+            directive +
             "(?=$|[\\s,])",
             "i"
           ).test(
@@ -5849,14 +5842,7 @@ async function captureActiveTab() {
           const match =
             new RegExp(
               "(?:^|[\\s,])" +
-              directive.replace(
-                /[-/\\^$*+?.()|[\]{}]/g,
-                "\\        const robotsConflict =
-          (
-            robotsTokens.includes("index") &&
-            robotsTokens.includes("noindex")
-          ) ||"
-              ) +
+              directive +
               "\\s*:\\s*([^,\\s]+)",
               "i"
             ).exec(
@@ -5884,37 +5870,21 @@ async function captureActiveTab() {
           sources:
             renderedRobotsDirectiveValues,
           noindex:
-            hasRenderedDirective(
-              "noindex"
-            ),
+            hasRenderedDirective("noindex"),
           nofollow:
-            hasRenderedDirective(
-              "nofollow"
-            ),
+            hasRenderedDirective("nofollow"),
           noarchive:
-            hasRenderedDirective(
-              "noarchive"
-            ),
+            hasRenderedDirective("noarchive"),
           nosnippet:
-            hasRenderedDirective(
-              "nosnippet"
-            ),
+            hasRenderedDirective("nosnippet"),
           noimageindex:
-            hasRenderedDirective(
-              "noimageindex"
-            ),
+            hasRenderedDirective("noimageindex"),
           max_snippet:
-            renderedValueDirective(
-              "max-snippet"
-            ),
+            renderedValueDirective("max-snippet"),
           max_image_preview:
-            renderedValueDirective(
-              "max-image-preview"
-            ),
+            renderedValueDirective("max-image-preview"),
           max_video_preview:
-            renderedValueDirective(
-              "max-video-preview"
-            ),
+            renderedValueDirective("max-video-preview"),
           unavailable_after:
             renderedUnavailableAfter
         };
@@ -9524,30 +9494,23 @@ function robotsDirectiveInventory(
   sources = []
 ) {
   const values =
-    sources
-      .flatMap(
-        source =>
-          (
-            source?.values ||
-            []
-          ).map(
-            value => ({
-              source:
-                source.source,
-              value:
-                String(
-                  value || ""
-                )
-            })
-          )
-      );
+    sources.flatMap(
+      source =>
+        (source?.values || []).map(
+          value => ({
+            source:
+              source.source,
+            value:
+              String(value || "")
+          })
+        )
+    );
 
   const joined =
     values
       .map(
         item =>
-          item.value
-            .toLowerCase()
+          item.value.toLowerCase()
       )
       .join(", ");
 
@@ -9555,32 +9518,20 @@ function robotsDirectiveInventory(
     directive =>
       new RegExp(
         "(?:^|[\\s,])" +
-        directive.replace(
-          /[-/\\^$*+?.()|[\]{}]/g,
-          "\\function buildIndexabilitySignalFindings({rendered, current, robotsTxt, canonicalTarget}) {
-  const findings = [];"
-        ) +
+        directive +
         "(?=$|[\\s,])",
         "i"
-      ).test(
-        joined
-      );
+      ).test(joined);
 
   const valueFor =
     directive => {
       const match =
         new RegExp(
           "(?:^|[\\s,])" +
-          directive.replace(
-            /[-/\\^$*+?.()|[\]{}]/g,
-            "\\function buildIndexabilitySignalFindings({rendered, current, robotsTxt, canonicalTarget}) {
-  const findings = [];"
-          ) +
+          directive +
           "\\s*:\\s*([^,\\s]+)",
           "i"
-        ).exec(
-          joined
-        );
+        ).exec(joined);
 
       return match
         ? match[1]
